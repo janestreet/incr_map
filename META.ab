@@ -1,0 +1,8 @@
+version = "$(pkg_version)"
+description = "Helpers for incremental operations on map like data structures."
+requires = "bin_prot core_kernel fieldslib incremental_kernel ppx_assert.runtime-lib ppx_bench.runtime-lib ppx_expect.collector ppx_hash.runtime-lib ppx_inline_test.runtime-lib sexplib typerep variantslib"
+archive(byte  ) = "incr_map.cma"
+archive(native) = "incr_map.cmxa"
+plugin(byte  ) = "incr_map.cma"
+plugin(native) = "incr_map.cmxs"
+exists_if = "incr_map.cma"
