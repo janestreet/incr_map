@@ -41,6 +41,107 @@ let%expect_test "simple filter_mapi" =
   [%expect {| (((bar 1) (foo 9)) -> ((foo 81))) |}];
 ;;
 
+module Map_operations = struct
+  type 'a t =
+    | Stabilize
+    | Add of int * 'a
+    | Remove of int
+    [@@deriving sexp_of]
+
+  let gen' ?keys_size ?operations data_gen =
+    let open Quickcheck.Generator.Let_syntax in
+    let%bind keys =
+      let length = match keys_size with
+        | Some n -> `Exactly n
+        | None -> `At_least 5
+      in
+      List.gen' ~length Int.gen
+      >>| List.dedup ~compare:Int.compare
+    in
+    let key_gen = Quickcheck.Generator.of_list keys in
+    List.gen' ?length:operations (Quickcheck.Generator.weighted_union [
+      1., return Stabilize;
+      4., (let%map key = key_gen in Remove key);
+      10., (let%map key = key_gen and data = data_gen in Add (key, data));
+    ])
+  ;;
+
+  let gen data_gen = gen' data_gen
+
+  let run_operations operations ~into:var ~after_stabilize =
+    List.fold operations ~init:Int.Map.empty ~f:(fun map oper ->
+      match oper with
+      | Add (key, data) -> Map.add map ~key ~data
+      | Remove key -> Map.remove map key
+      | Stabilize ->
+        Incr.Var.set var map;
+        Incr.stabilize ();
+        after_stabilize ();
+        map)
+    |> ignore
+  ;;
+end
+
+let%test_unit "filter_mapi randomised fuzz test" =
+  Quickcheck.test
+    ~sexp_of:(List.sexp_of_t (Map_operations.sexp_of_t Int.sexp_of_t))
+    (Map_operations.gen Int.gen)
+    ~f:(fun operations ->
+      let m = Incr.Var.create Int.Map.empty in
+      let watch_m = Incr.Var.watch m
+      and f ~key ~data =
+        let y = data * data in
+        Option.some_if (key + y > 33) y
+      in
+      let incr_filter_mapi =
+        Incr.Map.filter_mapi watch_m ~data_equal:Int.equal ~f
+        |> Incr.observe
+      and slow_filter_mapi =
+        Incr.map watch_m ~f:(Map.filter_mapi ~f)
+        |> Incr.observe
+      in
+      Map_operations.run_operations operations ~into:m ~after_stabilize:(fun () ->
+        [%test_result: int Int.Map.t]
+          ~expect:(Incr.Observer.value_exn slow_filter_mapi)
+          (Incr.Observer.value_exn incr_filter_mapi));
+      Incr.Observer.disallow_future_use incr_filter_mapi;
+      Incr.Observer.disallow_future_use slow_filter_mapi);
+;;
+
+let%bench_module "filter_mapi" = (
+  module struct
+    let test_data ~size ~operations =
+      (* It is important this is deterministic *)
+      Quickcheck.random_value
+        ~seed:(`Deterministic (
+          sprintf "%i-%i-%i-hello world, do not forget your towel"
+            42 size operations))
+        (Map_operations.gen' Int.gen
+           ~keys_size:size
+           ~operations:(`Exactly operations))
+    ;;
+
+    let benchmark_filter_mapi filter_mapi ~operations =
+      let var =
+        Incr.Var.create Int.Map.empty
+      and test_map_fn ~key ~data =
+        let y = data * data in
+        Option.some_if (y + key > 33) y
+      in
+      let mapped = Incr.observe (
+        filter_mapi ?data_equal:(Some Int.equal) (Incr.Var.watch var) ~f:test_map_fn)
+      in
+      Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
+        ignore (Incr.Observer.value_exn mapped));
+      Incr.Observer.disallow_future_use mapped;
+    ;;
+
+    let%bench_fun "random-ops" [@indexed operations = [5000; 10000; 100000]] =
+      let operations = test_data ~size:(operations / 100) ~operations in
+      fun () -> benchmark_filter_mapi Incr.Map.filter_mapi ~operations
+    ;;
+end)
+
 let%test_unit "filter_mapi' should not throw on empty map" =
   let observer = Incr.observe (
     Incr.Map.filter_mapi'

@@ -32,15 +32,19 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
   let with_comparator map f =
     Incr.bind (Incr.freeze (Incr.map map ~f:Map.comparator)) f
 
-  let filter_mapi ?data_equal map ~f =
-    with_comparator map (fun comparator ->
-      unordered_fold ?data_equal map ~init:(Map.empty ~comparator)
-        ~f:(fun ~key ~data map ->
-          match f ~key ~data with
-          | None -> Map.remove map key
-          | Some data' -> Map.add map ~key ~data:data')
-        ~f_inverse:(fun ~key ~data:_ map ->
-          Map.remove map key))
+  let filter_mapi ?(data_equal=phys_equal) map ~f =
+    diff_map map ~f:(fun ~old input -> match old with
+      | None -> Map.filter_mapi input ~f
+      | Some (old_input, old_output) ->
+        Map.symmetric_diff old_input input ~data_equal
+        |> Sequence.fold ~init:old_output ~f:(fun output (key, change) ->
+          match change with
+          | `Left _ -> Map.remove output key
+          | `Right new_data | `Unequal (_, new_data) ->
+            match f ~key ~data:new_data with
+            | None -> Map.remove output key
+            | Some output_data -> Map.add output ~key ~data:output_data))
+  ;;
 
   let diff_map2 i1 i2 ~f =
     let old = ref None in
