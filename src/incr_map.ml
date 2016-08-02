@@ -1,5 +1,19 @@
 open Core_kernel.Std
 
+(** This type lets us capture the kind of map function being performed, so we can with
+    one implementation perform map and filter-map operations.
+
+    Here, ['input_data] is the type of data in the input map, ['output_data] is the type
+    of data in the output map, and ['f_output] is the return type of the [~f] function
+    passed to the mapping function. *)
+module Map_type = struct
+  type ('input_data, 'output_data, 'f_output) t =
+    | Map : ('input_data, 'output_data, 'output_data) t
+    | Filter_map : ('input_data, 'output_data, 'output_data option) t
+    (* The extra type variable 'a is to allow in future:
+        | Filter : ('output_data, 'output_data, bool) t *)
+end
+
 module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
 
   let diff_map i ~f =
@@ -32,19 +46,38 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
   let with_comparator map f =
     Incr.bind (Incr.freeze (Incr.map map ~f:Map.comparator)) f
 
-  let filter_mapi ?(data_equal=phys_equal) map ~f =
+  let generic_mapi (type input_data) (type output_data) (type f_output)
+        (witness : (input_data, output_data, f_output) Map_type.t)
+        ?(data_equal=phys_equal)
+        (map : ('key, input_data, 'cmp) Map.t Incr.t)
+        ~(f : key:'key -> data:input_data -> f_output)
+    =
     diff_map map ~f:(fun ~old input -> match old with
-      | None -> Map.filter_mapi input ~f
+      | None ->
+        begin match witness with
+        | Map_type.Map -> (Map.mapi input ~f : ('key, output_data, 'cmp) Map.t)
+        | Map_type.Filter_map -> Map.filter_mapi input ~f
+        end
       | Some (old_input, old_output) ->
         Map.symmetric_diff old_input input ~data_equal
         |> Sequence.fold ~init:old_output ~f:(fun output (key, change) ->
           match change with
           | `Left _ -> Map.remove output key
           | `Right new_data | `Unequal (_, new_data) ->
-            match f ~key ~data:new_data with
-            | None -> Map.remove output key
-            | Some output_data -> Map.add output ~key ~data:output_data))
+            let res = f ~key ~data:new_data in
+            match witness with
+            | Map_type.Map -> Map.add output ~key ~data:res
+            | Map_type.Filter_map ->
+              match res with
+              | None -> Map.remove output key
+              | Some output_data -> Map.add output ~key ~data:output_data))
   ;;
+
+  let mapi ?data_equal map ~f =
+    generic_mapi Map ?data_equal map ~f
+
+  let filter_mapi ?data_equal map ~f =
+    generic_mapi Filter_map ?data_equal map ~f
 
   let diff_map2 i1 i2 ~f =
     let old = ref None in
@@ -84,13 +117,15 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
         )
     )
 
-  let filter_mapi_with_comparator' (type k) (type v1) (type v2) (type cmp)
+  let generic_mapi_with_comparator'
+        (type input_data) (type output_data) (type f_output)
+        (witness : (input_data, output_data, f_output) Map_type.t)
         ?cutoff
         ?(data_equal=phys_equal)
-        (lhs : (k,v1,cmp) Map.t Incr.t)
-        ~(comparator : (k, cmp) Comparator.t)
-        ~f
-    : (k,v2,cmp) Map.t Incr.t
+        (lhs : ('key,input_data,'cmp) Map.t Incr.t)
+        ~(comparator : ('key,'cmp) Comparator.t)
+        ~(f : key:'key -> data:input_data Incr.t -> f_output Incr.t)
+    : ('key,output_data,'cmp) Map.t Incr.t
     =
     let module E = Incr.Expert in
     let empty_map = Map.empty ~comparator in
@@ -99,6 +134,16 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
     let acc = ref empty_map in
     let result =
       E.Node.create (fun () -> !acc)
+    in
+    let on_inner_change = match witness with
+      Map_type.Filter_map -> fun ~key (opt : f_output) ->
+        let old = !acc in
+        acc := (
+          match opt with
+          | None -> if Map.mem old key then Map.remove old key else old
+          | Some data -> Map.add old ~key ~data)
+      | Map_type.Map -> fun ~key data ->
+        acc := Map.add !acc ~key ~data
     in
     let rec lhs_change = lazy (Incr.map lhs ~f:(fun map ->
       let symmetric_diff =
@@ -128,12 +173,7 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
               let user_function_dep =
                 E.Dependency.create
                   (f ~key ~data:(E.Node.watch node))
-                  ~on_change:(fun opt ->
-                    let old = !acc in
-                    acc := (
-                      match opt with
-                      | None -> if Map.mem old key then Map.remove old key else old
-                      | Some v -> Map.add old ~key ~data:v))
+                  ~on_change:(on_inner_change ~key)
               in
               E.Node.add_dependency result user_function_dep;
               Map.add nodes ~key ~data:(node, user_function_dep))
@@ -148,7 +188,12 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
 
   let filter_mapi' ?cutoff ?data_equal map ~f =
     with_comparator map (fun comparator ->
-      filter_mapi_with_comparator' ?cutoff ?data_equal map ~f ~comparator)
+      generic_mapi_with_comparator' Map_type.Filter_map ?cutoff ?data_equal map ~f ~comparator)
+  ;;
+
+  let mapi' ?cutoff ?data_equal map ~f =
+    with_comparator map (fun comparator ->
+      generic_mapi_with_comparator' Map_type.Map ?cutoff ?data_equal map ~f ~comparator)
   ;;
 
   let flatten map =

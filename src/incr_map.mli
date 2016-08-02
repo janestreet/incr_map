@@ -19,11 +19,24 @@ module Make (Incr: Incremental_kernel.Incremental_intf.S) : sig
     -> f:(key:'k -> data:'v1 -> 'v2 option)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
+  val mapi
+    :  ?data_equal:('v1 -> 'v1 -> bool)
+    -> ('k, 'v1, 'cmp) Map.t Incr.t
+    -> f:(key:'k -> data:'v1 -> 'v2)
+    -> ('k, 'v2, 'cmp) Map.t Incr.t
+
   val filter_mapi'
     :  ?cutoff:'v1 Incr.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> f:(key:'k -> data:'v1 Incr.t -> 'v2 option Incr.t)
+    -> ('k, 'v2, 'cmp) Map.t Incr.t
+
+  val mapi'
+    :  ?cutoff:'v1 Incr.Cutoff.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
+    -> ('k, 'v1, 'cmp) Map.t Incr.t
+    -> f:(key:'k -> data:'v1 Incr.t -> 'v2 Incr.t)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
   (** [unordered_fold i ~init ~f ~f_inverse] constructs a more incremental version of:
@@ -64,7 +77,6 @@ module Make (Incr: Incremental_kernel.Incremental_intf.S) : sig
     :  ('k, 'v Incr.t, 'cmp) Map.t Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
 end
-
 
 
 
