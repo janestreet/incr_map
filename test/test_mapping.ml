@@ -267,12 +267,12 @@ let%test_module "random tests on filter and non-filter mapping functions" =
     let incr_map_mapping_i'_with_bind ?cutoff map = function
       | Just_mapping ->
         Incr.Map.mapi' ?cutoff map ~f:(fun ~key ~data:value_incr ->
-          Incr.bind value_incr (fun data ->
+          Incr.bind value_incr ~f:(fun data ->
             incr f_count;
             Incr.return (f key data)))
       | Filter_mapping ->
         Incr.Map.filter_mapi' ?cutoff map ~f:(fun ~key ~data:value_incr ->
-          Incr.bind value_incr (fun data ->
+          Incr.bind value_incr ~f:(fun data ->
             incr f_count;
             Incr.return (f_opt key data)))
     ;;

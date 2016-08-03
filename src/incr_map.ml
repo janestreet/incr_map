@@ -44,7 +44,7 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
       get the comparator out of the map, we allow the initial map itself to be garbage
       collected *)
   let with_comparator map f =
-    Incr.bind (Incr.freeze (Incr.map map ~f:Map.comparator)) f
+    Incr.bind (Incr.freeze (Incr.map map ~f:Map.comparator)) ~f
 
   let generic_mapi (type input_data) (type output_data) (type f_output)
         (witness : (input_data, output_data, f_output) Map_type.t)
