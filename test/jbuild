@@ -1,0 +1,8 @@
+(library
+ ((name incr_map_test)
+  (libraries (
+    core
+    incremental_kernel
+    incr_map
+    expect_test_helpers_kernel
+    ))))
