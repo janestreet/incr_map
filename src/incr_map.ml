@@ -131,19 +131,21 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
     let empty_map = Map.empty ~comparator in
     let prev_map = ref empty_map in
     let prev_nodes = ref empty_map in
-    let acc = ref empty_map in
+    let acc : ('key, output_data, 'cmp) Map.t ref = ref empty_map in
     let result =
       E.Node.create (fun () -> !acc)
     in
-    let on_inner_change = match witness with
-      Map_type.Filter_map -> fun ~key (opt : f_output) ->
-        let old = !acc in
-        acc := (
-          match opt with
-          | None -> if Map.mem old key then Map.remove old key else old
-          | Some data -> Map.add old ~key ~data)
-      | Map_type.Map -> fun ~key data ->
-        acc := Map.add !acc ~key ~data
+    let (on_inner_change : key:'key -> f_output -> unit) =
+      match witness with
+      | Map_type.Map ->
+        (fun ~key data -> acc := Map.add !acc ~key ~data)
+      | Map_type.Filter_map ->
+        (fun ~key opt ->
+           let old = !acc in
+           acc := (
+             match opt with
+             | None -> if Map.mem old key then Map.remove old key else old
+             | Some data -> Map.add old ~key ~data))
     in
     let rec lhs_change = lazy (Incr.map lhs ~f:(fun map ->
       let symmetric_diff =
