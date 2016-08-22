@@ -264,4 +264,77 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
     with_comparator map (fun comparator ->
       join_with_comparator map ~comparator)
   ;;
+
+  let subrange_with_comparator ?(data_equal=phys_equal) map_incr ~comparator range =
+
+    let subrange_map map (min, max) =
+      Map.to_sequence map
+        ~keys_greater_or_equal_to:min
+        ~keys_less_or_equal_to:max
+      |> Sequence.to_array
+      |> Map.of_sorted_array_unchecked ~comparator:(Map.comparator map)
+    in
+
+    diff_map2 map_incr range ~f:(fun ~old map range ->
+      match range with
+      | None ->
+        (* Empty new range means empty map *)
+        Map.empty ~comparator
+      | Some ((min, max) as range) ->
+        match old with
+        | None | Some (_, None, _) ->
+          (* Empty old range means regenerate *)
+          subrange_map map range
+        | Some (old_map, Some (old_min, old_max), res) ->
+          let cmp = comparator.compare in
+          if cmp old_max min < 0 || cmp old_min max > 0 then
+            (* Disjoint ranges *)
+            subrange_map map range
+          else
+            let in_range key = cmp min key <= 0 && cmp key max <= 0 in
+            let apply_diff map (key, data) =
+              match data with
+              | `Left _ -> Map.remove map key
+              | `Right data | `Unequal (_, data) ->
+                if in_range key
+                then Map.add map ~key ~data
+                else Map.remove map key
+            in
+            let apply_add ~key ~data map = Map.add map ~key ~data in
+            let apply_remove ~key ~data:_ map =
+              (* We need the if because we aren't able to do fold_range_exclusive *)
+              if not (in_range key)
+              then Map.remove map key
+              else map
+            in
+
+            let res =
+              (* Apply the diff of our big map to the submap
+
+                 This is linear in the number of changes to the big map. If there were
+                 symmetric diff with bounding, then this could become proportional to the
+                 number of changes only in the submap. *)
+              Map.symmetric_diff ~data_equal old_map map
+              |> Sequence.fold ~init:res ~f:apply_diff
+            in
+
+            let fold_map map ~init ~f (min, max) =
+              Map.fold_range_inclusive ~min ~max ~init ~f map
+            in
+
+            (* Add in new pieces of range *)
+            let res = fold_map map (min, old_min) ~init:res ~f:apply_add in
+            let res = fold_map map (old_max, max) ~init:res ~f:apply_add in
+
+            (* Remove old pieces of range *)
+            let res = fold_map res (old_min, min) ~init:res ~f:apply_remove in
+            let res = fold_map res (max, old_max) ~init:res ~f:apply_remove in
+
+            res
+    )
+
+  let subrange ?data_equal map range =
+    with_comparator map (fun comparator ->
+      subrange_with_comparator ?data_equal map ~comparator range)
+  ;;
 end

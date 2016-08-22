@@ -76,6 +76,25 @@ module Make (Incr: Incremental_kernel.Incremental_intf.S) : sig
   val join
     :  ('k, 'v Incr.t, 'cmp) Map.t Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
+
+  (** [subrange map (min, max)] constructs an incremental submap that includes all of the
+      keys and data from [map] between [min] and [max], inclusive, and none of the keys
+      outside the range.
+
+      [subrange map None] is the empty map. [range] being [None] means no elements are
+      chosen.
+
+      Note that incremental changes have a runtime of O((k + m) log n) where k is the size
+      of the changes to the underlying map and m is the size of the changes to the
+      elements contained by the range. The complexity of the initial computation is the
+      same as the incremental computation, with some simplification. k = 0 because we have
+      not made any changes to the underlying map yet, and m equals the size of the range,
+      because the initial range is empty. *)
+  val subrange
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, 'cmp) Map.t Incr.t
+    -> ('k * 'k) option Incr.t
+    -> ('k, 'v, 'cmp) Map.t Incr.t
 end
 
 
