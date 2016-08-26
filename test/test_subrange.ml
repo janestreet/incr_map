@@ -94,6 +94,26 @@ let%expect_test "check subrange" =
 
   print_stable ();
   [%expect {| () |}];
+
+  (* This test case (lots of changes outside range) should trigger
+     the "shortcutting" code path. *)
+  Incr.Var.set input_range (Some (4, 5));
+  Incr.stabilize ();
+
+  Incr.Var.set input_map
+    (Int.Map.of_alist_exn
+       [ 2, "a"
+       ; 3, "b"
+       ; 4, "c"
+       ; 5, "d"
+       ; 6, "e"
+       ; 7, "f"
+       ]);
+
+  print_stable ();
+  [%expect {|
+             ((4 c)
+              (5 d)) |}];
 ;;
 
 type gen_op =

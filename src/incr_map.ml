@@ -291,46 +291,58 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
             (* Disjoint ranges *)
             subrange_map map range
           else
-            let in_range key = cmp min key <= 0 && cmp key max <= 0 in
-            let apply_diff map (key, data) =
-              match data with
-              | `Left _ -> Map.remove map key
-              | `Right data | `Unequal (_, data) ->
-                if in_range key
-                then Map.add map ~key ~data
-                else Map.remove map key
-            in
-            let apply_add ~key ~data map = Map.add map ~key ~data in
-            let apply_remove ~key ~data:_ map =
-              (* We need the if because we aren't able to do fold_range_exclusive *)
-              if not (in_range key)
-              then Map.remove map key
-              else map
-            in
+            with_return (fun {return} ->
+              let recompute () = return (subrange_map map range) in
+              let in_range key = cmp min key <= 0 && cmp key max <= 0 in
 
-            let res =
-              (* Apply the diff of our big map to the submap
+              (* [outside] is the number of updates outside the range that we tolerate
+                 before giving up and scanning the range. This is an optimization in the
+                 case that the map changes in a very big way, at which point computing the
+                 range is cheaper *)
+              let apply_diff (outside, map) (key, data) =
+                if in_range key then (
+                  match data with
+                  | `Left _ -> (outside, Map.remove map key)
+                  | `Right data | `Unequal (_, data) -> (outside, Map.add map ~key ~data)
+                ) else (
+                  let outside = outside - 1 in
+                  if outside < 0 then recompute () else (outside, Map.remove map key)
+                )
+              in
 
-                 This is linear in the number of changes to the big map. If there were
-                 symmetric diff with bounding, then this could become proportional to the
-                 number of changes only in the submap. *)
-              Map.symmetric_diff ~data_equal old_map map
-              |> Sequence.fold ~init:res ~f:apply_diff
-            in
+              let apply_add ~key ~data map = Map.add map ~key ~data in
 
-            let fold_map map ~init ~f (min, max) =
-              Map.fold_range_inclusive ~min ~max ~init ~f map
-            in
+              let apply_remove ~key ~data:_ map =
+                (* We need the if because we aren't able to do fold_range_exclusive *)
+                if not (in_range key)
+                then Map.remove map key
+                else map
+              in
 
-            (* Add in new pieces of range *)
-            let res = fold_map map (min, old_min) ~init:res ~f:apply_add in
-            let res = fold_map map (old_max, max) ~init:res ~f:apply_add in
+              let res =
+                (* Cutoff the big diff computation if we reach O(|submap|) number of
+                   changes that are outside the range *)
+                let outside_cutoff = (Map.length res) / 4 in
 
-            (* Remove old pieces of range *)
-            let res = fold_map res (old_min, min) ~init:res ~f:apply_remove in
-            let res = fold_map res (max, old_max) ~init:res ~f:apply_remove in
+                Map.symmetric_diff ~data_equal old_map map
+                |> Sequence.fold ~init:(outside_cutoff, res) ~f:apply_diff
+                |> snd
+              in
 
-            res
+              let fold_map map ~init ~f (min, max) =
+                Map.fold_range_inclusive ~min ~max ~init ~f map
+              in
+
+              (* Add in new pieces of range *)
+              let res = fold_map map (min, old_min) ~init:res ~f:apply_add in
+              let res = fold_map map (old_max, max) ~init:res ~f:apply_add in
+
+              (* Remove old pieces of range *)
+              let res = fold_map res (old_min, min) ~init:res ~f:apply_remove in
+              let res = fold_map res (max, old_max) ~init:res ~f:apply_remove in
+
+              res
+            )
     )
 
   let subrange ?data_equal map range =
