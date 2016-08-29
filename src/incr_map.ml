@@ -265,34 +265,33 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
       join_with_comparator map ~comparator)
   ;;
 
-  let subrange_with_comparator ?(data_equal=phys_equal) map_incr ~comparator range =
+  let direct_subrange_of_map map ~min ~max =
+    Map.to_sequence map
+      ~keys_greater_or_equal_to:min
+      ~keys_less_or_equal_to:max
+    |> Sequence.to_array
+    |> Map.of_sorted_array_unchecked ~comparator:(Map.comparator map)
+  ;;
 
-    let subrange_map map (min, max) =
-      Map.to_sequence map
-        ~keys_greater_or_equal_to:min
-        ~keys_less_or_equal_to:max
-      |> Sequence.to_array
-      |> Map.of_sorted_array_unchecked ~comparator:(Map.comparator map)
-    in
-
+  let subrange ?(data_equal=phys_equal) map_incr range =
     diff_map2 map_incr range ~f:(fun ~old map range ->
       match range with
       | None ->
         (* Empty new range means empty map *)
-        Map.empty ~comparator
-      | Some ((min, max) as range) ->
+        Map.empty ~comparator:(Map.comparator map)
+      | Some (min, max) ->
         match old with
         | None | Some (_, None, _) ->
           (* Empty old range means regenerate *)
-          subrange_map map range
+          direct_subrange_of_map map ~min ~max
         | Some (old_map, Some (old_min, old_max), res) ->
-          let cmp = comparator.compare in
+          let cmp = (Map.comparator map).Comparator.compare in
           if cmp old_max min < 0 || cmp old_min max > 0 then
             (* Disjoint ranges *)
-            subrange_map map range
+            direct_subrange_of_map map ~min ~max
           else
             with_return (fun {return} ->
-              let recompute () = return (subrange_map map range) in
+              let recompute () = return (direct_subrange_of_map map ~min ~max) in
               let in_range key = cmp min key <= 0 && cmp key max <= 0 in
 
               (* [outside] is the number of updates outside the range that we tolerate
@@ -344,9 +343,5 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
               res
             )
     )
-
-  let subrange ?data_equal map range =
-    with_comparator map (fun comparator ->
-      subrange_with_comparator ?data_equal map ~comparator range)
   ;;
 end
