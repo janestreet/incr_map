@@ -1,0 +1,8 @@
+(executables
+ ((names (html_table))
+  (libraries (
+    incremental_kernel
+    incr_map
+    incr_map_benchmarks
+    ))
+  ))

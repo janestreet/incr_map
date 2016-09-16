@@ -1,0 +1,8 @@
+(library
+ ((name incr_map_benchmarks)
+  (libraries (
+    core
+    incremental_kernel
+    incr_map
+    ))
+  ))
