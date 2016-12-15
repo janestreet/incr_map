@@ -11,7 +11,7 @@
 
 open! Core_kernel.Std
 
-module Make (Incr: Incremental_kernel.Incremental_intf.S) : sig
+module Make (Incr: Incremental_kernel.Std.Incremental.S_without_times) : sig
 
   val filter_mapi
     :  ?data_equal:('v1 -> 'v1 -> bool)
@@ -57,8 +57,12 @@ module Make (Incr: Incremental_kernel.Incremental_intf.S) : sig
     -> f_inverse:(key:'k -> data:'v -> 'acc -> 'acc)
     -> 'acc Incr.t
 
+  (** Like [merge] in [Base.Map.merge]. Note that [f] is called at most once per key in
+      any given stabilization. *)
   val merge
-    :  ('k, 'v1, 'cmp) Map.t Incr.t
+    :  ?data_equal_left:('v1 -> 'v1 -> bool)
+    -> ?data_equal_right:('v2 -> 'v2 -> bool)
+    -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> ('k, 'v2, 'cmp) Map.t Incr.t
     -> f:(key:'k
           -> [ `Left of 'v1

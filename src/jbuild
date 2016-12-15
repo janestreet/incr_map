@@ -1,7 +1,6 @@
 (library
  ((name incr_map)
   (public_name incr_map)
-  (preprocess (((pps (JANE_KERNEL)) All)))
+  (preprocess (pps (ppx_jane.kernel)))
   (js_of_ocaml ())
-  (wrapped false)
   (libraries (core_kernel incremental_kernel))))

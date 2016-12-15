@@ -26,6 +26,13 @@ let%test_module "random tests" =
     (* [map_merge] is the equivalent [Map] function that we test against *)
     let map_merge map1 map2 = Map.merge map1 map2 ~f:(f ~incr_counters:false)
 
+    module Change_status = struct
+      type present = [ `Still_present_unchanged | `Value_set ]
+      type missing = [ `Still_absent | `Removed ]
+
+      type unchanged = [ `Still_present_unchanged | `Still_absent ]
+    end
+
     (* [Incr.Map.merge] is tested as follows:
 
        First, create [map_incr1] and [map_incr2] of type [float Int.Map.t Incr.t] with
@@ -54,7 +61,7 @@ let%test_module "random tests" =
         f_both_count  := 0
       in
       let test_value () =
-        (* Since [result_incr] was obtained as [incr_map_mereg map_incr1 map_incr2],
+        (* Since [result_incr] was obtained as [incr_map_merge map_incr1 map_incr2],
            check that the value of [result_incr] is equal to the result of applying the
            equivalent function [map_merge] directly to the values of [map_incr1] and
            [map_incr2] *)
@@ -67,35 +74,61 @@ let%test_module "random tests" =
         [%test_result: float Int.Map.t] (Incr.Observer.value_exn result_obs) ~expect
       in
       let test_counters ~old_map1 ~new_map1 ~old_map2 ~new_map2 =
-        (* It is expected that for a given map (either map1 or map2):
-           - each time a key is removed from the map:
-              - if it exists in the other map, the other map's count is incremented by 1
-              - if it doesn't exist in the other map, nothing is incremented
-           - each time a key is added to the map or the data for the key is modified:
-              - if it exists in the other map, the "both" count is incremented by 1
-              - if it doesn't exist in the other map, this map's count is incremented by 1
-        *)
+        (* Check that the provided [~f] function is called exactly when we think it is
+           (and with the right arguments). We do this by tracking how every key changes
+           in both maps, inferring the number of [~f] calls of every type from that, and
+           comparing it to the actual numbers of calls made.*)
         let expect =
-          let fold_f (this_count, other_count, both_count) (key, diff) ~other_new_map =
-            match diff with
-            | `Left _    ->
-              if Map.mem other_new_map key
-              then this_count, other_count + 1, both_count
-              else this_count, other_count    , both_count
-            | `Right _ | `Unequal _ ->
-              if Map.mem other_new_map key
-              then this_count    , other_count, both_count + 1
-              else this_count + 1, other_count, both_count
+          let symdiff_element_to_key_change_state = function
+            | `Left _ -> `Removed
+            | `Unequal _
+            | `Right _ -> `Value_set
           in
-          Sequence.fold (Map.symmetric_diff old_map1 new_map1 ~data_equal:phys_equal)
-            ~init:(0, 0, 0)
-            ~f:(fold_f ~other_new_map:new_map2)
-          |> fun (f_left_count, f_right_count, f_both_count) ->
-          Sequence.fold (Map.symmetric_diff old_map2 new_map2 ~data_equal:phys_equal)
-            ~init:(f_right_count, f_left_count, f_both_count)
-            ~f:(fold_f ~other_new_map:new_map1)
-          |> fun (f_right_count, f_left_count, f_both_count) ->
-          f_left_count, f_right_count, f_both_count
+          let create_symdiff_map old_map new_map =
+            Map.symmetric_diff old_map new_map ~data_equal:phys_equal
+            |> Sequence.to_list
+            |> List.map
+                 ~f:(fun (key, value) -> key, symdiff_element_to_key_change_state value)
+            |> Int.Map.of_alist_exn
+          in
+          let symdiff_map1, symdiff_map2 =
+            create_symdiff_map old_map1 new_map1,
+            create_symdiff_map old_map2 new_map2
+          in
+          let keys_touched =
+            List.rev_append (Map.keys symdiff_map1) (Map.keys symdiff_map2)
+            |> List.dedup ~compare:Int.compare
+          in
+          let extend_symdiff_map symdiff_map keys_touched new_map =
+            List.fold keys_touched ~init:symdiff_map ~f:(fun symdiff_map key ->
+              if Map.mem symdiff_map key then
+                symdiff_map
+              else
+                Map.add symdiff_map ~key
+                  ~data:(if Map.mem new_map key
+                         then `Still_present_unchanged
+                         else `Still_absent))
+          in
+          let symdiff_map1 = extend_symdiff_map symdiff_map1 keys_touched new_map1 in
+          let symdiff_map2 = extend_symdiff_map symdiff_map2 keys_touched new_map2 in
+          let merged =
+            Map.merge symdiff_map1 symdiff_map2 ~f:(fun ~key:_ data ->
+              match data with
+              | `Both (v1, v2) -> Some (v1, v2)
+              | _ -> failwith "Test is broken, key sets differ")
+          in
+          Map.fold merged ~init:(0,0,0) ~f:(fun ~key:_ ~data (left, right, both) ->
+               match data with
+               | #Change_status.unchanged, #Change_status.unchanged ->
+                 failwith "Test is broken, diff of key with no change"
+               | #Change_status.present, #Change_status.present
+                 -> (left, right, both + 1)
+               | #Change_status.present, #Change_status.missing
+                 -> (left + 1, right, both)
+               | #Change_status.missing, #Change_status.present
+                 -> (left, right + 1, both)
+               | #Change_status.missing, #Change_status.missing
+                 -> (left, right, both))
         in
         [%test_result: int * int * int] ~expect
           (!f_left_count, !f_right_count, !f_both_count)
@@ -153,3 +186,163 @@ let%test_module "random tests" =
       test_merge Int.Map.empty Int.Map.empty ~steps:500 ~stabilize_every_n:10
     ;;
   end)
+
+let%bench_module "merge" = (
+  module struct
+
+    type map = int Int.Map.t
+
+    let gen_map (min_key, max_key) ~size =
+      if size > (max_key - min_key + 1) then
+        raise_s [%message
+          "Cannot generate a map with more keys than the available range."
+            (min_key : int) (max_key : int) (size : int)];
+      let open Quickcheck.Generator.Let_syntax in
+      let%map keys =
+        let all_keys_length = (max_key - min_key) + 1 in
+        let%map all_keys =
+          List.gen_permutations (
+            List.range
+              ~start:`inclusive min_key
+              ~stop:`inclusive max_key)
+        in
+        List.drop all_keys (all_keys_length - size)
+      and values =
+        List.gen' ~length:(`Exactly size) Int.gen
+      in
+      Int.Map.of_alist_exn (List.zip_exn keys values)
+    ;;
+
+    type t =
+      { left_input : map Incr.Var.t
+      ; right_input : map Incr.Var.t
+      ; output : map Incr.Observer.t
+      }
+    ;;
+
+    let create ~merge_f left_input right_input =
+      let left_input = Incr.Var.create left_input in
+      let right_input = Incr.Var.create right_input in
+      let output =
+        Incr.Map.merge (Incr.Var.watch left_input) (Incr.Var.watch right_input) ~f:merge_f
+        |> Incr.observe
+      in
+      { left_input
+      ; right_input
+      ; output
+      }
+    ;;
+
+    module Map_modification = struct
+      type t =
+        | Add of int * int
+        | Remove of int
+
+      let gen key_range =
+        let open Quickcheck.Generator.Let_syntax in
+        let key_gen (key_range_begin, key_range_end) =
+          Int.gen_between
+            ~lower_bound:(Incl key_range_begin)
+            ~upper_bound:(Incl key_range_end)
+        in
+        let add_gen =
+          let%map key = key_gen key_range
+          and data = Int.gen
+          in Add (key, data)
+        and remove_gen =
+          let%map key = key_gen key_range in Remove key
+        in
+        Quickcheck.Generator.union [add_gen; remove_gen]
+      ;;
+
+      let perform t map =
+        match t with
+        | Add (key, data) -> Map.add map ~key ~data
+        | Remove key -> Map.remove map key
+      ;;
+    end
+
+    module Operation = struct
+      type t =
+        | Stabilize
+        | Modify_left of Map_modification.t
+        | Modify_right of Map_modification.t
+
+      let gen key_range =
+        let open Quickcheck.Generator.Let_syntax in
+        let modify_gen =
+          let%map dir =
+            Quickcheck.Generator.of_list
+              [ (fun x -> Modify_left x)
+              ; (fun x -> Modify_right x)
+              ]
+          and modification = Map_modification.gen key_range
+          in dir modification
+        in
+        Quickcheck.Generator.weighted_union
+          [ 1., return Stabilize
+          ; 10., modify_gen
+          ]
+      ;;
+
+      let perform op t =
+        match op with
+        | Modify_left md ->
+          Incr.Var.set t.left_input (
+            Incr.Var.latest_value t.left_input
+            |> Map_modification.perform md
+          )
+        | Modify_right md ->
+          Incr.Var.set t.right_input (
+            Incr.Var.latest_value t.right_input
+            |> Map_modification.perform md
+          )
+        | Stabilize ->
+          Incr.stabilize ();
+      ;;
+    end
+
+    let generate_fun ~length ~key_range ~initial_size ~merge_f =
+      let open Quickcheck.Generator.Let_syntax in
+      let gen_fun =
+        let gen_map = gen_map key_range ~size:initial_size in
+        let%map operations =
+          List.gen' ~length:(`Exactly length)
+            (Operation.gen key_range)
+        and left_input = gen_map
+        and right_input = gen_map
+        in
+        let t = create ~merge_f left_input right_input in
+        Staged.stage (fun () -> List.iter operations ~f:(fun op ->
+          Operation.perform op t))
+      in
+      Quickcheck.random_value gen_fun
+        ~seed:(`Deterministic (sprintf "%i-%i-bla-bla-bla-foo-bar-baz" 43 length))
+    ;;
+
+    let key_range = (0, 25000)
+    let initial_size = 15000
+
+    let%bench_fun "cheap merging function" [@indexed length = [1000; 3000; 5000]] =
+      generate_fun ~length ~key_range ~initial_size
+        ~merge_f:(fun ~key:_ v ->
+          match v with
+          | `Left v
+          | `Right v
+          | `Both (v, _) ->
+            Some v)
+      |> Staged.unstage
+    ;;
+
+    let%bench_fun "merging function with expensive `Both case" [@indexed length = [1000; 2000; 4000]] =
+      generate_fun ~length ~key_range ~initial_size
+        ~merge_f:(fun ~key:_ v ->
+          match v with
+          | `Left v
+          | `Right v -> Some v
+          | `Both (v, _) ->
+            Time.pause (Time.Span.of_us 1.);
+            Some v)
+      |> Staged.unstage
+    ;;
+end)

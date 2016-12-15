@@ -1,4 +1,5 @@
-open Core_kernel.Std
+open! Core_kernel.Std
+open! Int.Replace_polymorphic_compare
 
 (** This type lets us capture the kind of map function being performed, so we can with
     one implementation perform map and filter-map operations.
@@ -14,7 +15,7 @@ module Map_type = struct
         | Filter : ('output_data, 'output_data, bool) t *)
 end
 
-module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
+module Make (Incr: Incremental_kernel.Std.Incremental.S_without_times) = struct
 
   let diff_map i ~f =
     let open Incr.Let_syntax in
@@ -86,36 +87,67 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
       old := Some (a1, a2, b);
       b)
 
-  let merge m1 m2 ~f =
-    diff_map2 m1 m2 ~f:(fun ~old new_in1 new_in2 ->
-      let (old_in1, old_in2, old_out) =
+  let merge
+        ?(data_equal_left=phys_equal)
+        ?(data_equal_right=phys_equal)
+        left_map
+        right_map
+        ~f
+    =
+    diff_map2 left_map right_map ~f:(fun ~old new_left_map new_right_map ->
+      let comparator = Map.comparator new_left_map in
+      let (old_left_map, old_right_map, old_output) =
         match old with
         | None ->
-          let empty = Map.empty ~comparator:(Map.comparator new_in1) in
+          let empty = Map.empty ~comparator in
           (empty, empty, empty)
         | Some x -> x
       in
-      let touched_keys_with_dups =
-        Sequence.append
-          (Map.symmetric_diff old_in1 new_in1 ~data_equal:phys_equal
-           |> Sequence.map ~f:fst)
-          (Map.symmetric_diff old_in2 new_in2 ~data_equal:phys_equal
-           |> Sequence.map ~f:fst)
+      let left_diff =
+        Map.symmetric_diff old_left_map new_left_map ~data_equal:data_equal_left
       in
-      Sequence.fold ~init:old_out touched_keys_with_dups
-        ~f:(fun acc key ->
-          let opt_update x =
-            match f ~key x with
-            | None -> Map.remove acc key
-            | Some data -> Map.add acc ~key ~data
+      let right_diff =
+        Map.symmetric_diff old_right_map new_right_map ~data_equal:data_equal_right
+      in
+      (* We merge the two sides of the diffs together so we can make sure to handle each
+         key exactly once. This relies on symmetric diff giving sorted output. *)
+      Sequence.merge_with_duplicates left_diff right_diff
+        ~cmp:(fun (left_key, _) (right_key, _) ->
+          comparator.compare left_key right_key)
+      |> Sequence.fold ~init:old_output ~f:(fun output diff_element ->
+          let key =
+            match diff_element with
+            | Left (key, _) | Right (key, _) -> key
+            | Both ((left_key, _), (right_key, _)) ->
+              assert (comparator.compare left_key right_key = 0);
+              left_key
           in
-          match Map.find new_in1 key, Map.find new_in2 key with
-          | None, None -> Map.remove acc key
-          | Some v1, None -> opt_update (`Left v1)
-          | None, Some v2 -> opt_update (`Right v2)
-          | Some v1, Some v2 -> opt_update (`Both (v1,v2))
-        )
-    )
+          (* These values represent whether there is data for the given key in the new
+             input in the left and right map. *)
+          let left_data_opt, right_data_opt =
+            let new_data = function
+              | `Left _ -> None
+              | `Right x | `Unequal (_, x) -> Some x
+            in
+            match diff_element with
+            | Both ((_, left_diff), (_, right_diff)) ->
+              (new_data left_diff, new_data right_diff)
+            | Left (_, left_diff) ->
+              (new_data left_diff, Map.find new_right_map key)
+            | Right (_, right_diff) ->
+              (Map.find new_left_map key, new_data right_diff)
+          in
+          let output_data_opt =
+            match left_data_opt, right_data_opt with
+            | None   , None   -> None
+            | Some x , None   -> f ~key (`Left x)
+            | None   , Some y -> f ~key (`Right y)
+            | Some x , Some y -> f ~key (`Both (x, y))
+          in
+          match output_data_opt with
+          | None      -> Map.remove output key
+          | Some data -> Map.add output ~key ~data))
+  ;;
 
   let generic_mapi_with_comparator'
         (type input_data) (type output_data) (type f_output)
@@ -265,83 +297,90 @@ module Make (Incr : Incremental_kernel.Incremental_intf.S) = struct
       join_with_comparator map ~comparator)
   ;;
 
-  let direct_subrange_of_map map ~min ~max =
-    Map.to_sequence map
-      ~keys_greater_or_equal_to:min
-      ~keys_less_or_equal_to:max
-    |> Sequence.to_array
-    |> Map.of_sorted_array_unchecked ~comparator:(Map.comparator map)
-  ;;
-
   let subrange ?(data_equal=phys_equal) map_incr range =
     diff_map2 map_incr range ~f:(fun ~old map range ->
+      let compare = (Map.comparator map).compare in
+      let equal l r = compare l r = 0 in
       match range with
       | None ->
         (* Empty new range means empty map *)
         Map.empty ~comparator:(Map.comparator map)
-      | Some (min, max) ->
+      | Some ((min, max) as range) ->
+        let from_scratch () =
+          Map.subrange map ~lower_bound:(Incl min) ~upper_bound:(Incl max)
+        in
         match old with
         | None | Some (_, None, _) ->
-          (* Empty old range means regenerate *)
-          direct_subrange_of_map map ~min ~max
-        | Some (old_map, Some (old_min, old_max), res) ->
-          let cmp = (Map.comparator map).Comparator.compare in
-          if cmp old_max min < 0 || cmp old_min max > 0 then
-            (* Disjoint ranges *)
-            direct_subrange_of_map map ~min ~max
-          else
-            with_return (fun {return} ->
-              let recompute () = return (direct_subrange_of_map map ~min ~max) in
-              let in_range key = cmp min key <= 0 && cmp key max <= 0 in
+          (* no old range *)
+          from_scratch ()
+        | Some (_, Some (old_min, old_max), _)
+          when (compare old_min old_max > 0
+                || compare old_max min < 0 || compare old_min max > 0) ->
+          (* empty old range or old range disjoint with new *)
+          from_scratch ()
+        | Some (old_map, Some ((old_min, old_max) as old_range), old_res) ->
+          with_return (fun {return} ->
+            (* Returns true iff the key is in both new and old ranges *)
+            let in_range_intersection key =
+              compare min key        <= 0 && compare key max     <= 0
+              && compare old_min key <= 0 && compare key old_max <= 0
+            in
+            (* Apply changes to keys which are in the intersection of both ranges.
 
-              (* [outside] is the number of updates outside the range that we tolerate
-                 before giving up and scanning the range. This is an optimization in the
-                 case that the map changes in a very big way, at which point computing the
-                 range is cheaper *)
-              let apply_diff (outside, map) (key, data) =
-                if in_range key then (
-                  match data with
-                  | `Left _ -> (outside, Map.remove map key)
-                  | `Right data | `Unequal (_, data) -> (outside, Map.add map ~key ~data)
-                ) else (
-                  let outside = outside - 1 in
-                  if outside < 0 then recompute () else (outside, Map.remove map key)
-                )
+               [outside] is the number of updates outside the range intersection that we
+               tolerate before giving up and reconstructing based on the new range. This
+               is an optimisation in the case that the map changes in a very big way, at
+               which point computing based on the new range is cheaper.  *)
+            let apply_diff_in_intersection (outside, map) (key, data) =
+              if in_range_intersection key then (
+                match data with
+                | `Left _ -> (outside, Map.remove map key)
+                | `Right data | `Unequal (_, data) -> (outside, Map.add map ~key ~data)
+              ) else (
+                let outside = outside - 1 in
+                if outside < 0 then return (from_scratch ())
+                else (outside, Map.remove map key)
+              )
+            in
+            (* First update the keys in /both/ the old and the new range. *)
+            let with_updated_values_in_intersection =
+              (* Cutoff the big diff computation if we reach O(|submap|) number of
+                 changes that are outside the range *)
+              let outside_cutoff = (Map.length old_res) / 4 in
+              Map.symmetric_diff ~data_equal old_map map
+              |> Sequence.fold ~init:(outside_cutoff, old_res)
+                   ~f:apply_diff_in_intersection
+              |> snd
+            in
+            if (Tuple2.equal ~eq1:equal ~eq2:equal old_range range) then
+              (* There are no keys to remove and everything in range is updated. *)
+              with_updated_values_in_intersection
+            else begin
+              (* Remove any keys which are not in the new range. *)
+              let without_keys_out_of_range =
+                Map.subrange with_updated_values_in_intersection
+                  ~lower_bound:(Incl min) ~upper_bound:(Incl max)
               in
-
-              let apply_add ~key ~data map = Map.add map ~key ~data in
-
-              let apply_remove ~key ~data:_ map =
-                (* We need the if because we aren't able to do fold_range_exclusive *)
-                if not (in_range key)
-                then Map.remove map key
-                else map
+              (* Add in any keys which are in the new range but not the old range. *)
+              let with_new_keys_now_in_range =
+                let map_append_exn lower_part upper_part =
+                  match Map.append ~lower_part ~upper_part with
+                  | `Ok map -> map
+                  | `Overlapping_key_ranges ->
+                    failwith "impossible case: BUG in incr_map.ml subrange"
+                in
+                let lower_part =
+                  Map.subrange map ~lower_bound:(Incl min) ~upper_bound:(Excl old_min)
+                and upper_part =
+                  Map.subrange map ~lower_bound:(Excl old_max) ~upper_bound:(Incl max)
+                in
+                map_append_exn lower_part
+                  (map_append_exn without_keys_out_of_range upper_part)
               in
-
-              let res =
-                (* Cutoff the big diff computation if we reach O(|submap|) number of
-                   changes that are outside the range *)
-                let outside_cutoff = (Map.length res) / 4 in
-
-                Map.symmetric_diff ~data_equal old_map map
-                |> Sequence.fold ~init:(outside_cutoff, res) ~f:apply_diff
-                |> snd
-              in
-
-              let fold_map map ~init ~f (min, max) =
-                Map.fold_range_inclusive ~min ~max ~init ~f map
-              in
-
-              (* Add in new pieces of range *)
-              let res = fold_map map (min, old_min) ~init:res ~f:apply_add in
-              let res = fold_map map (old_max, max) ~init:res ~f:apply_add in
-
-              (* Remove old pieces of range *)
-              let res = fold_map res (old_min, min) ~init:res ~f:apply_remove in
-              let res = fold_map res (max, old_max) ~init:res ~f:apply_remove in
-
-              res
-            )
+              with_new_keys_now_in_range
+            end
+          )
     )
   ;;
+
 end
