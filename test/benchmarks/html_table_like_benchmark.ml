@@ -108,7 +108,7 @@ let handle_action t = function
 let cell_update_generator t cell_update_batch_size =
   let tuple_gen =
     Generator.tuple2
-      (Int.gen_between ~lower_bound:(Incl 0) ~upper_bound:(Excl t.num_rows))
+      (Int.gen_incl 0 (t.num_rows - 1))
       (String.gen' ~length:(Generator.singleton t.string_length) Char.gen)
   in
   let list_gen =

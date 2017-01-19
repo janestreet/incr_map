@@ -241,9 +241,7 @@ let%bench_module "merge" = (
       let gen key_range =
         let open Quickcheck.Generator.Let_syntax in
         let key_gen (key_range_begin, key_range_end) =
-          Int.gen_between
-            ~lower_bound:(Incl key_range_begin)
-            ~upper_bound:(Incl key_range_end)
+          Int.gen_incl key_range_begin key_range_end
         in
         let add_gen =
           let%map key = key_gen key_range

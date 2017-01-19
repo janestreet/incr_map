@@ -123,23 +123,16 @@ type gen_op =
   | `Remove of float
   ]
 
-let gen_op : gen_op Quickcheck.gen =
+let gen_op : gen_op Quickcheck.Generator.t =
   let open Quickcheck.Generator.Let_syntax in
   Quickcheck.Generator.weighted_union
     [ (  1.0, let%map k = Int.gen in `Set_min k)
     ; (  1.0, let%map k = Int.gen in `Set_max k)
     ; ( 10.0, let%map k = Int.gen and v = Int.gen in `Add (k, v))
-    ; ( 10.0,
-        let%map i =
-          Core_kernel.Std.Float.gen_between
-            ~nan:Core_kernel.Float.Nan_dist.Without
-            ~lower_bound:(Maybe_bound.Incl 0.) ~upper_bound:(Maybe_bound.Excl 1.)
-        in
-        `Remove i
-      )
+    ; ( 10.0, let%map i = Float.gen_uniform_excl 0. 1. in `Remove i)
     ]
 
-let map_gen : int Int.Map.t Quickcheck.gen =
+let map_gen : int Int.Map.t Quickcheck.Generator.t =
   Quickcheck.Generator.list (Quickcheck.Generator.tuple2 Int.gen Int.gen)
   |> Quickcheck.Generator.map ~f:(fun l ->
     List.fold l ~init:Int.Map.empty ~f:(fun map (key, data) ->
@@ -147,7 +140,7 @@ let map_gen : int Int.Map.t Quickcheck.gen =
     )
   )
 
-let range_gen : (int * int) Quickcheck.gen =
+let range_gen : (int * int) Quickcheck.Generator.t =
   let open Quickcheck.Generator.Let_syntax in
   let%map a = Int.gen and b = Int.gen in
   if a < b then (a, b) else (b, a)
