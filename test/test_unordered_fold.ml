@@ -1,4 +1,4 @@
-open! Core.Std
+open! Core
 open! Import
 
 (* version of unorderd fold which will fail if there isn't a match. *)

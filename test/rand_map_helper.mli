@@ -1,4 +1,4 @@
-open Core.Std
+open Core
 open Import
 
 (** Utility functions for randomly creating and modifying maps with int keys and float

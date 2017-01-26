@@ -1,4 +1,4 @@
-open Core.Std
+open Core
 open Import
 
 (* This benchmark emulates Incr.Map operation patterns that occur when exploring a big,

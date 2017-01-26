@@ -1,4 +1,4 @@
-open Core.Std
+open Core
 open Import
 
 (** version of filter_mapi that tests the real implementation against a simple, all-at
