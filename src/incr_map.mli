@@ -9,7 +9,7 @@
     module.
 *)
 
-open! Core_kernel.Std
+open! Core_kernel
 
 module Make (Incr: Incremental_kernel.Std.Incremental.S_without_times) : sig
 

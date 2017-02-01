@@ -1,4 +1,4 @@
-open! Core_kernel.Std
+open! Core_kernel
 open! Int.Replace_polymorphic_compare
 
 (** This type lets us capture the kind of map function being performed, so we can with
