@@ -15,7 +15,7 @@ module Map_type = struct
         | Filter : ('output_data, 'output_data, bool) t *)
 end
 
-module Make (Incr: Incremental_kernel.Std.Incremental.S_without_times) = struct
+module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
 
   let diff_map i ~f =
     let open Incr.Let_syntax in

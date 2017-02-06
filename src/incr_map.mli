@@ -11,7 +11,7 @@
 
 open! Core_kernel
 
-module Make (Incr: Incremental_kernel.Std.Incremental.S_without_times) : sig
+module Make (Incr: Incremental_kernel.Incremental.S_without_times) : sig
 
   val filter_mapi
     :  ?data_equal:('v1 -> 'v1 -> bool)
