@@ -6,3 +6,5 @@
     incr_map_benchmarks
     ))
   ))
+
+(jbuild_version jane_street)
