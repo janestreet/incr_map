@@ -2,7 +2,7 @@
  ((name incr_map)
   (public_name incr_map)
   
-  (js_of_ocaml ())
-  (libraries (core_kernel incremental_kernel))))
+  (libraries (core_kernel incremental_kernel))
+  (preprocess (pps (ppx_jane)))))
 
 (jbuild_version jane_street)
