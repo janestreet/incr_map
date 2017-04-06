@@ -244,51 +244,45 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
   let join_with_comparator map_incr ~comparator =
     let module E = Incr.Expert in
     let empty_map = Map.empty ~comparator in
-    (* These map refs are initialised as part of outside_dep. *)
     let result_map = ref empty_map in
     let old_map_of_incrs = ref empty_map in
     let current_dependencies = ref empty_map in
     let result = E.Node.create (fun () -> !result_map) in
-    let result_dependency_on incr ~key =
-      E.Dependency.create incr ~on_change:(fun data ->
-        result_map := Map.add !result_map ~key ~data)
+    let add_subnode current_dependencies ~key ~data_node =
+      let new_dep =
+        E.Dependency.create data_node ~on_change:(fun data ->
+          result_map := Map.add !result_map ~key ~data)
+      in
+      E.Node.add_dependency result new_dep;
+      Map.add current_dependencies ~key ~data:new_dep
     in
-    let remove_result_map key =
-      result_map := Map.remove !result_map key
+    let remove_subnode current_dependencies ~key =
+      let dep = Map.find_exn current_dependencies key in
+      E.Node.remove_dependency result dep;
+      result_map := Map.remove !result_map key;
+      Map.remove current_dependencies key
     in
-    let outside_dep =
-      E.Dependency.create map_incr ~on_change:(fun map_of_incrs ->
-        let sequence =
-          Map.symmetric_diff ~data_equal:phys_equal
-            !old_map_of_incrs map_of_incrs
-        in
-        let new_dependency_map =
-          Sequence.fold sequence ~init:!current_dependencies
-            ~f:(fun current_dependencies (key, diff) ->
-              match diff with
-              | `Left _old_incr  ->
-                let dep = Map.find_exn current_dependencies key in
-                E.Node.remove_dependency result dep;
-                remove_result_map key;
-                Map.remove current_dependencies key
-              | `Right new_incr ->
-                let new_dep = result_dependency_on new_incr ~key in
-                E.Node.add_dependency result new_dep;
-                Map.add current_dependencies ~key ~data:new_dep
-              | `Unequal (_, new_incr) ->
-                let dep = Map.find_exn current_dependencies key in
-                E.Node.remove_dependency result dep;
-                remove_result_map key;
-                let new_dep = result_dependency_on new_incr ~key in
-                E.Node.add_dependency result new_dep;
-                Map.add current_dependencies ~key ~data:new_dep
-            )
-        in
-        current_dependencies := new_dependency_map;
-        old_map_of_incrs := map_of_incrs
-      )
+    let lhs_change = Incr.map map_incr ~f:(fun map_of_incrs ->
+      let sequence =
+        Map.symmetric_diff ~data_equal:phys_equal
+          !old_map_of_incrs map_of_incrs
+      in
+      let new_dependency_map =
+        Sequence.fold sequence ~init:!current_dependencies
+          ~f:(fun current_dependencies (key, diff) ->
+            match diff with
+            | `Left _ ->
+              remove_subnode current_dependencies ~key
+            | `Right data_node ->
+              add_subnode current_dependencies ~key ~data_node
+            | `Unequal (_, data_node) ->
+              remove_subnode current_dependencies ~key
+              |> add_subnode ~key ~data_node)
+      in
+      current_dependencies := new_dependency_map;
+      old_map_of_incrs := map_of_incrs)
     in
-    E.Node.add_dependency result outside_dep;
+    E.Node.add_dependency result (E.Dependency.create lhs_change);
     E.Node.watch result
   ;;
 
