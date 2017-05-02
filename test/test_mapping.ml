@@ -56,7 +56,7 @@ module Map_operations = struct
         | None -> `At_least 5
       in
       List.gen' ~length Int.gen
-      >>| List.dedup ~compare:Int.compare
+      >>| List.dedup_and_sort ~compare:Int.compare
     in
     let key_gen = Quickcheck.Generator.of_list keys in
     List.gen' ?length:operations (Quickcheck.Generator.weighted_union [

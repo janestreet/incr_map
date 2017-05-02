@@ -97,7 +97,7 @@ let%test_module "random tests" =
           in
           let keys_touched =
             List.rev_append (Map.keys symdiff_map1) (Map.keys symdiff_map2)
-            |> List.dedup ~compare:Int.compare
+            |> List.dedup_and_sort ~compare:Int.compare
           in
           let extend_symdiff_map symdiff_map keys_touched new_map =
             List.fold keys_touched ~init:symdiff_map ~f:(fun symdiff_map key ->
