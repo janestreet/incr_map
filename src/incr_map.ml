@@ -25,7 +25,14 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
     old := Some (a, b);
     b
 
-  let unordered_fold ?(data_equal=phys_equal) map ~init ~f ~f_inverse =
+  let unordered_fold ?(data_equal=phys_equal) ?f_inverse_compose_f map ~init ~f
+        ~f_inverse =
+    let f_inverse_compose_f =
+      let default ~key ~old_data ~new_data acc =
+        f ~key ~data:new_data (f_inverse ~key ~data:old_data acc)
+      in
+      Option.value f_inverse_compose_f ~default
+    in
     diff_map map ~f:(fun ~old new_in ->
       let old_in, old_out =
         match old with
@@ -38,7 +45,9 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
           | `Left old -> f_inverse ~key ~data:old acc
           | `Right new_ -> f ~key ~data:new_ acc
           | `Unequal (old, new_) ->
-            f ~key ~data:new_ (f_inverse ~key ~data:old acc)))
+            f_inverse_compose_f ~key ~old_data:old ~new_data:new_ acc
+        )
+    )
 
   (** Captures the comparator (which can't change anyway, since the type determines the
       comparator) by freezing the corresponding map.  Note that by first using Incr.map to
