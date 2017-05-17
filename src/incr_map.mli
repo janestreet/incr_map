@@ -39,29 +39,29 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) : sig
     -> f:(key:'k -> data:'v1 Incr.t -> 'v2 Incr.t)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
-  (** [unordered_fold i ~init ~f ~f_inverse] constructs a more incremental version of:
+  (** [unordered_fold i ~init ~add ~remove] constructs a more incremental version of:
 
       {[
         let%map m = i in
-        Map.fold m ~init ~f
+        Map.fold m ~init ~f:add
       ]}
 
-      assuming that [f_inverse] is the inverse of [f], and that the operations for
+      assuming that [remove] is the inverse of [add], and that the operations for
       different keys can be performed in any order. Note that [data_equal] defaults
       to [phys_equal], but a more precise equality can be provided instead.
 
-      When the data for a key updates, by default [f_inverse] is called on the old data
-      and then [f] is called on the new data.
-      [f_inverse_compose_f] provides an alternative single function to call each time a
-      key's data updates, and can be used to improve efficiency.
+      When the data for a key updates, by default [remove] is called on the old data
+      and then [add] is called on the new data.
+      [update] provides an alternative single function to call each time a key's data
+      updates, and can be used to improve efficiency.
   *)
   val unordered_fold
     :  ?data_equal:('v -> 'v -> bool)
-    -> ?f_inverse_compose_f:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
+    -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
     -> ('k, 'v, 'cmp) Map.t Incr.t
     -> init:'acc
-    -> f:(key:'k -> data:'v -> 'acc -> 'acc)
-    -> f_inverse:(key:'k -> data:'v -> 'acc -> 'acc)
+    -> add:(key:'k -> data:'v -> 'acc -> 'acc)
+    -> remove:(key:'k -> data:'v -> 'acc -> 'acc)
     -> 'acc Incr.t
 
   (** Like [merge] in [Base.Map.merge]. Note that [f] is called at most once per key in

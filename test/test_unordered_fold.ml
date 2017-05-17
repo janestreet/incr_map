@@ -2,11 +2,11 @@ open! Core
 open! Import
 
 (* version of unorderd fold which will fail if there isn't a match. *)
-let unordered_fold (type a) ~data_equal m ~(init:a) ~f ~f_inverse =
-  let a = Incr.Map.unordered_fold ~data_equal m ~init ~f ~f_inverse in
+let unordered_fold (type a) ~data_equal m ~(init:a) ~add ~remove =
+  let a = Incr.Map.unordered_fold ~data_equal m ~init ~add ~remove in
   let b =
     let%map m = m in
-    Map.fold ~init ~f m
+    Map.fold ~init ~f:add m
   in
   let%map a = a and b = b in
   require [%here] (data_equal a b);
@@ -18,8 +18,8 @@ let%expect_test _ =
   let sum_o =
     unordered_fold (Incr.Var.watch map)
       ~data_equal:Int.equal ~init:0
-      ~f:(fun ~key:_ ~data:v acc -> acc + v)
-      ~f_inverse:(fun ~key:_ ~data:v acc -> acc - v)
+      ~add:(fun ~key:_ ~data:v acc -> acc + v)
+      ~remove:(fun ~key:_ ~data:v acc -> acc - v)
     |> Incr.observe
   in
   let dump () =
@@ -41,37 +41,60 @@ let%expect_test _ =
 let%test_module "random tests" =
   (module struct
 
-    (* [f_count] and [f_inv_count] are counters used to keep track of how many times [f]
-       and [f_inverse] respectively are called by [Incr.Map.unordered_fold]. *)
-    let f_count     = ref 0
-    let f_inv_count = ref 0
+    (* [add_count], [remove_count] and [update_count] are counters used to keep track of
+       how many times [add], [remove] and [update] respectively are called by
+       [Incr.Map.unordered_fold]. *)
+    let add_count    = ref 0
+    let remove_count = ref 0
+    let update_count = ref 0
 
-    (* Symbolic [f], [f_inverse] satisfying the minimal required properties,
-
-       i.e. [f_inverse ~key ~data] is the inverse of [f ~key ~data]
-       [f ~key ~data] and [f ~key:key' ~data:data'] can be commuted
-       if [key <> key'].
+    (* Symbolic [add], [remove] satisfying the minimal required properties:
+       - [remove ~key ~data] is the inverse of [add ~key ~data]
+       - [add ~key ~data] and [add ~key:key' ~data:data'] can be commuted if [key <> key']
+       - [update ~key ~old_data ~new_data] is the (possibly simplified) composition of
+       [remove ~key ~data:old_data] and [add ~key ~data:new_data]
     *)
     let init = Int.Map.empty
 
-    let f ~key ~data map = Map.add_multi map ~key ~data:(`F data)
+    type 'a op =
+      | Add of 'a
+      | Remove of 'a
+      | Update of 'a * 'a
+    [@@deriving sexp, compare]
 
-    let f_inverse ~key ~data map = Map.change map key ~f:(function
-      | None -> Some [ `F_inverse data ]
-      | Some (`F other_data :: other_ops) when Float.equal data other_data ->
+    let add ~key ~data map = Map.add_multi map ~key ~data:(Add data)
+
+    let remove ~key ~data map = Map.change map key ~f:(function
+      | None -> Some [ Remove data ]
+      | Some (Add other_data :: other_ops) when Float.equal data other_data ->
         Option.some_if (not (List.is_empty other_ops)) other_ops
-      | Some other_ops -> Some (`F_inverse data :: other_ops))
+      | Some other_ops -> Some (Remove data :: other_ops)
+    )
+
+    let update ~key ~old_data ~new_data map = Map.change map key ~f:(function
+      | None -> Some [ Update (old_data, new_data) ]
+      | Some (Add other_data :: other_ops) when Float.equal old_data other_data ->
+        Some (Add new_data :: other_ops)
+      | Some other_ops -> Some (Update (old_data, new_data) :: other_ops)
+    )
 
     (* [incr_map_fold] is the [Incr.Map] function being tested *)
-    let incr_map_fold map =
+    let incr_map_fold map ~use_update =
+      let update =
+        Option.some_if use_update
+          (fun ~key ~old_data ~new_data acc ->
+             incr update_count; update ~key ~old_data ~new_data acc
+          )
+      in
       Incr.Map.unordered_fold map
+        ?update
         ~init
-        ~f:         (fun ~key ~data acc -> incr f_count; f ~key ~data acc)
-        ~f_inverse: (fun ~key ~data acc -> incr f_inv_count; f_inverse ~key ~data acc)
+        ~add:    (fun ~key ~data acc -> incr add_count; add ~key ~data acc)
+        ~remove: (fun ~key ~data acc -> incr remove_count; remove ~key ~data acc)
     ;;
 
     (* [map_fold] is the equivalent [Map] function that we test against *)
-    let map_fold map = Map.fold map ~init ~f
+    let map_fold map = Map.fold map ~init ~f:add
 
     (* [Incr.Map.unordered_fold] is tested as follows:
 
@@ -88,15 +111,16 @@ let%test_module "random tests" =
        - check the value of [result_incr]
        - check the counter values
     *)
-    let test_unordered_fold map ~steps ~stabilize_every_n =
-      let map_var     = Incr.Var.create map      in
-      let map_incr    = Incr.Var.watch map_var   in
-      let map_obs     = Incr.observe map_incr    in
-      let result_incr = incr_map_fold map_incr   in
-      let result_obs  = Incr.observe result_incr in
+    let test_unordered_fold map ~steps ~stabilize_every_n ~use_update =
+      let map_var     = Incr.Var.create map                in
+      let map_incr    = Incr.Var.watch map_var             in
+      let map_obs     = Incr.observe map_incr              in
+      let result_incr = incr_map_fold map_incr ~use_update in
+      let result_obs  = Incr.observe result_incr           in
       let reset_counters () =
-        f_count     := 0;
-        f_inv_count := 0
+        add_count    := 0;
+        remove_count := 0;
+        update_count := 0
       in
       let test_value () =
         (* Since [result_incr] was obtained as [incr_map_fold map_incr], check that the
@@ -106,27 +130,32 @@ let%test_module "random tests" =
           map_fold (Incr.Observer.value_exn map_obs)
         in
         let actual_result = Incr.Observer.value_exn result_obs in
-        [%test_result: [ `F of float | `F_inverse of float ] list Int.Map.t]
-          actual_result ~expect:expected_result
+        [%test_result: float op list Int.Map.t] actual_result ~expect:expected_result
       in
       let test_counters ~old_map ~new_map =
         (* It is expected that:
-           - each time an entry is removed, [f_inverse] is called once
-           - each time an entry is added, [f] is called once
-           - each time an entry is replaced, [f] and [f_inverse] are each called once
+           - each time an entry is removed, [remove] is called once
+           - each time an entry is added, [add] is called once
+           - each time an entry is replaced:
+              - if [use_update = true], [update] is called once
+              - if [use_update = false], [add] and [remove] are each called once
         *)
         let expect =
           let symmetric_diff =
             Map.symmetric_diff old_map new_map ~data_equal:phys_equal
           in
-          Sequence.fold symmetric_diff ~init:(0, 0)
-            ~f:(fun (f_count, f_inv_count) (_, diff) ->
+          Sequence.fold symmetric_diff ~init:(0, 0, 0)
+            ~f:(fun (add_count, remove_count, update_count) (_, diff) ->
               match diff with
-              | `Left _    -> f_count, f_inv_count + 1
-              | `Right _   -> f_count + 1, f_inv_count
-              | `Unequal _ -> f_count + 1, f_inv_count + 1)
+              | `Left _    -> add_count, remove_count + 1, update_count
+              | `Right _   -> add_count + 1, remove_count, update_count
+              | `Unequal _ ->
+                if use_update
+                then add_count, remove_count, update_count + 1
+                else add_count + 1, remove_count + 1, update_count
+            )
         in
-        [%test_result: int * int] ~expect (!f_count, !f_inv_count)
+        [%test_result: int * int * int] ~expect (!add_count, !remove_count, !update_count)
       in
       let stabilize_and_test_result ~old_map ~new_map =
         reset_counters ();
@@ -148,17 +177,30 @@ let%test_module "random tests" =
       |> fun _map -> ()
     ;;
 
-    let%test_unit "rand test: start with empty map, stabilize every step" =
-      test_unordered_fold Int.Map.empty ~steps:100 ~stabilize_every_n:1
+    let%test_unit "rand test: start with empty map, stabilize every step, no update" =
+      test_unordered_fold Int.Map.empty ~steps:100 ~stabilize_every_n:1 ~use_update:false
     ;;
 
-    let%test_unit "rand test: start with non-empty map, stabilize every step" =
+    let%test_unit "rand test: start with non-empty map, stabilize every step, no update" =
       let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
-      test_unordered_fold start_map ~steps:100 ~stabilize_every_n:1
+      test_unordered_fold start_map ~steps:100 ~stabilize_every_n:1 ~use_update:false
     ;;
 
-    let%test_unit "rand test: start with empty map, stabilize every 10 steps" =
-      test_unordered_fold Int.Map.empty ~steps:100 ~stabilize_every_n:10
+    let%test_unit "rand test: start with empty map, stabilize every 10 steps, no update" =
+      test_unordered_fold Int.Map.empty ~steps:100 ~stabilize_every_n:10 ~use_update:false
+    ;;
+
+    let%test_unit "rand test: start with empty map, stabilize every step, update" =
+      test_unordered_fold Int.Map.empty ~steps:100 ~stabilize_every_n:1 ~use_update:true
+    ;;
+
+    let%test_unit "rand test: start with non-empty map, stabilize every step, update" =
+      let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
+      test_unordered_fold start_map ~steps:100 ~stabilize_every_n:1 ~use_update:true
+    ;;
+
+    let%test_unit "rand test: start with empty map, stabilize every 10 steps, update" =
+      test_unordered_fold Int.Map.empty ~steps:100 ~stabilize_every_n:10 ~use_update:true
     ;;
   end)
 

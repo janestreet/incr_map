@@ -25,13 +25,12 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
     old := Some (a, b);
     b
 
-  let unordered_fold ?(data_equal=phys_equal) ?f_inverse_compose_f map ~init ~f
-        ~f_inverse =
-    let f_inverse_compose_f =
+  let unordered_fold ?(data_equal=phys_equal) ?update map ~init ~add ~remove =
+    let update =
       let default ~key ~old_data ~new_data acc =
-        f ~key ~data:new_data (f_inverse ~key ~data:old_data acc)
+        add ~key ~data:new_data (remove ~key ~data:old_data acc)
       in
-      Option.value f_inverse_compose_f ~default
+      Option.value update ~default
     in
     diff_map map ~f:(fun ~old new_in ->
       let old_in, old_out =
@@ -42,10 +41,9 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
       Sequence.fold ~init:old_out (Map.symmetric_diff old_in new_in ~data_equal)
         ~f:(fun acc (key, change) ->
           match change with
-          | `Left old -> f_inverse ~key ~data:old acc
-          | `Right new_ -> f ~key ~data:new_ acc
-          | `Unequal (old, new_) ->
-            f_inverse_compose_f ~key ~old_data:old ~new_data:new_ acc
+          | `Left old -> remove ~key ~data:old acc
+          | `Right new_ -> add ~key ~data:new_ acc
+          | `Unequal (old, new_) -> update ~key ~old_data:old ~new_data:new_ acc
         )
     )
 
