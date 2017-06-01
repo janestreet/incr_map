@@ -208,7 +208,7 @@ let%bench_module "merge" = (
         in
         List.drop all_keys (all_keys_length - size)
       and values =
-        List.gen' ~length:(`Exactly size) Int.gen
+        List.gen_with_length size Int.gen
       in
       Int.Map.of_alist_exn (List.zip_exn keys values)
     ;;
@@ -305,7 +305,7 @@ let%bench_module "merge" = (
       let gen_fun =
         let gen_map = gen_map key_range ~size:initial_size in
         let%map operations =
-          List.gen' ~length:(`Exactly length)
+          List.gen_with_length length
             (Operation.gen key_range)
         and left_input = gen_map
         and right_input = gen_map

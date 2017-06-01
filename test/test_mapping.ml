@@ -48,23 +48,28 @@ module Map_operations = struct
     | Remove of int
     [@@deriving sexp_of]
 
-  let gen' ?keys_size ?operations data_gen =
-    let open Quickcheck.Generator.Let_syntax in
-    let%bind keys =
-      let length = match keys_size with
-        | Some n -> `Exactly n
-        | None -> `At_least 5
+    let gen' ?keys_size ?operations data_gen =
+      let open Quickcheck.Generator.Let_syntax in
+      let%bind keys =
+        let%bind len = match keys_size with
+          | Some n -> return n
+          | None -> Int.gen_incl 5 150
+        in
+        List.gen_with_length len Int.gen
+        >>| List.dedup_and_sort ~compare:Int.compare
       in
-      List.gen' ~length Int.gen
-      >>| List.dedup_and_sort ~compare:Int.compare
-    in
-    let key_gen = Quickcheck.Generator.of_list keys in
-    List.gen' ?length:operations (Quickcheck.Generator.weighted_union [
-      1., return Stabilize;
-      4., (let%map key = key_gen in Remove key);
-      10., (let%map key = key_gen and data = data_gen in Add (key, data));
-    ])
-  ;;
+      let key_gen = Quickcheck.Generator.of_list keys in
+      let elt_gen =
+        (Quickcheck.Generator.weighted_union [
+           1., return Stabilize;
+           4., (let%map key = key_gen in Remove key);
+           10., (let%map key = key_gen and data = data_gen in Add (key, data));
+         ])
+      in
+      match operations with
+      | None     -> List.gen                 elt_gen
+      | Some len -> List.gen_with_length len elt_gen
+    ;;
 
   let gen data_gen = gen' data_gen
 
@@ -118,7 +123,7 @@ let%bench_module "filter_mapi" = (
             42 size operations))
         (Map_operations.gen' Int.gen
            ~keys_size:size
-           ~operations:(`Exactly operations))
+           ~operations)
     ;;
 
     let benchmark_filter_mapi filter_mapi ~operations =

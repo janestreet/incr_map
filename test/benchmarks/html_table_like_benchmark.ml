@@ -109,10 +109,10 @@ let cell_update_generator t cell_update_batch_size =
   let tuple_gen =
     Generator.tuple2
       (Int.gen_incl 0 (t.num_rows - 1))
-      (String.gen' ~length:(Generator.singleton t.string_length) Char.gen)
+      (String.gen_with_length t.string_length Char.gen)
   in
   let list_gen =
-    List.gen' ~length:(`Exactly cell_update_batch_size) tuple_gen
+    List.gen_with_length cell_update_batch_size tuple_gen
   in
   Generator.map list_gen ~f:(fun x -> Update_cell x)
 ;;
