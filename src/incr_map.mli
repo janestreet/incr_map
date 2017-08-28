@@ -106,8 +106,48 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) : sig
     -> ('k, 'v, 'cmp) Map.t Incr.t
     -> ('k * 'k) option Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
-end
 
+  (** [('k, 'v) Lookup.t] provides a way to lookup keys in a map which uses symmetric
+      diffs to trigger updates of the lookups.
+
+      The complexity of an update depends on:
+      - [n]: the number of keys in the larger of the old/updated input map
+      - [k]: the number of lookup nodes created using [find]
+      - [m]: the number of elements in the symdiff of the maps
+      - [symdiff(n)]: the cost of performing the symdiff on the map (m <= symdiff(n) <= n)
+
+      Each update should cost [O(symdiff(n) + m * log k)], so this will be efficient when
+      there are a lot of lookups (close to n) into a map which can be efficiently
+      symdiffed (and therefore has a small number of changes also). The cost of updating
+      when performing the same lookups by means of [Incr.map ~f:(fun m -> Map.find m key)]
+      is [O(k * log n)].
+  *)
+  module Lookup : sig
+    type ('k, 'v, 'cmp) t
+
+    (** Create the lookup structure on an incremental map. *)
+    val create
+      :  ?data_equal:('v -> 'v -> bool)
+      -> ('k, 'v, 'cmp) Map.t Incr.t
+      -> comparator:('k, 'cmp) Comparator.t
+      -> ('k, 'v, 'cmp) t
+
+    (** Create a node which performs [Map.find] on the input map.
+
+        [find (create incr_map) key] should be equivalent to [Incr.map ~f:(fun m ->
+        Map.find m key) incr_map], but when you call [find] many times for a single
+        [create] the nodes should update more efficiently in stabilisation when [incr_map]
+        changes in a way which can be efficiently diffed.
+
+        This will re-use existing nodes when it can, but will not always do so.
+    *)
+    val find : ('k, 'v, _) t -> 'k -> 'v option Incr.t
+
+    module For_debug : sig
+      val sexp_of_t : ('k -> Sexp.t) -> ('v -> Sexp.t) -> ('k, 'v, 'cmp) t -> Sexp.t
+    end
+  end
+end
 
 
 

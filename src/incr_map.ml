@@ -384,4 +384,129 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
     )
   ;;
 
+
+  module Lookup = struct
+    type 'v entry =
+      { mutable saved_value : 'v option
+      ; node : 'v option Incr.Expert.Node.t
+      }
+
+    type ('k, 'v, 'cmp) t =
+      { mutable saved_map : ('k, 'v, 'cmp) Map.t
+      (* We may have multiple entries per key if nodes become necessary again after being
+         removed. *)
+      ; mutable lookup_entries : ('k, 'v entry list, 'cmp) Map.t
+      ; updater_node : unit Incr.t
+      ; scope : Incr.Scope.t
+      }
+
+    let create ?(data_equal=phys_equal) input_map ~comparator =
+      let rec self =
+        lazy (
+          let updater_node =
+            Incr.map input_map ~f:(fun input_map ->
+              let (lazy self) = self in
+              begin
+                Map.symmetric_diff self.saved_map input_map ~data_equal
+                |> Sequence.iter ~f:(fun (key, changed_value) ->
+                  let entries = Map.find_multi self.lookup_entries key in
+                  List.iter entries ~f:(fun entry ->
+                    entry.saved_value <-
+                      (match changed_value with
+                       | `Left _ -> None
+                       | `Right new_value
+                       | `Unequal (_, new_value) -> Some new_value
+                      );
+                    Incr.Expert.Node.make_stale entry.node
+                  )
+                )
+              end;
+              self.saved_map <- input_map
+            )
+          in
+          let empty_map = Map.empty ~comparator in
+          { saved_map = empty_map
+          ; lookup_entries = empty_map
+          ; updater_node
+          ; scope = Incr.Scope.current ()
+          }
+        )
+      in
+      Lazy.force self
+    ;;
+
+    let slow_path_link_entry t entry ~key ~is_now_observable =
+      let (lazy entry) = entry in
+      let current_entries = Map.find_multi t.lookup_entries key in
+      let is_linked = List.exists current_entries ~f:(phys_equal entry) in
+      if Bool.equal is_linked is_now_observable
+      then ()
+      else if is_now_observable
+      then t.lookup_entries <- Map.add_multi t.lookup_entries ~key ~data:entry
+      else begin
+        let new_entries =
+          List.filter current_entries ~f:(fun x -> not (phys_equal entry x))
+        in
+        t.lookup_entries <-
+          (if List.is_empty new_entries
+           then Map.remove t.lookup_entries key
+           else Map.add t.lookup_entries ~key ~data:new_entries
+          )
+      end
+    ;;
+
+    let slow_path_create_node t key =
+      Incr.Scope.within t.scope ~f:(fun () ->
+        let rec entry =
+          lazy
+            { saved_value = Map.find t.saved_map key
+            ; node =
+                Incr.Expert.Node.create
+                  (fun () -> (force entry).saved_value)
+                  ~on_observability_change:(slow_path_link_entry t entry ~key);
+            }
+        in
+        let (lazy entry) = entry in
+        Incr.Expert.Node.add_dependency entry.node
+          (Incr.Expert.Dependency.create t.updater_node);
+        Incr.Expert.Node.watch entry.node)
+    ;;
+
+    let find t key =
+      match Map.find_multi t.lookup_entries key with
+      | entry :: _ -> Incr.Expert.Node.watch entry.node
+      | [] -> slow_path_create_node t key
+    ;;
+
+    module For_debug = struct
+      let sexp_of_entry sexp_of_value entry =
+        let { saved_value; node; } = entry in
+        let node = Incr.Expert.Node.watch node in
+        [%sexp {
+          saved_value : value option;
+          node_info = (Incr.user_info node : Info.t sexp_option);
+          node_is_const = (Option.some_if (Incr.is_const node) () : unit sexp_option);
+          node_is_invalid = (Option.some_if (not (Incr.is_valid node)) () : unit sexp_option);
+          node_is_unnecessary = (Option.some_if (not (Incr.is_necessary node)) () : unit sexp_option);
+        }]
+      ;;
+
+      let sexp_of_t sexp_of_key sexp_of_value t =
+        let info_per_key =
+          Map.merge t.saved_map t.lookup_entries ~f:(fun ~key data ->
+            let actual_value, entries = match data with
+              | `Left x -> Some x, []
+              | `Right y -> None, y
+              | `Both (x, y) -> Some x, y
+            in
+            Some [%sexp {
+              key : key;
+              actual_value : value sexp_option;
+              entries : value entry list;
+            }])
+        in
+        Sexp.List (Map.data info_per_key)
+      ;;
+    end
+  end
 end
