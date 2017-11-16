@@ -185,7 +185,7 @@ let for_perf =
 ;;
 
 let for_perf_cmd =
-  Command.basic' for_perf ~summary:"Look into the ml file for a description."
+  Command.basic for_perf ~summary:"Look into the ml file for a description."
 ;;
 
 let%bench_module "inline_benchmarks" = (

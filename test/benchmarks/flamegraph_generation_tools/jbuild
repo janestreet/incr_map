@@ -1,5 +1,6 @@
 (executables
  ((names (html_table))
+  (flags (:standard -safe-string))
   (libraries (
     incremental_kernel
     incr_map

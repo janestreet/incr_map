@@ -1,5 +1,6 @@
 (library
  ((name incr_map_test)
+  (flags (:standard -safe-string))
   (libraries (
     core
     incremental_kernel
