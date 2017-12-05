@@ -15,7 +15,7 @@ let%expect_test "check join against slow implementation" =
         Incr.map data ~f:(Tuple2.create key))
       |> Sequence.to_list_rev)
     in
-    Map.of_alist_exn ~comparator:(Map.comparator shape) alist)
+    Map.Using_comparator.of_alist_exn ~comparator:(Map.comparator shape) alist)
   in
   let test_now () =
     Incr.stabilize ();
@@ -72,8 +72,8 @@ let%expect_test "check join against slow implementation" =
           incrs := Map.remove !incrs key;
         | `Right new_value ->
           let new_var = Incr.Var.create new_value in
-          vars := Map.add !vars ~key ~data:new_var;
-          incrs := Map.add !incrs ~key ~data:(Incr.Var.watch new_var);
+          vars := Map.set !vars ~key ~data:new_var;
+          incrs := Map.set !incrs ~key ~data:(Incr.Var.watch new_var);
         | `Unequal (_, new_value) ->
           Incr.Var.set (Map.find_exn !vars key) new_value);
       old_map := map;

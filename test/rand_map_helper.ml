@@ -29,13 +29,13 @@ let get_rand_existing_key map =
 let rand_add_to_map map =
   let key = get_rand_nonexistent_key map in
   let data = get_rand_data () in
-  Map.add map ~key ~data
+  Map.set map ~key ~data
 ;;
 
 let rand_replace_in_map map =
   let key = get_rand_existing_key map in
   let data = get_rand_data () in
-  Map.add map ~key ~data
+  Map.set map ~key ~data
 ;;
 
 let rand_remove_from_map map =
@@ -58,13 +58,13 @@ let rand_modify_map map =
 let rand_add_to_map_of_vars map =
   let key = get_rand_nonexistent_key map in
   let data = Incr.Var.create (get_rand_data ()) in
-  Map.add map ~key ~data
+  Map.set map ~key ~data
 ;;
 
 let rand_replace_in_map_of_vars map =
   let key = get_rand_existing_key map in
   let data = Incr.Var.create (get_rand_data ()) in
-  Map.add map ~key ~data
+  Map.set map ~key ~data
 ;;
 
 let rand_set_in_map_of_vars map =

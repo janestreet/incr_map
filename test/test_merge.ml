@@ -104,7 +104,7 @@ let%test_module "random tests" =
               if Map.mem symdiff_map key then
                 symdiff_map
               else
-                Map.add symdiff_map ~key
+                Map.set symdiff_map ~key
                   ~data:(if Map.mem new_map key
                          then `Still_present_unchanged
                          else `Still_absent))
@@ -255,7 +255,7 @@ let%bench_module "merge" = (
 
       let perform t map =
         match t with
-        | Add (key, data) -> Map.add map ~key ~data
+        | Add (key, data) -> Map.set map ~key ~data
         | Remove key -> Map.remove map key
       ;;
     end

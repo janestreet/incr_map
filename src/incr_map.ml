@@ -35,7 +35,7 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
     diff_map map ~f:(fun ~old new_in ->
       let old_in, old_out =
         match old with
-        | None -> (Map.empty ~comparator:(Map.comparator new_in), init)
+        | None -> (Map.Using_comparator.empty ~comparator:(Map.comparator new_in), init)
         | Some x -> x
       in
       Sequence.fold ~init:old_out (Map.symmetric_diff old_in new_in ~data_equal)
@@ -74,11 +74,11 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
           | `Right new_data | `Unequal (_, new_data) ->
             let res = f ~key ~data:new_data in
             match witness with
-            | Map_type.Map -> Map.add output ~key ~data:res
+            | Map_type.Map -> Map.set output ~key ~data:res
             | Map_type.Filter_map ->
               match res with
               | None -> Map.remove output key
-              | Some output_data -> Map.add output ~key ~data:output_data))
+              | Some output_data -> Map.set output ~key ~data:output_data))
   ;;
 
   let mapi ?data_equal map ~f =
@@ -106,7 +106,7 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
       let (old_left_map, old_right_map, old_output) =
         match old with
         | None ->
-          let empty = Map.empty ~comparator in
+          let empty = Map.Using_comparator.empty ~comparator in
           (empty, empty, empty)
         | Some x -> x
       in
@@ -153,7 +153,7 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
           in
           match output_data_opt with
           | None      -> Map.remove output key
-          | Some data -> Map.add output ~key ~data))
+          | Some data -> Map.set output ~key ~data))
   ;;
 
   let generic_mapi_with_comparator'
@@ -167,7 +167,7 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
     : ('key,output_data,'cmp) Map.t Incr.t
     =
     let module E = Incr.Expert in
-    let empty_map = Map.empty ~comparator in
+    let empty_map = Map.Using_comparator.empty ~comparator in
     let prev_map = ref empty_map in
     let prev_nodes = ref empty_map in
     let acc : ('key, output_data, 'cmp) Map.t ref = ref empty_map in
@@ -177,14 +177,14 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
     let (on_inner_change : key:'key -> f_output -> unit) =
       match witness with
       | Map_type.Map ->
-        (fun ~key data -> acc := Map.add !acc ~key ~data)
+        (fun ~key data -> acc := Map.set !acc ~key ~data)
       | Map_type.Filter_map ->
         (fun ~key opt ->
            let old = !acc in
            acc := (
              match opt with
              | None -> if Map.mem old key then Map.remove old key else old
-             | Some data -> Map.add old ~key ~data))
+             | Some data -> Map.set old ~key ~data))
     in
     let rec lhs_change = lazy (Incr.map lhs ~f:(fun map ->
       let symmetric_diff =
@@ -217,7 +217,7 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
                   ~on_change:(on_inner_change ~key)
               in
               E.Node.add_dependency result user_function_dep;
-              Map.add nodes ~key ~data:(node, user_function_dep))
+              Map.set nodes ~key ~data:(node, user_function_dep))
       in
       prev_nodes := new_nodes;
       prev_map := map;
@@ -239,18 +239,18 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
 
   let flatten map =
     let module E = Incr.Expert in
-    let result = ref (Map.empty ~comparator:(Map.comparator map)) in
+    let result = ref (Map.Using_comparator.empty ~comparator:(Map.comparator map)) in
     let node = E.Node.create (fun () -> !result) in
     Map.iteri map ~f:(fun ~key ~data:incr ->
       E.Node.add_dependency node
         (E.Dependency.create incr ~on_change:(fun a ->
-          result := Map.add !result ~key ~data:a)));
+          result := Map.set !result ~key ~data:a)));
     E.Node.watch node
   ;;
 
   let join_with_comparator map_incr ~comparator =
     let module E = Incr.Expert in
-    let empty_map = Map.empty ~comparator in
+    let empty_map = Map.Using_comparator.empty ~comparator in
     let result_map = ref empty_map in
     let old_map_of_incrs = ref empty_map in
     let current_dependencies = ref empty_map in
@@ -258,10 +258,10 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
     let add_subnode current_dependencies ~key ~data_node =
       let new_dep =
         E.Dependency.create data_node ~on_change:(fun data ->
-          result_map := Map.add !result_map ~key ~data)
+          result_map := Map.set !result_map ~key ~data)
       in
       E.Node.add_dependency result new_dep;
-      Map.add current_dependencies ~key ~data:new_dep
+      Map.set current_dependencies ~key ~data:new_dep
     in
     let remove_subnode current_dependencies ~key =
       let dep = Map.find_exn current_dependencies key in
@@ -305,7 +305,7 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
       match range with
       | None ->
         (* Empty new range means empty map *)
-        Map.empty ~comparator:(Map.comparator map)
+        Map.Using_comparator.empty ~comparator:(Map.comparator map)
       | Some ((min, max) as range) ->
         let from_scratch () =
           Map.subrange map ~lower_bound:(Incl min) ~upper_bound:(Incl max)
@@ -336,7 +336,7 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
               if in_range_intersection key then (
                 match data with
                 | `Left _ -> (outside, Map.remove map key)
-                | `Right data | `Unequal (_, data) -> (outside, Map.add map ~key ~data)
+                | `Right data | `Unequal (_, data) -> (outside, Map.set map ~key ~data)
               ) else (
                 let outside = outside - 1 in
                 if outside < 0 then return (from_scratch ())
@@ -424,7 +424,7 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
               self.saved_map <- input_map
             )
           in
-          let empty_map = Map.empty ~comparator in
+          let empty_map = Map.Using_comparator.empty ~comparator in
           { saved_map = empty_map
           ; lookup_entries = empty_map
           ; updater_node
@@ -450,7 +450,7 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
         t.lookup_entries <-
           (if List.is_empty new_entries
            then Map.remove t.lookup_entries key
-           else Map.add t.lookup_entries ~key ~data:new_entries
+           else Map.set t.lookup_entries ~key ~data:new_entries
           )
       end
     ;;

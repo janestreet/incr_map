@@ -2,12 +2,12 @@ open Core_kernel
 open Import
 
 let subrange map range =
-  let empty = Map.empty ~comparator:(Map.comparator map) in
+  let empty = Map.Using_comparator.empty ~comparator:(Map.comparator map) in
   match range with
   | None -> empty
   | Some (min, max) ->
     Map.fold_range_inclusive map ~min ~max ~init:empty ~f:(fun ~key ~data map ->
-      Map.add map ~key ~data
+      Map.set map ~key ~data
     )
 
 let setup_subrange map_incr range_incr =
@@ -63,7 +63,7 @@ let%expect_test "check subrange" =
               (3 three)) |}];
 
   Incr.Var.set input_range (Some (0, 2));
-  Incr.Var.set input_map (Map.add ~key:0 ~data:"zero" (Incr.Var.value input_map));
+  Incr.Var.set input_map (Map.set ~key:0 ~data:"zero" (Incr.Var.value input_map));
 
   print_stable ();
   [%expect {|
@@ -136,7 +136,7 @@ let map_gen : int Int.Map.t Quickcheck.Generator.t =
   Quickcheck.Generator.list (Quickcheck.Generator.tuple2 Int.gen Int.gen)
   |> Quickcheck.Generator.map ~f:(fun l ->
     List.fold l ~init:Int.Map.empty ~f:(fun map (key, data) ->
-      Map.add map ~key ~data
+      Map.set map ~key ~data
     )
   )
 
@@ -148,7 +148,7 @@ let range_gen : (int * int) Quickcheck.Generator.t =
 let apply_op (map, (min, max)) = function
   | `Set_min min' -> (map, if min' <= max then (min', max) else (max, min'))
   | `Set_max max' -> (map, if max' >= min then (min, max') else (max', min))
-  | `Add (key, data) -> (Map.add map ~key ~data, (min, max))
+  | `Add (key, data) -> (Map.set map ~key ~data, (min, max))
   | `Remove idx ->
     let nth = int_of_float ((float_of_int (Map.length map)) *. idx) in
     match Map.nth map nth with

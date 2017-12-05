@@ -30,11 +30,11 @@ let%expect_test _ =
   in
   let change f = Incr.Var.set map (f (Incr.Var.value map)) in
   dump (); [%expect {| (3 ((a 1) (b 2))) |}];
-  change (fun m -> Map.add m ~key:"c" ~data:4);
+  change (fun m -> Map.set m ~key:"c" ~data:4);
   dump (); [%expect {| (7 ((a 1) (b 2) (c 4))) |}];
   change (fun m -> Map.remove m "b");
   dump (); [%expect {| (5 ((a 1) (c 4))) |}];
-  change (fun m -> Map.add m ~key:"c" ~data:0);
+  change (fun m -> Map.set m ~key:"c" ~data:0);
   dump (); [%expect {| (1 ((a 1) (c 0))) |}];
 ;;
 

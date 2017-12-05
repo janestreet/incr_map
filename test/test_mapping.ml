@@ -33,9 +33,9 @@ let%expect_test "simple filter_mapi" =
   let change f = Incr.Var.set m (f (Incr.Var.value m)); dump ()in
   dump ();
   [%expect {| (((bar 10) (foo 3) (snoo 5)) -> ((bar 100) (snoo 25))) |}];
-  change (fun m -> Map.add m ~key:"foo" ~data:9);
+  change (fun m -> Map.set m ~key:"foo" ~data:9);
   [%expect {| (((bar 10) (foo 9) (snoo 5)) -> ((bar 100) (foo 81) (snoo 25))) |}];
-  change (fun m -> Map.add m ~key:"bar" ~data:1);
+  change (fun m -> Map.set m ~key:"bar" ~data:1);
   [%expect {| (((bar 1) (foo 9) (snoo 5)) -> ((foo 81) (snoo 25))) |}];
   change (fun m -> Map.remove m "snoo");
   [%expect {| (((bar 1) (foo 9)) -> ((foo 81))) |}];
@@ -76,7 +76,7 @@ module Map_operations = struct
   let run_operations operations ~into:var ~after_stabilize =
     List.fold operations ~init:Int.Map.empty ~f:(fun map oper ->
       match oper with
-      | Add (key, data) -> Map.add map ~key ~data
+      | Add (key, data) -> Map.set map ~key ~data
       | Remove key -> Map.remove map key
       | Stabilize ->
         Incr.Var.set var map;
