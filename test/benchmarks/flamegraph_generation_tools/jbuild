@@ -6,7 +6,7 @@
     incr_map
     incr_map_benchmarks
     ))
-  (preprocess (pps (ppx_jane ppx_driver.runner)))
+  (preprocess (pps (ppx_jane ppxlib.runner)))
   ))
 
 
