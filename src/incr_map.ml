@@ -119,7 +119,7 @@ module Make (Incr: Incremental_kernel.Incremental.S_without_times) = struct
       (* We merge the two sides of the diffs together so we can make sure to handle each
          key exactly once. This relies on symmetric diff giving sorted output. *)
       Sequence.merge_with_duplicates left_diff right_diff
-        ~cmp:(fun (left_key, _) (right_key, _) ->
+        ~compare:(fun (left_key, _) (right_key, _) ->
           comparator.compare left_key right_key)
       |> Sequence.fold ~init:old_output ~f:(fun output diff_element ->
           let key =

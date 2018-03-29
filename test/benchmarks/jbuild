@@ -1,6 +1,5 @@
 (library
  ((name incr_map_benchmarks)
-  (flags (:standard -safe-string))
   (libraries (
     core
     incremental_kernel
