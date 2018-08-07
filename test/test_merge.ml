@@ -208,7 +208,7 @@ let%bench_module "merge" = (
         in
         List.drop all_keys (all_keys_length - size)
       and values =
-        List.gen_with_length size Int.gen
+        List.gen_with_length size Int.quickcheck_generator
       in
       Int.Map.of_alist_exn (List.zip_exn keys values)
     ;;
@@ -238,14 +238,14 @@ let%bench_module "merge" = (
         | Add of int * int
         | Remove of int
 
-      let gen key_range =
+      let quickcheck_generator key_range =
         let open Quickcheck.Generator.Let_syntax in
         let key_gen (key_range_begin, key_range_end) =
           Int.gen_incl key_range_begin key_range_end
         in
         let add_gen =
           let%map key = key_gen key_range
-          and data = Int.gen
+          and data = Int.quickcheck_generator
           in Add (key, data)
         and remove_gen =
           let%map key = key_gen key_range in Remove key
@@ -266,7 +266,7 @@ let%bench_module "merge" = (
         | Modify_left of Map_modification.t
         | Modify_right of Map_modification.t
 
-      let gen key_range =
+      let quickcheck_generator key_range =
         let open Quickcheck.Generator.Let_syntax in
         let modify_gen =
           let%map dir =
@@ -274,7 +274,7 @@ let%bench_module "merge" = (
               [ (fun x -> Modify_left x)
               ; (fun x -> Modify_right x)
               ]
-          and modification = Map_modification.gen key_range
+          and modification = Map_modification.quickcheck_generator key_range
           in dir modification
         in
         Quickcheck.Generator.weighted_union
@@ -306,7 +306,7 @@ let%bench_module "merge" = (
         let gen_map = gen_map key_range ~size:initial_size in
         let%map operations =
           List.gen_with_length length
-            (Operation.gen key_range)
+            (Operation.quickcheck_generator key_range)
         and left_input = gen_map
         and right_input = gen_map
         in

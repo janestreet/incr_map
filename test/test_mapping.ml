@@ -55,7 +55,7 @@ module Map_operations = struct
           | Some n -> return n
           | None -> Int.gen_incl 5 150
         in
-        List.gen_with_length len Int.gen
+        List.gen_with_length len Int.quickcheck_generator
         >>| List.dedup_and_sort ~compare:Int.compare
       in
       let key_gen = Quickcheck.Generator.of_list keys in
@@ -67,11 +67,11 @@ module Map_operations = struct
          ])
       in
       match operations with
-      | None     -> List.gen                 elt_gen
+      | None     -> List.quickcheck_generator                 elt_gen
       | Some len -> List.gen_with_length len elt_gen
     ;;
 
-  let gen data_gen = gen' data_gen
+  let quickcheck_generator data_gen = gen' data_gen
 
   let run_operations operations ~into:var ~after_stabilize =
     List.fold operations ~init:Int.Map.empty ~f:(fun map oper ->
@@ -90,7 +90,7 @@ end
 let%test_unit "filter_mapi randomised fuzz test" =
   Quickcheck.test
     ~sexp_of:(List.sexp_of_t (Map_operations.sexp_of_t Int.sexp_of_t))
-    (Map_operations.gen Int.gen)
+    (Map_operations.quickcheck_generator Int.quickcheck_generator)
     ~f:(fun operations ->
       let m = Incr.Var.create Int.Map.empty in
       let watch_m = Incr.Var.watch m
@@ -121,7 +121,7 @@ let%bench_module "filter_mapi" = (
         ~seed:(`Deterministic (
           sprintf "%i-%i-%i-hello world, do not forget your towel"
             42 size operations))
-        (Map_operations.gen' Int.gen
+        (Map_operations.gen' Int.quickcheck_generator
            ~keys_size:size
            ~operations)
     ;;

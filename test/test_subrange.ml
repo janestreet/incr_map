@@ -126,14 +126,14 @@ type gen_op =
 let gen_op : gen_op Quickcheck.Generator.t =
   let open Quickcheck.Generator.Let_syntax in
   Quickcheck.Generator.weighted_union
-    [ (  1.0, let%map k = Int.gen in `Set_min k)
-    ; (  1.0, let%map k = Int.gen in `Set_max k)
-    ; ( 10.0, let%map k = Int.gen and v = Int.gen in `Add (k, v))
+    [ (  1.0, let%map k = Int.quickcheck_generator in `Set_min k)
+    ; (  1.0, let%map k = Int.quickcheck_generator in `Set_max k)
+    ; ( 10.0, let%map k = Int.quickcheck_generator and v = Int.quickcheck_generator in `Add (k, v))
     ; ( 10.0, let%map i = Float.gen_uniform_excl 0. 1. in `Remove i)
     ]
 
 let map_gen : int Int.Map.t Quickcheck.Generator.t =
-  Quickcheck.Generator.list (Quickcheck.Generator.tuple2 Int.gen Int.gen)
+  Quickcheck.Generator.list (Quickcheck.Generator.tuple2 Int.quickcheck_generator Int.quickcheck_generator)
   |> Quickcheck.Generator.map ~f:(fun l ->
     List.fold l ~init:Int.Map.empty ~f:(fun map (key, data) ->
       Map.set map ~key ~data
@@ -142,7 +142,7 @@ let map_gen : int Int.Map.t Quickcheck.Generator.t =
 
 let range_gen : (int * int) Quickcheck.Generator.t =
   let open Quickcheck.Generator.Let_syntax in
-  let%map a = Int.gen and b = Int.gen in
+  let%map a = Int.quickcheck_generator and b = Int.quickcheck_generator in
   if a < b then (a, b) else (b, a)
 
 let apply_op (map, (min, max)) = function
