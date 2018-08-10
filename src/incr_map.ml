@@ -15,7 +15,7 @@ module Map_type = struct
         | Filter : ('output_data, 'output_data, bool) t *)
 end
 
-module Make (Incr: Incremental_kernel.S_without_times) = struct
+module Make (Incr: Incremental.S) = struct
 
   let diff_map i ~f =
     let open Incr.Let_syntax in
@@ -399,6 +399,10 @@ module Make (Incr: Incremental_kernel.S_without_times) = struct
       ; updater_node : unit Incr.t
       ; scope : Incr.Scope.t
       }
+
+    module M(K: sig type t type comparator_witness end) = struct
+      type nonrec 'v t = (K.t, 'v, K.comparator_witness) t
+    end
 
     let create ?(data_equal=phys_equal) input_map ~comparator =
       let rec self =

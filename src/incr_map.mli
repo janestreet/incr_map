@@ -11,7 +11,7 @@
 
 open! Core_kernel
 
-module Make (Incr: Incremental_kernel.S_without_times) : sig
+module Make (Incr: Incremental.S) : sig
 
   val filter_mapi
     :  ?data_equal:('v1 -> 'v1 -> bool)
@@ -142,6 +142,11 @@ module Make (Incr: Incremental_kernel.S_without_times) : sig
         This will re-use existing nodes when it can, but will not always do so.
     *)
     val find : ('k, 'v, _) t -> 'k -> 'v option Incr.t
+
+    (** A convenient way to refer to the type for a given key. *)
+    module M(K: sig type t type comparator_witness end) : sig
+      type nonrec 'v t = (K.t, 'v, K.comparator_witness) t
+    end
 
     module For_debug : sig
       val sexp_of_t : ('k -> Sexp.t) -> ('v -> Sexp.t) -> ('k, 'v, 'cmp) t -> Sexp.t

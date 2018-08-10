@@ -1,7 +1,7 @@
 (executables
  ((names (html_table))
   (libraries (
-    incremental_kernel
+    incremental
     incr_map
     incr_map_benchmarks
     ))

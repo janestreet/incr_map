@@ -1,8 +1,8 @@
 (library
  ((name incr_map)
   (public_name incr_map)
-  
-  (libraries (core_kernel incremental_kernel))
+
+  (libraries (core_kernel incremental))
   (preprocess (pps (ppx_jane ppxlib.runner)))))
 
 

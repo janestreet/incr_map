@@ -2,7 +2,7 @@
  ((name incr_map_benchmarks)
   (libraries (
     core
-    incremental_kernel
+    incremental
     incr_map
     ))
   (preprocess (pps (ppx_jane ppxlib.runner)))

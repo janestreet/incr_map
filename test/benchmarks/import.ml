@@ -1,5 +1,5 @@
 module Incr = struct
-  module Z = Incremental_kernel.Make()
+  module Z = Incremental.Make()
   include Z
   module Map = Incr_map.Make(Z)
 end
