@@ -3,6 +3,7 @@ open Import
 
 let print_lookup_state lookup =
   print_s ([%sexp_of: (int, string) Incr.Map.Lookup.For_debug.t] lookup)
+;;
 
 let%expect_test "test unnecessary nodes are cleaned" =
   let input_map =
@@ -10,28 +11,28 @@ let%expect_test "test unnecessary nodes are cleaned" =
       (Int.Map.of_alist_exn [ 1, "hello"; 2, "world"; 4, "abc"; 7, "def"; 9, "xyz" ])
   in
   let lookup =
-    Incr.Map.Lookup.create (Incr.Var.watch input_map)
+    Incr.Map.Lookup.create
+      (Incr.Var.watch input_map)
       ~comparator:Int.comparator
       ~data_equal:String.equal
   in
   let key_observers =
     match
-      Int.Table.create_mapped (List.range 0 10) ~get_key:Fn.id
-        ~get_data:(fun key -> Incr.observe (Incr.Map.Lookup.find lookup key))
+      Int.Table.create_mapped (List.range 0 10) ~get_key:Fn.id ~get_data:(fun key ->
+        Incr.observe (Incr.Map.Lookup.find lookup key))
     with
     | `Duplicate_keys _ -> failwith "Hit impossible case"
     | `Ok table -> table
   in
   ignore (Incr.Map.Lookup.find lookup 10);
-
   print_lookup_state lookup;
   [%expect {|
     ()
     |}];
-
   Incr.stabilize ();
   print_lookup_state lookup;
-  [%expect {|
+  [%expect
+    {|
     (((key 0) (entries (((saved_value ())))))
      ((key          1)
       (actual_value hello)
@@ -53,16 +54,14 @@ let%expect_test "test unnecessary nodes are cleaned" =
       (actual_value xyz)
       (entries (((saved_value (xyz)))))))
      |}];
-
   (* Stop looking at some keys. Initially they are still live. *)
   List.iter [ 1; 4; 5 ] ~f:(fun key ->
     Hashtbl.find_and_remove key_observers key
     |> Option.value_exn ~here:[%here]
-    |> Incr.Observer.disallow_future_use
-  );
-
+    |> Incr.Observer.disallow_future_use);
   print_lookup_state lookup;
-  [%expect {|
+  [%expect
+    {|
     (((key 0) (entries (((saved_value ())))))
      ((key          1)
       (actual_value hello)
@@ -84,10 +83,10 @@ let%expect_test "test unnecessary nodes are cleaned" =
       (actual_value xyz)
       (entries (((saved_value (xyz)))))))
      |}];
-
   Incr.stabilize ();
   print_lookup_state lookup;
-  [%expect {|
+  [%expect
+    {|
     (((key 0) (entries (((saved_value ())))))
      ((key          1)
       (actual_value hello)
@@ -107,13 +106,14 @@ let%expect_test "test unnecessary nodes are cleaned" =
      ((key          9)
       (actual_value xyz)
       (entries (((saved_value (xyz)))))))
-     |}];
+     |}]
 ;;
 
 let%expect_test "test cleaned nodes still work" =
   let input_map = Incr.Var.create (Int.Map.of_alist_exn [ 1, "hello" ]) in
   let lookup =
-    Incr.Map.Lookup.create (Incr.Var.watch input_map)
+    Incr.Map.Lookup.create
+      (Incr.Var.watch input_map)
       ~comparator:Int.comparator
       ~data_equal:String.equal
   in
@@ -125,20 +125,18 @@ let%expect_test "test cleaned nodes still work" =
   [%expect {|
     () |}];
   let find_b = Incr.Map.Lookup.find lookup 1 in
-  let obs_a = Incr.observe find_a
-  and obs_b = Incr.observe find_b
-  in
+  let obs_a = Incr.observe find_a and obs_b = Incr.observe find_b in
   Incr.Var.set input_map (Int.Map.of_alist_exn [ 1, "world" ]);
   Incr.stabilize ();
   print_lookup_state lookup;
-  [%expect {|
+  [%expect
+    {|
     ((
       (key          1)
       (actual_value world)
       (entries (
         ((saved_value (world)))
         ((saved_value (world))))))) |}];
-
   show_raise (fun () ->
     [%test_result: string option]
       ~expect:(Incr.Observer.value_exn obs_b)
@@ -147,12 +145,12 @@ let%expect_test "test cleaned nodes still work" =
       ~expect:(Some "world")
       (Incr.Observer.value_exn obs_a));
   [%expect {| "did not raise" |}];
-
-  Incr.Observer.disallow_future_use obs_b ;
-
-  Incr.stabilize (); (* To unlink b. *)
+  Incr.Observer.disallow_future_use obs_b;
+  Incr.stabilize ();
+  (* To unlink b. *)
   print_lookup_state lookup;
-  [%expect {|
+  [%expect
+    {|
     ((
       (key          1)
       (actual_value world)
@@ -161,14 +159,14 @@ let%expect_test "test cleaned nodes still work" =
   Incr.Var.set input_map (Int.Map.of_alist_exn [ 1, "and others" ]);
   Incr.stabilize ();
   print_lookup_state lookup;
-  [%expect {|
+  [%expect
+    {|
     ((
       (key          1)
       (actual_value "and others")
       (entries (
         ((saved_value ("and others")))
         ((saved_value ("and others"))))))) |}];
-
   show_raise (fun () ->
     [%test_result: string option]
       ~expect:(Incr.Observer.value_exn obs_b)
@@ -176,13 +174,14 @@ let%expect_test "test cleaned nodes still work" =
     [%test_result: string option]
       ~expect:(Some "and others")
       (Incr.Observer.value_exn obs_a));
-  [%expect {| "did not raise" |}];
+  [%expect {| "did not raise" |}]
 ;;
 
 let%test_unit "test vs slow lookup" =
   let input_map = Incr.Var.create Int.Map.empty in
   let lookup =
-    Incr.Map.Lookup.create (Incr.Var.watch input_map)
+    Incr.Map.Lookup.create
+      (Incr.Var.watch input_map)
       ~comparator:Int.comparator
       ~data_equal:String.equal
   in
@@ -192,8 +191,7 @@ let%test_unit "test vs slow lookup" =
       and slow_path =
         Incr.observe (Incr.map ~f:(fun m -> Map.find m key) (Incr.Var.watch input_map))
       in
-      key, (with_lookup, slow_path)
-    )
+      key, (with_lookup, slow_path))
     |> Int.Map.of_alist_exn
   in
   let test_alist alist =
@@ -203,14 +201,13 @@ let%test_unit "test vs slow lookup" =
       [%test_result: string option]
         ~message:(sprintf "matches slow path for key %i" key)
         ~expect:(Incr.Observer.value_exn slow_path)
-        (Incr.Observer.value_exn with_lookup)
-    )
+        (Incr.Observer.value_exn with_lookup))
   in
-  test_alist [ 1, "hello"; 15, "what";  3, "bear" ];
-  test_alist [ 5, "hello"; 7, "what";  1, "bear" ];
+  test_alist [ 1, "hello"; 15, "what"; 3, "bear" ];
+  test_alist [ 5, "hello"; 7, "what"; 1, "bear" ];
   test_alist [ 1, "hello"; 7, "nine"; 12, "bear" ];
-  test_alist [ 1, "hello"; 7, "furnish";  3, "bear" ];
-  test_alist [ 1, "hello"; 15, "what";  3, "bear" ];
+  test_alist [ 1, "hello"; 7, "furnish"; 3, "bear" ];
+  test_alist [ 1, "hello"; 15, "what"; 3, "bear" ];
   test_alist [ 1, "hello"; 15, "what" ];
-  test_alist [ 1, "hello"; 15, "what";  5, "five"; 7, "seven"; 2, "two" ];
+  test_alist [ 1, "hello"; 15, "what"; 5, "five"; 7, "seven"; 2, "two" ]
 ;;

@@ -11,8 +11,7 @@
 
 open! Core_kernel
 
-module Make (Incr: Incremental.S) : sig
-
+module Make (Incr : Incremental.S) : sig
   val filter_mapi
     :  ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
@@ -71,12 +70,8 @@ module Make (Incr: Incremental.S) : sig
     -> ?data_equal_right:('v2 -> 'v2 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> ('k, 'v2, 'cmp) Map.t Incr.t
-    -> f:(key:'k
-          -> [ `Left of 'v1
-             | `Right of 'v2
-             | `Both of ('v1 * 'v2) ]
-          -> 'v3 option)
-    -> ( 'k, 'v3, 'cmp) Map.t Incr.t
+    -> f:(key:'k -> [`Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2] -> 'v3 option)
+    -> ('k, 'v3, 'cmp) Map.t Incr.t
 
   (** This is the "easy" version of [map_join] *)
   val flatten : ('k, 'v Incr.t, 'cmp) Map.t -> ('k, 'v, 'cmp) Map.t Incr.t
@@ -84,9 +79,12 @@ module Make (Incr: Incremental.S) : sig
   (** The non-incremental semantics of this function is the identity function.  Its
       purpose is to collapse the extra level of incrementality at the level of the data of
       the map.*)
-  val join
-    :  ('k, 'v Incr.t, 'cmp) Map.t Incr.t
-    -> ('k, 'v, 'cmp) Map.t Incr.t
+  val join : ('k, 'v Incr.t, 'cmp) Map.t Incr.t -> ('k, 'v, 'cmp) Map.t Incr.t
+
+  val separate
+    :  ('k, 'v, 'cmp) Map.t Incr.t
+    -> data_equal:('v -> 'v -> sexp_bool)
+    -> ('k, 'v Incr.t, 'cmp) Map.t Incr.t
 
   (** [subrange map (min, max)] constructs an incremental submap that includes all of the
       keys and data from [map] between [min] and [max], inclusive, and none of the keys
@@ -144,7 +142,11 @@ module Make (Incr: Incremental.S) : sig
     val find : ('k, 'v, _) t -> 'k -> 'v option Incr.t
 
     (** A convenient way to refer to the type for a given key. *)
-    module M(K: sig type t type comparator_witness end) : sig
+    module M (K : sig
+        type t
+
+        type comparator_witness
+      end) : sig
       type nonrec 'v t = (K.t, 'v, K.comparator_witness) t
     end
 
@@ -153,7 +155,3 @@ module Make (Incr: Incremental.S) : sig
     end
   end
 end
-
-
-
-
