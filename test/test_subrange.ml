@@ -13,7 +13,8 @@ let subrange map range =
 let setup_subrange map_incr range_incr =
   let slow_submap_incr =
     let open Incr.Let_syntax in
-    let%map map = map_incr and range = range_incr in
+    let%map map = map_incr
+    and range = range_incr in
     subrange map range
   in
   let slow_submap = Incr.observe slow_submap_incr in
@@ -82,7 +83,11 @@ let%expect_test "check subrange" =
               (5 d)) |}]
 ;;
 
-type gen_op = [`Set_min of int | `Set_max of int | `Add of int * int | `Remove of float]
+type gen_op =
+  [ `Set_min of int
+  | `Set_max of int
+  | `Add of int * int
+  | `Remove of float ]
 
 let gen_op : gen_op Quickcheck.Generator.t =
   let open Quickcheck.Generator.Let_syntax in
@@ -94,7 +99,8 @@ let gen_op : gen_op Quickcheck.Generator.t =
       , let%map k = Int.quickcheck_generator in
         `Set_max k )
     ; ( 10.0
-      , let%map k = Int.quickcheck_generator and v = Int.quickcheck_generator in
+      , let%map k = Int.quickcheck_generator
+        and v = Int.quickcheck_generator in
         `Add (k, v) )
     ; ( 10.0
       , let%map i = Float.gen_uniform_excl 0. 1. in
@@ -112,7 +118,8 @@ let map_gen : int Int.Map.t Quickcheck.Generator.t =
 
 let range_gen : (int * int) Quickcheck.Generator.t =
   let open Quickcheck.Generator.Let_syntax in
-  let%map a = Int.quickcheck_generator and b = Int.quickcheck_generator in
+  let%map a = Int.quickcheck_generator
+  and b = Int.quickcheck_generator in
   if a < b then a, b else b, a
 ;;
 

@@ -125,7 +125,8 @@ let%expect_test "test cleaned nodes still work" =
   [%expect {|
     () |}];
   let find_b = Incr.Map.Lookup.find lookup 1 in
-  let obs_a = Incr.observe find_a and obs_b = Incr.observe find_b in
+  let obs_a = Incr.observe find_a
+  and obs_b = Incr.observe find_b in
   Incr.Var.set input_map (Int.Map.of_alist_exn [ 1, "world" ]);
   Incr.stabilize ();
   print_lookup_state lookup;

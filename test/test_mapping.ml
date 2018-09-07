@@ -9,7 +9,8 @@ let filter_mapi ~data_equal m ~f =
     let%map m = m in
     Map.filter_mapi ~f:(fun ~key ~data -> f ~key ~data) m
   in
-  let%map a = a and b = b in
+  let%map a = a
+  and b = b in
   require [%here] (Map.equal data_equal a b);
   a
 ;;
@@ -71,7 +72,8 @@ module Map_operations = struct
           , let%map key = key_gen in
             Remove key )
         ; ( 10.
-          , let%map key = key_gen and data = data_gen in
+          , let%map key = key_gen
+            and data = data_gen in
             Add (key, data) )
         ]
     in
@@ -119,7 +121,7 @@ let%test_unit "filter_mapi randomised fuzz test" =
 ;;
 
 let%bench_module "filter_mapi" =
-  ( module struct
+  (module struct
     let test_data ~size ~operations =
       (* It is important this is deterministic *)
       Quickcheck.random_value
@@ -148,7 +150,7 @@ let%bench_module "filter_mapi" =
       let operations = test_data ~size:(operations / 100) ~operations in
       fun () -> benchmark_filter_mapi Incr.Map.filter_mapi ~operations
     ;;
-  end )
+  end)
 ;;
 
 let%test_unit "filter_mapi' should not throw on empty map" =
@@ -224,7 +226,7 @@ let%expect_test "check filter_mapi' against actual filter_mapi" =
 ;;
 
 let%test_module "random tests on filter and non-filter mapping functions" =
-  ( module struct
+  (module struct
     module Filtering_or_not = struct
       type t =
         | Just_mapping
@@ -568,5 +570,5 @@ let%test_module "random tests on filter and non-filter mapping functions" =
         ~steps:100
         ~incr_map_mapping_i_fn_with_cutoff:incr_map_mapping_i'_with_bind_and_cutoff
     ;;
-  end )
+  end)
 ;;

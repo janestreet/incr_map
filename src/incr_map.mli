@@ -144,7 +144,6 @@ module Make (Incr : Incremental.S) : sig
     (** A convenient way to refer to the type for a given key. *)
     module M (K : sig
         type t
-
         type comparator_witness
       end) : sig
       type nonrec 'v t = (K.t, 'v, K.comparator_witness) t

@@ -2,14 +2,12 @@ open Core
 open Import
 
 let%test_module "random tests" =
-  ( module struct
+  (module struct
     (* [f_left_count], [f_right_count] and [f_both_count] are counters used to keep track
        of how many times the [`Left], [`Right], and [`Both] branches of [f] respectively
        are run as a result of [f] being called by [Incr.Map.merge]. *)
     let f_left_count = ref 0
-
     let f_right_count = ref 0
-
     let f_both_count = ref 0
 
     (* [f] is the argument given to [Incr.Map.merge] and [Map.merge].
@@ -34,11 +32,17 @@ let%test_module "random tests" =
     let map_merge map1 map2 = Map.merge map1 map2 ~f:(f ~incr_counters:false)
 
     module Change_status = struct
-      type present = [`Still_present_unchanged | `Value_set]
+      type present =
+        [ `Still_present_unchanged
+        | `Value_set ]
 
-      type missing = [`Still_absent | `Removed]
+      type missing =
+        [ `Still_absent
+        | `Removed ]
 
-      type unchanged = [`Still_present_unchanged | `Still_absent]
+      type unchanged =
+        [ `Still_present_unchanged
+        | `Still_absent ]
     end
 
     (* [Incr.Map.merge] is tested as follows:
@@ -193,11 +197,11 @@ let%test_module "random tests" =
     let%test_unit "rand test: stat with two empty maps, stabilize every 10 steps" =
       test_merge Int.Map.empty Int.Map.empty ~steps:500 ~stabilize_every_n:10
     ;;
-  end )
+  end)
 ;;
 
 let%bench_module "merge" =
-  ( module struct
+  (module struct
     type map = int Int.Map.t
 
     let gen_map (min_key, max_key) ~size =
@@ -251,7 +255,8 @@ let%bench_module "merge" =
           Int.gen_incl key_range_begin key_range_end
         in
         let add_gen =
-          let%map key = key_gen key_range and data = Int.quickcheck_generator in
+          let%map key = key_gen key_range
+          and data = Int.quickcheck_generator in
           Add (key, data)
         and remove_gen =
           let%map key = key_gen key_range in
@@ -316,12 +321,14 @@ let%bench_module "merge" =
     ;;
 
     let key_range = 0, 25000
-
     let initial_size = 15000
 
     let%bench_fun ("cheap merging function"[@indexed length = [ 1000; 3000; 5000 ]]) =
       generate_fun ~length ~key_range ~initial_size ~merge_f:(fun ~key:_ v ->
-        match v with `Left v | `Right v | `Both (v, _) -> Some v)
+        match v with
+        | `Left v
+        | `Right v
+        | `Both (v, _) -> Some v)
       |> Staged.unstage
     ;;
 
@@ -331,11 +338,12 @@ let%bench_module "merge" =
       =
       generate_fun ~length ~key_range ~initial_size ~merge_f:(fun ~key:_ v ->
         match v with
-        | `Left v | `Right v -> Some v
+        | `Left v
+        | `Right v -> Some v
         | `Both (v, _) ->
           Time.pause (Time.Span.of_us 1.);
           Some v)
       |> Staged.unstage
     ;;
-  end )
+  end)
 ;;

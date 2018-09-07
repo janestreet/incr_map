@@ -8,7 +8,8 @@ let unordered_fold (type a) ~data_equal m ~(init : a) ~add ~remove =
     let%map m = m in
     Map.fold ~init ~f:add m
   in
-  let%map a = a and b = b in
+  let%map a = a
+  and b = b in
   require [%here] (data_equal a b);
   a
 ;;
@@ -46,14 +47,12 @@ let%expect_test _ =
 ;;
 
 let%test_module "random tests" =
-  ( module struct
+  (module struct
     (* [add_count], [remove_count] and [update_count] are counters used to keep track of
        how many times [add], [remove] and [update] respectively are called by
        [Incr.Map.unordered_fold]. *)
     let add_count = ref 0
-
     let remove_count = ref 0
-
     let update_count = ref 0
 
     (* Symbolic [add], [remove] satisfying the minimal required properties:
@@ -75,7 +74,8 @@ let%test_module "random tests" =
     let remove ~key ~data map =
       Map.change map key ~f:(function
         | None -> Some [ Remove data ]
-        | Some (Add other_data :: other_ops) when Float.equal data other_data ->
+        | Some (Add other_data :: other_ops)
+          when Float.equal data other_data ->
           Option.some_if (not (List.is_empty other_ops)) other_ops
         | Some other_ops -> Some (Remove data :: other_ops))
     ;;
@@ -83,8 +83,8 @@ let%test_module "random tests" =
     let update ~key ~old_data ~new_data map =
       Map.change map key ~f:(function
         | None -> Some [ Update (old_data, new_data) ]
-        | Some (Add other_data :: other_ops) when Float.equal old_data other_data ->
-          Some (Add new_data :: other_ops)
+        | Some (Add other_data :: other_ops)
+          when Float.equal old_data other_data -> Some (Add new_data :: other_ops)
         | Some other_ops -> Some (Update (old_data, new_data) :: other_ops))
     ;;
 
@@ -218,5 +218,5 @@ let%test_module "random tests" =
     let%test_unit "rand test: start with empty map, stabilize every 10 steps, update" =
       test_unordered_fold Int.Map.empty ~steps:100 ~stabilize_every_n:10 ~use_update:true
     ;;
-  end )
+  end)
 ;;

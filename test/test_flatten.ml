@@ -2,7 +2,7 @@ open Core
 open Import
 
 let%test_module "random tests" =
-  ( module struct
+  (module struct
     (* [Incr.Map.flatten] is tested as follows:
 
        First, create [map_of_incrs] of type [float Incr.t Int.Map.t] with initial values
@@ -81,5 +81,5 @@ let%test_module "random tests" =
       let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
       test_flatten_with_cutoff start_map ~num_steps:10
     ;;
-  end )
+  end)
 ;;

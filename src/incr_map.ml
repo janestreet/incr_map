@@ -26,7 +26,7 @@ module Make (Incr : Incremental.S) = struct
     b
   ;;
 
-  let unordered_fold ?(data_equal=phys_equal) ?update map ~init ~add ~remove =
+  let unordered_fold ?(data_equal = phys_equal) ?update map ~init ~add ~remove =
     let update =
       let default ~key ~old_data ~new_data acc =
         add ~key ~data:new_data (remove ~key ~data:old_data acc)
@@ -54,12 +54,11 @@ module Make (Incr : Incremental.S) = struct
       get the comparator out of the map, we allow the initial map itself to be garbage
       collected *)
   let with_comparator map f = Incr.bind (Incr.freeze (Incr.map map ~f:Map.comparator)) ~f
-  ;;
 
   let generic_mapi
         (type input_data output_data f_output)
         (witness : (input_data, output_data, f_output) Map_type.t)
-        ?(data_equal=phys_equal)
+        ?(data_equal = phys_equal)
         (map : ('key, input_data, 'cmp) Map.t Incr.t)
         ~(f : key:'key -> data:input_data -> f_output)
     =
@@ -74,7 +73,8 @@ module Make (Incr : Incremental.S) = struct
         |> Sequence.fold ~init:old_output ~f:(fun output (key, change) ->
           match change with
           | `Left _ -> Map.remove output key
-          | `Right new_data | `Unequal (_, new_data) ->
+          | `Right new_data
+          | `Unequal (_, new_data) ->
             let res = f ~key ~data:new_data in
             (match witness with
              | Map_type.Map -> Map.set output ~key ~data:res
@@ -85,7 +85,6 @@ module Make (Incr : Incremental.S) = struct
   ;;
 
   let mapi ?data_equal map ~f = generic_mapi Map ?data_equal map ~f
-
   let filter_mapi ?data_equal map ~f = generic_mapi Filter_map ?data_equal map ~f
 
   let diff_map2 i1 i2 ~f =
@@ -97,8 +96,8 @@ module Make (Incr : Incremental.S) = struct
   ;;
 
   let merge
-        ?(data_equal_left=phys_equal)
-        ?(data_equal_right=phys_equal)
+        ?(data_equal_left = phys_equal)
+        ?(data_equal_right = phys_equal)
         left_map
         right_map
         ~f
@@ -128,7 +127,8 @@ module Make (Incr : Incremental.S) = struct
       |> Sequence.fold ~init:old_output ~f:(fun output diff_element ->
         let key =
           match diff_element with
-          | Left (key, _) | Right (key, _) -> key
+          | Left (key, _)
+          | Right (key, _) -> key
           | Both ((left_key, _), (right_key, _)) ->
             assert (comparator.compare left_key right_key = 0);
             left_key
@@ -138,7 +138,8 @@ module Make (Incr : Incremental.S) = struct
         let left_data_opt, right_data_opt =
           let new_data = function
             | `Left _ -> None
-            | `Right x | `Unequal (_, x) -> Some x
+            | `Right x
+            | `Unequal (_, x) -> Some x
           in
           match diff_element with
           | Both ((_, left_diff), (_, right_diff)) ->
@@ -163,7 +164,7 @@ module Make (Incr : Incremental.S) = struct
         (type input_data output_data f_output)
         (witness : (input_data, output_data, f_output) Map_type.t)
         ?cutoff
-        ?(data_equal=phys_equal)
+        ?(data_equal = phys_equal)
         (lhs : ('key, input_data, 'cmp) Map.t Incr.t)
         ~(comparator : ('key, 'cmp) Comparator.t)
         ~(f : key:'key -> data:input_data Incr.t -> f_output Incr.t)
@@ -371,7 +372,7 @@ module Make (Incr : Incremental.S) = struct
       Incr.Expert.Node.watch output_map_node)
   ;;
 
-  let subrange ?(data_equal=phys_equal) map_incr range =
+  let subrange ?(data_equal = phys_equal) map_incr range =
     diff_map2 map_incr range ~f:(fun ~old map range ->
       let compare = (Map.comparator map).compare in
       let equal l r = compare l r = 0 in
@@ -384,7 +385,8 @@ module Make (Incr : Incremental.S) = struct
           Map.subrange map ~lower_bound:(Incl min) ~upper_bound:(Incl max)
         in
         (match old with
-         | None | Some (_, None, _) -> (* no old range *)
+         | None
+         | Some (_, None, _) -> (* no old range *)
            from_scratch ()
          | Some (_, Some (old_min, old_max), _)
            when compare old_min old_max > 0
@@ -412,7 +414,8 @@ module Make (Incr : Incremental.S) = struct
                then (
                  match data with
                  | `Left _ -> outside, Map.remove map key
-                 | `Right data | `Unequal (_, data) -> outside, Map.set map ~key ~data)
+                 | `Right data
+                 | `Unequal (_, data) -> outside, Map.set map ~key ~data)
                else (
                  let outside = outside - 1 in
                  if outside < 0
@@ -451,9 +454,15 @@ module Make (Incr : Incremental.S) = struct
                      failwith "impossible case: BUG in incr_map.ml subrange"
                  in
                  let lower_part =
-                   Map.subrange map ~lower_bound:(Incl min) ~upper_bound:(Excl old_min)
+                   Map.subrange
+                     map
+                     ~lower_bound:(Incl min)
+                     ~upper_bound:(Excl old_min)
                  and upper_part =
-                   Map.subrange map ~lower_bound:(Excl old_max) ~upper_bound:(Incl max)
+                   Map.subrange
+                     map
+                     ~lower_bound:(Excl old_max)
+                     ~upper_bound:(Incl max)
                  in
                  map_append_exn
                    lower_part
@@ -481,14 +490,13 @@ module Make (Incr : Incremental.S) = struct
 
     module M (K : sig
         type t
-
         type comparator_witness
       end) =
     struct
       type nonrec 'v t = (K.t, 'v, K.comparator_witness) t
     end
 
-    let create ?(data_equal=phys_equal) input_map ~comparator =
+    let create ?(data_equal = phys_equal) input_map ~comparator =
       let rec self =
         lazy
           (let updater_node =
@@ -501,8 +509,8 @@ module Make (Incr : Incremental.S) = struct
                    entry.saved_value
                    <- (match changed_value with
                      | `Left _ -> None
-                     | `Right new_value | `Unequal (_, new_value) ->
-                       Some new_value);
+                     | `Right new_value
+                     | `Unequal (_, new_value) -> Some new_value);
                    Incr.Expert.Node.make_stale entry.node));
                self.saved_map <- input_map)
            in
@@ -584,7 +592,9 @@ module Make (Incr : Incremental.S) = struct
             in
             Some
               [%sexp
-                { key : key; actual_value : value sexp_option; entries : value entry list
+                { key : key
+                ; actual_value : value sexp_option
+                ; entries : value entry list
                 }])
         in
         Sexp.List (Map.data info_per_key)

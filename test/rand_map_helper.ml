@@ -1,12 +1,9 @@
 open Core
 open Import
 
-let rs = Random.State.make [|0|]
-
+let rs = Random.State.make [| 0 |]
 let get_rand_key ~max_key = Random.State.int rs max_key
-
 let get_rand_data () = Random.State.float rs 1.
-
 let rand () = Random.State.float rs 1.
 
 let init_rand_map ~from ~to_ =

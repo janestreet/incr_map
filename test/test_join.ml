@@ -104,7 +104,7 @@ let%expect_test "check join against slow implementation" =
 ;;
 
 let%test_module "random tests" =
-  ( module struct
+  (module struct
     (* [Incr.Map.join] is tested as follows:
 
        First, create [map_of_incrs_incr] of type [float Incr.t Int.Map.t Incr.t] with
@@ -162,5 +162,5 @@ let%test_module "random tests" =
     let%test_unit "rand test: start with empty map, stabilize every 10 steps" =
       test_join Int.Map.empty ~steps:100 ~stabilize_every_n:10
     ;;
-  end )
+  end)
 ;;
