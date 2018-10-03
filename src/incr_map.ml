@@ -49,11 +49,33 @@ module Make (Incr : Incremental.S) = struct
           | `Unequal (old, new_) -> update ~key ~old_data:old ~new_data:new_ acc))
   ;;
 
+  let with_comparator' get_comparator x f =
+    Incr.bind (Incr.freeze (Incr.map x ~f:get_comparator)) ~f
+  ;;
+
   (** Captures the comparator (which can't change anyway, since the type determines the
       comparator) by freezing the corresponding map.  Note that by first using Incr.map to
       get the comparator out of the map, we allow the initial map itself to be garbage
       collected *)
-  let with_comparator map f = Incr.bind (Incr.freeze (Incr.map map ~f:Map.comparator)) ~f
+  let with_comparator map f = with_comparator' Map.comparator map f
+
+  let of_set set =
+    with_comparator' Set.comparator set (fun comparator ->
+      let old_input = ref (Set.Using_comparator.empty ~comparator) in
+      let old_output = ref (Map.Using_comparator.empty ~comparator) in
+      Incr.map set ~f:(fun new_input ->
+        let new_output =
+          Sequence.fold
+            (Set.symmetric_diff !old_input new_input)
+            ~init:!old_output
+            ~f:(fun output -> function
+              | First k -> Map.remove output k
+              | Second k -> Map.add_exn output ~key:k ~data:())
+        in
+        old_input := new_input;
+        old_output := new_output;
+        new_output))
+  ;;
 
   let generic_mapi
         (type input_data output_data f_output)

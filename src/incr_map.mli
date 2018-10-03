@@ -12,6 +12,8 @@
 open! Core_kernel
 
 module Make (Incr : Incremental.S) : sig
+  val of_set : ('k, 'cmp) Set.t Incr.t -> ('k, unit, 'cmp) Map.t Incr.t
+
   val filter_mapi
     :  ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
