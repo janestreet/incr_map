@@ -1,4 +1,4 @@
-* Incr_map
+#+TITLE: Incr\_map
 
 A set of functions for operating incrementally and efficiently on map
 like data structures.  This leverages new functionality in Incremental
