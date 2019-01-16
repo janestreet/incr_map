@@ -1,0 +1,3 @@
+(executables (names html_table)
+ (libraries incremental incr_map incr_map_benchmarks)
+ (preprocess (pps ppx_jane)))

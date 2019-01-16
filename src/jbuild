@@ -1,9 +1,0 @@
-(library
- ((name incr_map)
-  (public_name incr_map)
-
-  (libraries (core_kernel incremental))
-  (preprocess (pps (ppx_jane ppxlib.runner)))))
-
-
-(jbuild_version 1)
