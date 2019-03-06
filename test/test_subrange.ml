@@ -111,9 +111,7 @@ let gen_op : gen_op Quickcheck.Generator.t =
 let map_gen : int Int.Map.t Quickcheck.Generator.t =
   Quickcheck.Generator.list
     (Quickcheck.Generator.tuple2 Int.quickcheck_generator Int.quickcheck_generator)
-  |> Quickcheck.Generator.map ~f:(fun l ->
-    List.fold l ~init:Int.Map.empty ~f:(fun map (key, data) ->
-      Map.set map ~key ~data))
+  |> Quickcheck.Generator.map ~f:(fun l -> Int.Map.of_alist_reduce l ~f:(fun _a b -> b))
 ;;
 
 let range_gen : (int * int) Quickcheck.Generator.t =
@@ -152,5 +150,336 @@ let%test_unit "quickcheck ops test" =
       check ();
       List.iter ops ~f:(fun op ->
         Incr.Var.set data (apply_op (Incr.Var.value data) op);
+        check ()))
+;;
+
+let observe incr =
+  let observer = Incr.observe incr in
+  Incr.stabilize ();
+  Incr.Observer.value_exn observer
+;;
+
+let subrange_by_rank_test
+      ?(initial_map =
+        String.Map.of_alist_exn [ "b", (); "d", (); "f", (); "h", (); "j", (); "l", () ])
+      ~initial_range
+      ~ops
+      ()
+  =
+  (* test subrange_by_rank by starting from [initial_map] and [initial_range] and applying
+     ops, which can change both map and range *)
+  let map_var = Incr.Var.create initial_map in
+  let map = Incr.Var.watch map_var in
+  let range_var = Incr.Var.create initial_range in
+  let range = Incr.Var.watch range_var in
+  let i = Incr.Map.subrange_by_rank map range in
+  printf
+    !"Initial full            : %{sexp:unit String.Map.t}\n\
+      Initial range (%3d, %3d): %{sexp:unit String.Map.t}\n"
+    initial_map
+    (fst initial_range)
+    (snd initial_range)
+    (observe i);
+  List.iter ops ~f:(fun op ->
+    let old_map = Incr.Var.value map_var in
+    let old_range = Incr.Var.value range_var in
+    let new_map, new_range = op (old_map, old_range) in
+    Incr.Var.set map_var new_map;
+    Incr.Var.set range_var new_range;
+    printf
+      !"   Next full            : %{sexp:unit String.Map.t}\n\
+       \   Next range (%3d, %3d): %{sexp:unit String.Map.t}\n"
+      new_map
+      (fst new_range)
+      (snd new_range)
+      (observe i))
+;;
+
+let%expect_test "subrange_by_rank" =
+  let map_only_op f (map, range) = f map, range in
+  let add key = map_only_op (fun map -> Map.add_exn map ~key ~data:()) in
+  let remove key = map_only_op (fun map -> Map.remove map key) in
+  let set_range range (map, _range) = map, range in
+  subrange_by_rank_test ~initial_range:(1, 3) ~ops:[ Fn.id ] ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   3): ((d ()) (f ()) (h ()))
+       Next full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+       Next range (  1,   3): ((d ()) (f ()) (h ())) |}];
+  subrange_by_rank_test ~initial_range:(1, 3) ~ops:[ remove "l" ] ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   3): ((d ()) (f ()) (h ()))
+       Next full            : ((b ()) (d ()) (f ()) (h ()) (j ()))
+       Next range (  1,   3): ((d ()) (f ()) (h ())) |}];
+  subrange_by_rank_test ~initial_range:(1, 3) ~ops:[ add "a" ] ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   3): ((d ()) (f ()) (h ()))
+       Next full            : ((a ()) (b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+       Next range (  1,   3): ((b ()) (d ()) (f ())) |}];
+  subrange_by_rank_test ~initial_range:(1, 3) ~ops:[ add "g" ] ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   3): ((d ()) (f ()) (h ()))
+       Next full            : ((b ()) (d ()) (f ()) (g ()) (h ()) (j ()) (l ()))
+       Next range (  1,   3): ((d ()) (f ()) (g ())) |}];
+  subrange_by_rank_test ~initial_range:(1, 3) ~ops:[ remove "b" ] ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   3): ((d ()) (f ()) (h ()))
+       Next full            : ((d ()) (f ()) (h ()) (j ()) (l ()))
+       Next range (  1,   3): ((f ()) (h ()) (j ())) |}];
+  subrange_by_rank_test ~initial_range:(1, 3) ~ops:[ remove "d" ] ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   3): ((d ()) (f ()) (h ()))
+       Next full            : ((b ()) (f ()) (h ()) (j ()) (l ()))
+       Next range (  1,   3): ((f ()) (h ()) (j ())) |}];
+  subrange_by_rank_test ~initial_range:(1, 3) ~ops:[ remove "f"; add "g" ] ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   3): ((d ()) (f ()) (h ()))
+       Next full            : ((b ()) (d ()) (h ()) (j ()) (l ()))
+       Next range (  1,   3): ((d ()) (h ()) (j ()))
+       Next full            : ((b ()) (d ()) (g ()) (h ()) (j ()) (l ()))
+       Next range (  1,   3): ((d ()) (g ()) (h ()))
+     |}];
+  subrange_by_rank_test ~initial_range:(0, 0) ~ops:[ add "a" ] ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  0,   0): ((b ()))
+       Next full            : ((a ()) (b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+       Next range (  0,   0): ((a ())) |}];
+  subrange_by_rank_test ~initial_range:(5, 100) ~ops:[ add "m" ] ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  5, 100): ((l ()))
+       Next full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()) (m ()))
+       Next range (  5, 100): ((l ()) (m ())) |}];
+  subrange_by_rank_test ~initial_range:(5, 100) ~ops:[ add "a" ] ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  5, 100): ((l ()))
+       Next full            : ((a ()) (b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+       Next range (  5, 100): ((j ()) (l ())) |}];
+  subrange_by_rank_test ~initial_range:(6, 6) ~ops:[ add "m" ] ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  6,   6): ()
+       Next full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()) (m ()))
+       Next range (  6,   6): ((m ())) |}];
+  subrange_by_rank_test
+    ~initial_range:(1, 2)
+    ~ops:[ (fun m -> add "c" (remove "d" m)) ]
+    ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   2): ((d ()) (f ()))
+       Next full            : ((b ()) (c ()) (f ()) (h ()) (j ()) (l ()))
+       Next range (  1,   2): ((c ()) (f ()))|}];
+  subrange_by_rank_test
+    ~initial_range:(1, 2)
+    ~ops:[ (fun m -> add "e" (remove "d" m)) ]
+    ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   2): ((d ()) (f ()))
+       Next full            : ((b ()) (e ()) (f ()) (h ()) (j ()) (l ()))
+       Next range (  1,   2): ((e ()) (f ()))|}];
+  subrange_by_rank_test
+    ~initial_range:(1, 2)
+    ~ops:[ (fun m -> remove "d" m |> remove "b") ]
+    ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   2): ((d ()) (f ()))
+       Next full            : ((f ()) (h ()) (j ()) (l ()))
+       Next range (  1,   2): ((h ()) (j ()))|}];
+  subrange_by_rank_test
+    ~initial_range:(1, 2)
+    ~ops:[ (fun m -> add "e" (remove "f" m)) ]
+    ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   2): ((d ()) (f ()))
+       Next full            : ((b ()) (d ()) (e ()) (h ()) (j ()) (l ()))
+       Next range (  1,   2): ((d ()) (e ()))|}];
+  subrange_by_rank_test
+    ~initial_range:(1, 2)
+    ~ops:[ (fun m -> add "g" (remove "f" m)) ]
+    ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   2): ((d ()) (f ()))
+       Next full            : ((b ()) (d ()) (g ()) (h ()) (j ()) (l ()))
+       Next range (  1,   2): ((d ()) (g ()))|}];
+  subrange_by_rank_test
+    ~initial_range:(1, 3)
+    ~ops:
+      [ map_only_op (fun _ ->
+          String.Map.of_alist_exn
+            [ "a", (); "c", (); "e", (); "g", (); "i", (); "k", () ])
+      ]
+    ();
+  [%expect
+    {|
+    Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (  1,   3): ((d ()) (f ()) (h ()))
+       Next full            : ((a ()) (c ()) (e ()) (g ()) (i ()) (k ()))
+       Next range (  1,   3): ((c ()) (e ()) (g ()))|}];
+  subrange_by_rank_test ~initial_range:(1, 2) ~ops:[ set_range (1, 3) ] ();
+  [%expect
+    {|
+     Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+     Initial range (  1,   2): ((d ()) (f ()))
+        Next full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+        Next range (  1,   3): ((d ()) (f ()) (h ()))|}];
+  subrange_by_rank_test ~initial_range:(50, 60) ~ops:[ set_range (1, 60) ] ();
+  [%expect
+    {|
+     Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+     Initial range ( 50,  60): ()
+        Next full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+        Next range (  1,  60): ((d ()) (f ()) (h ()) (j ()) (l ()))|}];
+  subrange_by_rank_test
+    ~initial_range:(1, 2)
+    ~ops:[ (fun x -> add "a" x |> set_range (2, 3)) ]
+    ();
+  [%expect
+    {|
+     Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+     Initial range (  1,   2): ((d ()) (f ()))
+        Next full            : ((a ()) (b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+        Next range (  2,   3): ((d ()) (f ()))|}];
+  subrange_by_rank_test
+    ~initial_range:(1, 2)
+    ~ops:[ set_range (2, 3); set_range (3, 3); set_range (3, 4) ]
+    ();
+  [%expect
+    {|
+     Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+     Initial range (  1,   2): ((d ()) (f ()))
+        Next full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+        Next range (  2,   3): ((f ()) (h ()))
+        Next full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+        Next range (  3,   3): ((h ()))
+        Next full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+        Next range (  3,   4): ((h ()) (j ()))|}];
+  subrange_by_rank_test
+    ~initial_range:(1, 2)
+    ~ops:[ (fun x -> remove "f" x |> set_range (2, 3)) ]
+    ();
+  [%expect
+    {|
+     Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+     Initial range (  1,   2): ((d ()) (f ()))
+        Next full            : ((b ()) (d ()) (h ()) (j ()) (l ()))
+        Next range (  2,   3): ((h ()) (j ()))|}];
+  subrange_by_rank_test
+    ~initial_range:(1, 5)
+    ~ops:[ (fun x -> remove "l" x |> set_range (1, 4)) ]
+    ();
+  [%expect
+    {|
+     Initial full            : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+     Initial range (  1,   5): ((d ()) (f ()) (h ()) (j ()) (l ()))
+        Next full            : ((b ()) (d ()) (f ()) (h ()) (j ()))
+        Next range (  1,   4): ((d ()) (f ()) (h ()) (j ()))|}]
+;;
+
+(* Naively collect elements between [from] and [to_], inclusive.
+
+   This is purposedly not using Map.nth + Incr_map.subrange to be more different from
+   the Incr_map.subrange_by_rank implementation to avoid same bugs in both.
+
+*)
+let subrange_by_rank_reference m (from, to_) =
+  let comparator = Map.comparator_s m in
+  let seq = Map.to_sequence ~order:`Increasing_key m in
+  let seq = Sequence.drop seq from in
+  let seq = Sequence.take seq (to_ - from + 1) in
+  Map.of_increasing_sequence comparator seq |> Or_error.ok_exn
+;;
+
+open Subrange_quickcheck_helper
+
+let%test_unit "quickcheck subrange_by_rank" =
+  Quickcheck.test
+    ~sexp_of:[%sexp_of: (map_op * range_op) list * map * (int * int)]
+    (Quickcheck.Generator.tuple3
+       (Quickcheck.Generator.list (map_and_range_op_gen ()))
+       map_gen
+       range_gen)
+    ~f:(fun (ops, map, range) ->
+      let map_var = Incr.Var.create map in
+      let range_var = Incr.Var.create range in
+      let submap =
+        Incr.Map.subrange_by_rank (Incr.Var.watch map_var) (Incr.Var.watch range_var)
+      in
+      let check () =
+        [%test_result: map]
+          ~expect:
+            (subrange_by_rank_reference
+               (Incr.Var.value map_var)
+               (Incr.Var.value range_var))
+          (observe submap)
+      in
+      check ();
+      List.iter ops ~f:(fun (map_op, range_op) ->
+        apply_map_op_incr map_var map_op;
+        apply_range_op_incr range_var range_op;
+        check ()))
+;;
+
+let%test_unit "quickcheck subrange_by_rank large fixed range" =
+  let open Quickcheck in
+  let map_small_op_gen = map_op_gen ~key_range:(0, 300) () in
+  let map_gen =
+    let%bind_open.Generator.Let_syntax len = Generator.of_list [ 300; 10000 ] in
+    map_with_length_gen ~key_range:(-10, 20000) len
+  in
+  Quickcheck.test
+    ~trials:2
+    (Quickcheck.Generator.tuple2
+       (Quickcheck.Generator.list_with_length
+          100
+          (Quickcheck.Generator.list_with_length 30 map_small_op_gen))
+       map_gen)
+    ~f:(fun (updates, map) ->
+      let range_begin, range_end = 10, 100 in
+      let range = range_begin, range_end in
+      let var = Incr.Var.create map in
+      let submap = Incr.Map.subrange_by_rank (Incr.Var.watch var) (Incr.return range) in
+      let check () =
+        let got = observe submap in
+        [%test_result: map]
+          ~expect:(subrange_by_rank_reference (Incr.Var.value var) range)
+          got;
+        [%test_result: int] ~expect:(range_end - range_begin + 1) (Map.length got)
+      in
+      check ();
+      List.iter updates ~f:(fun ops ->
+        let map =
+          List.fold ops ~init:(Incr.Var.value var) ~f:(fun acc op ->
+            apply_map_op acc op)
+        in
+        Incr.Var.set var map;
         check ()))
 ;;

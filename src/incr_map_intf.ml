@@ -104,6 +104,30 @@ module type S = sig
     -> ('k * 'k) option Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
 
+  (** [subrange_by_rank map (s, e)] constructs an incremental submap that includes (e-s+1)
+      keys between s-th and e-th, inclusive.
+
+      If s is greater or equal to map length, the result is empty.
+      If e is greater or equal to map length, the result contains keys from s-th to the
+      last one.
+
+      Raises for invalid indices - s < 0 or e < s.
+
+      Runtime of the initial computation is O(min(e, n-s) + log(n)), i.e. linear,
+      but optimized for ranges close to beginning or end.
+
+      Runtime of the incremental computation is O(log(n) + k + (m+m') * log(n)) where:
+      - k is the size of the diff
+      - m is the total impact of map changes on the range, bounded by k (e.g. if we add
+        1001 keys and remove 1000 below s, then m = 1)
+      - m' = O( |new s - old s| + |new e - old e| ).
+  *)
+  val subrange_by_rank
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, 'cmp) Map.t Incr.t
+    -> (int * int) Incr.t
+    -> ('k, 'v, 'cmp) Map.t Incr.t
+
   (** [('k, 'v) Lookup.t] provides a way to lookup keys in a map which uses symmetric
       diffs to trigger updates of the lookups.
 
@@ -151,6 +175,14 @@ module type S = sig
     module For_debug : sig
       val sexp_of_t : ('k -> Sexp.t) -> ('v -> Sexp.t) -> ('k, 'v, 'cmp) t -> Sexp.t
     end
+  end
+
+  module For_testing : sig
+    val key_range_linear
+      :  from:int
+      -> to_:int
+      -> ('a, 'b, 'c) Base.Map.t
+      -> ('a * 'a option) option
   end
 end
 

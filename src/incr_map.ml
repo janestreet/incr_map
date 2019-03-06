@@ -17,7 +17,7 @@ module Map_type = struct
 end
 
 module Make (Incr : Incremental.S) = struct
-  let diff_map i ~f =
+  let with_old i ~f =
     let open Incr.Let_syntax in
     let old = ref None in
     let%map a = i in
@@ -33,20 +33,18 @@ module Make (Incr : Incremental.S) = struct
       in
       Option.value update ~default
     in
-    diff_map map ~f:(fun ~old new_in ->
-      let old_in, old_out =
-        match old with
-        | None -> Map.Using_comparator.empty ~comparator:(Map.comparator new_in), init
-        | Some x -> x
-      in
-      Sequence.fold
-        ~init:old_out
-        (Map.symmetric_diff old_in new_in ~data_equal)
-        ~f:(fun acc (key, change) ->
-          match change with
-          | `Left old -> remove ~key ~data:old acc
-          | `Right new_ -> add ~key ~data:new_ acc
-          | `Unequal (old, new_) -> update ~key ~old_data:old ~new_data:new_ acc))
+    with_old map ~f:(fun ~old new_in ->
+      match old with
+      | None -> Map.fold ~init ~f:add new_in
+      | Some (old_in, old_out) ->
+        Sequence.fold
+          ~init:old_out
+          (Map.symmetric_diff old_in new_in ~data_equal)
+          ~f:(fun acc (key, change) ->
+            match change with
+            | `Left old -> remove ~key ~data:old acc
+            | `Right new_ -> add ~key ~data:new_ acc
+            | `Unequal (old, new_) -> update ~key ~old_data:old ~new_data:new_ acc))
   ;;
 
   let with_comparator' get_comparator x f =
@@ -84,7 +82,7 @@ module Make (Incr : Incremental.S) = struct
         (map : ('key, input_data, 'cmp) Map.t Incr.t)
         ~(f : key:'key -> data:input_data -> f_output)
     =
-    diff_map map ~f:(fun ~old input ->
+    with_old map ~f:(fun ~old input ->
       match old with
       | None ->
         (match witness with
@@ -109,7 +107,7 @@ module Make (Incr : Incremental.S) = struct
   let mapi ?data_equal map ~f = generic_mapi Map ?data_equal map ~f
   let filter_mapi ?data_equal map ~f = generic_mapi Filter_map ?data_equal map ~f
 
-  let diff_map2 i1 i2 ~f =
+  let with_old2 i1 i2 ~f =
     let old = ref None in
     Incr.map2 i1 i2 ~f:(fun a1 a2 ->
       let b = f ~old:!old a1 a2 in
@@ -124,7 +122,7 @@ module Make (Incr : Incremental.S) = struct
         right_map
         ~f
     =
-    diff_map2 left_map right_map ~f:(fun ~old new_left_map new_right_map ->
+    with_old2 left_map right_map ~f:(fun ~old new_left_map new_right_map ->
       let comparator = Map.comparator new_left_map in
       let old_left_map, old_right_map, old_output =
         match old with
@@ -395,7 +393,7 @@ module Make (Incr : Incremental.S) = struct
   ;;
 
   let subrange ?(data_equal = phys_equal) map_incr range =
-    diff_map2 map_incr range ~f:(fun ~old map range ->
+    with_old2 map_incr range ~f:(fun ~old map range ->
       let compare = (Map.comparator map).compare in
       let equal l r = compare l r = 0 in
       match range with
@@ -493,6 +491,158 @@ module Make (Incr : Incremental.S) = struct
                with_new_keys_now_in_range))))
   ;;
 
+
+  (** Find two keys in map by index, O(n). We use just one fold (two Map.nth would use two)
+      and optimize for keys close to either beginning or end by using either fold or
+      fold_right.
+  *)
+  module Key_status = struct
+    type 'k t =
+      | Known of 'k
+      | Known_none
+      | Unknown
+
+    let is_known = function
+      | Unknown -> false
+      | _ -> true
+    ;;
+
+    let to_option = function
+      | Unknown | Known_none -> None
+      | Known k -> Some k
+    ;;
+  end
+
+  let key_range_linear (type k) ~from ~to_ (map : (k, _, _) Map.t)
+    : (k * k option) option =
+    let open Key_status in
+    let len = Map.length map in
+    let begin_key = if Int.( >= ) from len then Known_none else Unknown in
+    let end_key = if Int.( >= ) to_ len then Known_none else Unknown in
+    let find_keys fold ~start_pos ~advance_pos =
+      with_return (fun { return } ->
+        fold
+          map
+          ~init:(begin_key, end_key, start_pos)
+          ~f:(fun ~key ~data:_ (begin_key, end_key, pos) ->
+            let begin_key = if Int.( = ) pos from then Known key else begin_key in
+            let end_key = if Int.( = ) pos to_ then Known key else end_key in
+            if is_known begin_key && is_known end_key
+            then return (begin_key, end_key, pos)
+            else begin_key, end_key, advance_pos pos))
+    in
+    let begin_key, end_key, _ =
+      (* Searching from left takes O(to_), from right - O(len - from), so select the
+         smaller one. *)
+      if to_ < len - from
+      then find_keys Map.fold ~start_pos:0 ~advance_pos:(fun pos -> pos + 1)
+      else find_keys Map.fold_right ~start_pos:(len - 1) ~advance_pos:(fun pos -> pos - 1)
+    in
+    Option.map (Key_status.to_option begin_key) ~f:(fun begin_key ->
+      begin_key, Key_status.to_option end_key)
+  ;;
+
+  let nth_from_either_side (type k) n (map : (k, _, _) Map.t) : k option =
+    Option.map ~f:fst (key_range_linear ~from:n ~to_:n map)
+  ;;
+
+  (** Find key [by] positions earlier/later in a map. Returns none if out of bounds. *)
+  let rec offset (key : 'k) (map : ('k, _, _) Map.t) ~by : 'k option =
+    if Int.( = ) by 0
+    then Some key
+    else (
+      let closest_dir, add =
+        if Int.( < ) by 0 then `Less_than, 1 else `Greater_than, -1
+      in
+      match Map.closest_key map closest_dir key with
+      | None -> None
+      | Some (key, _) -> offset key map ~by:(by + add))
+  ;;
+
+  (** Find how we need to move [key] if [changed_key] changed in the given
+      way *)
+  let find_offset ~compare ~key ~changed_key change =
+    if Int.( < ) (compare changed_key key) 0
+    then (
+      match change with
+      | `Left _ -> 1
+      | `Right _ -> -1
+      | _ -> 0)
+    else 0
+  ;;
+
+  (** Range map by indices *)
+  let subrange_by_rank (type k) ?data_equal (map : (k, _, _) Map.t Incr.t) range =
+    let key_range : (k * k option) option Incr.t =
+      with_old2 map range ~f:(fun ~old map (from, to_) ->
+        (* This function returns no keys, only begin key, or begin and end keys.
+           These are the keys at [from] and [to_] positions in the map, or None if the
+           indices are too big. As always [0 <= from && from <= to_], there is no
+           possibility of only [to_] being a valid position.
+        *)
+        if Int.( < ) to_ from || Int.( < ) from 0
+        then raise_s [%message "Invalid indices" (from : int) (to_ : int)];
+        match old with
+        | Some (old_map, (old_from, old_to), Some (begin_key, end_key_opt)) ->
+          let find_offset = find_offset ~compare:(Map.comparator map).compare in
+          let range_offset_begin = from - old_from in
+          let range_offset_end = to_ - old_to in
+          let adjust_and_offset ~by key =
+            let by = by + if by >= 0 && not (Map.mem map key) then 1 else 0 in
+            offset key map ~by
+          in
+          (* We only care about the keys changing and not the data, so [data_equal] here
+             can be always true *)
+          let diff = Map.symmetric_diff ~data_equal:(fun _ _ -> true) old_map map in
+          let begin_key_opt, end_key_opt =
+            match end_key_opt with
+            | Some end_key ->
+              let map_offset_begin, map_offset_end =
+                Sequence.fold
+                  ~init:(0, 0)
+                  diff
+                  ~f:(fun (offset_begin, offset_end) (key, change) ->
+                    ( offset_begin + find_offset ~key:begin_key ~changed_key:key change
+                    , offset_end + find_offset ~key:end_key ~changed_key:key change ))
+              in
+              ( adjust_and_offset begin_key ~by:(map_offset_begin + range_offset_begin)
+              , adjust_and_offset end_key ~by:(map_offset_end + range_offset_end) )
+            | None ->
+              let map_offset_begin =
+                Sequence.fold ~init:0 diff ~f:(fun offset_begin (key, change) ->
+                  offset_begin + find_offset ~key:begin_key ~changed_key:key change)
+              in
+              ( adjust_and_offset begin_key ~by:(map_offset_begin + range_offset_begin)
+              , nth_from_either_side to_ map )
+          in
+          assert (Option.for_all ~f:(Map.mem map) begin_key_opt);
+          assert (Option.for_all ~f:(Map.mem map) end_key_opt);
+          Option.map begin_key_opt ~f:(fun begin_key -> begin_key, end_key_opt)
+        | None
+        | Some (_, _, None) ->
+          (* On first run (when we have to) or when both the keys are none, run O(n)
+             scan. This is fine for keys-are-none case as it happens when the positions
+             are past end of the map, so they shouldn't be too far from end after the
+             map changes, and [key_range_linear] is fast in such case. *)
+          key_range_linear map ~from ~to_)
+    in
+    let subrange_key_range =
+      let open Incr.Let_syntax in
+      let%map key_range = key_range
+      and map = map in
+      match key_range with
+      | Some (begin_key, Some end_key) -> Some (begin_key, end_key)
+      | Some (begin_key, None) ->
+        let last_key = Map.max_elt map |> Option.value_exn |> fst in
+        Some (begin_key, last_key)
+      | None -> None
+    in
+    subrange ?data_equal map subrange_key_range
+  ;;
+
+  module For_testing = struct
+    let key_range_linear = key_range_linear
+  end
 
   module Lookup = struct
     type 'v entry =
