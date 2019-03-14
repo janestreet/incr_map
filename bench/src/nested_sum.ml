@@ -24,34 +24,56 @@ let initialize ~outer ~inner =
 ;;
 
 (* Computes the nested sum incrementally, using [sum_map']. *)
-let nested_sum ~outer ~inner =
-  let input = Var.create (initialize ~outer ~inner) in
-  let sum = Incr.observe (sum_map' (Var.watch input)) in
-  Bench.Test.create ~name:(sprintf "(%d,%d)" outer inner) (fun () ->
+let nested_sum_raw ~outer ~inner =
+  let open Infix in
+  let env =
+    lazy
+      (let input = Var.create (initialize ~outer ~inner) in
+       let sum = Incr.observe (sum_map' (Var.watch input)) in
+       input, sum)
+  in
+  let run () =
+    let input, sum = force env in
     let o = Random.int outer in
     let i = Random.int inner in
     input := set_el !input o i (Random.float 1.0);
     Incr.stabilize ();
-    ignore (Obs.value_exn sum : float))
+    ignore (Obs.value_exn sum : float)
+  in
+  let name = sprintf "(%d,%d)" outer inner in
+  name, run
+;;
+
+let nested_sum ~outer ~inner =
+  let name, run = nested_sum_raw ~outer ~inner in
+  Bench.Test.create ~name run
 ;;
 
 (* Does the nested sum in an all-at-once way, using ordinary map folds *)
-let nested_sum_ord ~outer ~inner =
-  let ( := ) = Ref.( := ) in
-  let ( ! ) = Ref.( ! ) in
-  let input = ref (initialize ~outer ~inner) in
+let nested_sum_ord_raw ~outer ~inner =
+  let input = lazy (ref (initialize ~outer ~inner)) in
   let sum () =
+    let input = force input in
     Map.fold !input ~init:0. ~f:(fun ~key:_ ~data:m acc ->
       Map.fold m ~init:acc ~f:(fun ~key:_ ~data:x acc -> x +. acc))
   in
-  Bench.Test.create ~name:(sprintf "(%d,%d) ord" outer inner) (fun () ->
+  let name = sprintf "(%d,%d) ord" outer inner in
+  let run () =
+    let input = force input in
     let o = Random.int outer in
     let i = Random.int inner in
     input := set_el !input o i (Random.float 1.0);
-    ignore (sum ()))
+    ignore (sum ())
+  in
+  name, run
 ;;
 
-let command =
+let nested_sum_ord ~outer ~inner =
+  let name, run = nested_sum_ord_raw ~outer ~inner in
+  Bench.Test.create ~name run
+;;
+
+let command () =
   Bench.make_command
     [ nested_sum ~outer:10000 ~inner:10
     ; nested_sum ~outer:1000 ~inner:100
@@ -77,3 +99,46 @@ let command =
     └────────────────┴──────────┴──────────┴──────────┴──────────┴────────────┘
    v}
 *)
+
+let%expect_test "stats" =
+  let stats = unstage (Stats.reporter ()) in
+  stats ();
+  [%expect
+    {|
+    ((recomputed  0)
+     (changed     0)
+     (created     0)
+     (invalidated 0)) |}];
+  let _name, run = nested_sum_raw ~outer:1000 ~inner:100 in
+  stats ();
+  [%expect
+    {|
+    ((recomputed  0)
+     (changed     0)
+     (created     0)
+     (invalidated 0)) |}];
+  run ();
+  stats ();
+  [%expect
+    {|
+    ((recomputed  2008)
+     (changed     2008)
+     (created     2008)
+     (invalidated 0)) |}];
+  run ();
+  stats ();
+  [%expect
+    {|
+    ((recomputed  7)
+     (changed     6)
+     (created     0)
+     (invalidated 0)) |}];
+  run ();
+  stats ();
+  [%expect
+    {|
+    ((recomputed  7)
+     (changed     6)
+     (created     0)
+     (invalidated 0)) |}]
+;;

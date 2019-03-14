@@ -5,5 +5,7 @@ module Obs = Incr.Observer
 module Bench = Core_bench.Std.Bench
 include Incr.Let_syntax
 
-let ( := ) = Var.set
-let ( ! ) = Var.value
+module Infix = struct
+  let ( := ) = Var.set
+  let ( ! ) = Var.value
+end

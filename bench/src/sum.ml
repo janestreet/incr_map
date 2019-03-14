@@ -13,6 +13,7 @@ let incr_list_sum l =
    and gets the result *)
 
 let tree_sum_test len =
+  let open Infix in
   let inputs = Array.init len ~f:(fun _ -> Incr.Var.create 0.) in
   let sum =
     Incr.observe (incr_list_sum (Array.to_list inputs |> List.map ~f:Var.watch))
@@ -26,6 +27,7 @@ let tree_sum_test len =
 
 (* This test uses incrementals built-in array fold.  *)
 let array_fold_test len =
+  let open Infix in
   let inputs = Array.init len ~f:(fun _ -> Incr.Var.create 0.) in
   let sum =
     Incr.observe
@@ -53,6 +55,7 @@ let sum_map m =
 ;;
 
 let incr_map_test len =
+  let open Infix in
   let inputs =
     Var.create (Map.of_alist_exn (module Int) (List.init len ~f:(fun i -> i, 0.)))
   in
@@ -78,7 +81,7 @@ let all_at_once_test len =
     ignore (sum () : float))
 ;;
 
-let command =
+let command () =
   let len = 100_000 in
   Bench.make_command
     [ tree_sum_test len; array_fold_test len; incr_map_test len; all_at_once_test len ]

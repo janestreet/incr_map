@@ -90,18 +90,24 @@ let random_orders rstate n =
 ;;
 
 let shares_per_symbol_bench n shares_per_symbol_fn name =
-  let rstate = Random.State.make [| 1 |] in
-  let init_orders = random_orders rstate n in
-  let orders = Var.create init_orders in
-  let shares = Incr.observe (shares_per_symbol_fn (Var.watch orders)) in
+  let open Infix in
+  let env =
+    lazy
+      (let rstate = Random.State.make [| 1 |] in
+       let init_orders = random_orders rstate n in
+       let orders = Var.create init_orders in
+       let shares = Incr.observe (shares_per_symbol_fn (Var.watch orders)) in
+       rstate, orders, init_orders, shares)
+  in
   Bench.Test.create ~name (fun () ->
+    let rstate, orders, init_orders, shares = force env in
     let o = random_order rstate in
     orders := Map.set init_orders ~key:o.id ~data:o;
     Incr.stabilize ();
     ignore (Obs.value_exn shares : int Map.M(Symbol).t))
 ;;
 
-let command =
+let command () =
   Bench.make_command
     [ shares_per_symbol_bench 1_000_000 shares_per_symbol "nested"
     ; shares_per_symbol_bench 1_000_000 shares_per_symbol_flat "flat"
