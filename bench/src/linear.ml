@@ -102,42 +102,32 @@ let command () =
 let%expect_test "stats" =
   let stats = unstage (Stats.reporter ()) in
   stats ();
-  [%expect
-    {|
-    ((recomputed  0)
-     (changed     0)
-     (created     0)
-     (invalidated 0)) |}];
+  [%expect {|
+    ((recomputed 0)
+     (changed    0)
+     (created    0)) |}];
   let _name, run = sequence_raw Recombine 50 in
   stats ();
-  [%expect
-    {|
-    ((recomputed  0)
-     (changed     0)
-     (created     0)
-     (invalidated 0)) |}];
+  [%expect {|
+    ((recomputed 0)
+     (changed    0)
+     (created    0)) |}];
   run ();
   stats ();
-  [%expect
-    {|
-    ((recomputed  151)
-     (changed     151)
-     (created     151)
-     (invalidated 0)) |}];
+  [%expect {|
+    ((recomputed 151)
+     (changed    151)
+     (created    151)) |}];
   run ();
   stats ();
-  [%expect
-    {|
-    ((recomputed  151)
-     (changed     151)
-     (created     0)
-     (invalidated 0)) |}];
+  [%expect {|
+    ((recomputed 151)
+     (changed    151)
+     (created    0)) |}];
   run ();
   stats ();
-  [%expect
-    {|
-    ((recomputed  151)
-     (changed     151)
-     (created     0)
-     (invalidated 0)) |}]
+  [%expect {|
+    ((recomputed 151)
+     (changed    151)
+     (created    0)) |}]
 ;;

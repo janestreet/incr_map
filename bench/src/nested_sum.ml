@@ -103,42 +103,32 @@ let command () =
 let%expect_test "stats" =
   let stats = unstage (Stats.reporter ()) in
   stats ();
-  [%expect
-    {|
-    ((recomputed  0)
-     (changed     0)
-     (created     0)
-     (invalidated 0)) |}];
+  [%expect {|
+    ((recomputed 0)
+     (changed    0)
+     (created    0)) |}];
   let _name, run = nested_sum_raw ~outer:1000 ~inner:100 in
   stats ();
-  [%expect
-    {|
-    ((recomputed  0)
-     (changed     0)
-     (created     0)
-     (invalidated 0)) |}];
+  [%expect {|
+    ((recomputed 0)
+     (changed    0)
+     (created    0)) |}];
   run ();
   stats ();
-  [%expect
-    {|
-    ((recomputed  2008)
-     (changed     2008)
-     (created     2008)
-     (invalidated 0)) |}];
+  [%expect {|
+    ((recomputed 2008)
+     (changed    2008)
+     (created    2008)) |}];
   run ();
   stats ();
-  [%expect
-    {|
-    ((recomputed  7)
-     (changed     6)
-     (created     0)
-     (invalidated 0)) |}];
+  [%expect {|
+    ((recomputed 7)
+     (changed    6)
+     (created    0)) |}];
   run ();
   stats ();
-  [%expect
-    {|
-    ((recomputed  7)
-     (changed     6)
-     (created     0)
-     (invalidated 0)) |}]
+  [%expect {|
+    ((recomputed 7)
+     (changed    6)
+     (created    0)) |}]
 ;;

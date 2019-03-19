@@ -33,21 +33,55 @@ let index_by inner_comparator outer_comparator map get_outer_index =
   let add ~key ~data acc =
     let idx = get_outer_index data in
     Map.update acc idx ~f:(function
-      | None -> Map.empty inner_comparator
+      | None -> Map.singleton inner_comparator key data
       | Some inner_map -> Map.set inner_map ~key ~data)
   in
   let remove ~key ~data acc =
     let idx = get_outer_index data in
-    Map.update acc idx ~f:(function
+    Map.change acc idx ~f:(function
       | None -> assert false
-      | Some inner_map -> Map.remove inner_map key)
+      | Some inner_map ->
+        let inner_map = Map.remove inner_map key in
+        if Map.is_empty inner_map then None else Some inner_map)
   in
-  Incr_map.unordered_fold
-    map
-    ~init:(Map.empty outer_comparator)
-    ~add
-    ~update:(fun ~key ~old_data:_ ~new_data:data -> add ~key ~data)
-    ~remove
+  Incr_map.unordered_fold map ~init:(Map.empty outer_comparator) ~add ~remove
+;;
+
+let%expect_test "index_by" =
+  let open Expect_test_helpers_kernel in
+  let v = Incr.Var.create (Map.empty (module Int)) in
+  let o =
+    index_by (module Int) (module String) (Incr.Var.watch v) String.uppercase
+    |> Incr.observe
+  in
+  let change f =
+    Incr.Var.set v (f (Incr.Var.value v));
+    Incr.stabilize ();
+    print_s [%sexp (Incr.Observer.value_exn o : string Map.M(Int).t Map.M(String).t)]
+  in
+  let add key data m = Map.set m ~key ~data in
+  change (add 1 "bar");
+  [%expect {| ((BAR ((1 bar)))) |}];
+  change (add 1 "foo");
+  [%expect {| ((FOO ((1 foo)))) |}];
+  change (add 2 "foo");
+  [%expect {|
+    ((
+      FOO (
+        (1 foo)
+        (2 foo)))) |}];
+  change (add 3 "bar");
+  [%expect {|
+    ((BAR ((3 bar)))
+     (FOO (
+       (1 foo)
+       (2 foo)))) |}];
+  change (add 2 "bar");
+  [%expect {|
+    ((BAR (
+       (2 bar)
+       (3 bar)))
+     (FOO ((1 foo)))) |}]
 ;;
 
 let shares_per_symbol orders =
