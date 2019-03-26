@@ -744,12 +744,14 @@ module Make (Incr : Incremental.S) = struct
         let node = Incr.Expert.Node.watch node in
         [%sexp
           { saved_value : value option
-          ; node_info = (Incr.user_info node : Info.t sexp_option)
-          ; node_is_const = (Option.some_if (Incr.is_const node) () : unit sexp_option)
+          ; node_info = (Incr.user_info node : (Info.t option[@sexp.option]))
+          ; node_is_const =
+              (Option.some_if (Incr.is_const node) () : (unit option[@sexp.option]))
           ; node_is_invalid =
-              (Option.some_if (not (Incr.is_valid node)) () : unit sexp_option)
+              (Option.some_if (not (Incr.is_valid node)) () : (unit option[@sexp.option]))
           ; node_is_unnecessary =
-              (Option.some_if (not (Incr.is_necessary node)) () : unit sexp_option)
+              ( Option.some_if (not (Incr.is_necessary node)) ()
+                : (unit option[@sexp.option]) )
           }]
       ;;
 
@@ -765,7 +767,7 @@ module Make (Incr : Incremental.S) = struct
             Some
               [%sexp
                 { key : key
-                ; actual_value : value sexp_option
+                ; actual_value : (value option[@sexp.option])
                 ; entries : value entry list
                 }])
         in

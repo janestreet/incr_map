@@ -82,7 +82,7 @@ module type S = sig
 
   val separate
     :  ('k, 'v, 'cmp) Map.t Incr.t
-    -> data_equal:('v -> 'v -> sexp_bool)
+    -> data_equal:('v -> 'v -> bool)
     -> ('k, 'v Incr.t, 'cmp) Map.t Incr.t
 
   (** [subrange map (min, max)] constructs an incremental submap that includes all of the
