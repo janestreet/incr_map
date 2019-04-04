@@ -85,6 +85,8 @@ module type S = sig
     -> data_equal:('v -> 'v -> bool)
     -> ('k, 'v Incr.t, 'cmp) Map.t Incr.t
 
+  val keys : ('k, 'v, 'c) Map.t Incr.t -> ('k, 'c) Set.t Incr.t
+
   (** [subrange map (min, max)] constructs an incremental submap that includes all of the
       keys and data from [map] between [min] and [max], inclusive, and none of the keys
       outside the range.

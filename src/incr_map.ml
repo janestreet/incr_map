@@ -263,6 +263,19 @@ module Make (Incr : Incremental.S) = struct
       generic_mapi_with_comparator' Map_type.Map ?cutoff ?data_equal map ~f ~comparator)
   ;;
 
+  let keys map =
+    with_comparator map (fun comparator ->
+      let add ~key ~data:_ acc = Set.add acc key in
+      let remove ~key ~data:_ acc = Set.remove acc key in
+      let data_equal _ _ = true in
+      unordered_fold
+        map
+        ~init:(Set.Using_comparator.empty ~comparator)
+        ~data_equal
+        ~add
+        ~remove)
+  ;;
+
   let flatten map =
     let module E = Incr.Expert in
     let result = ref (Map.Using_comparator.empty ~comparator:(Map.comparator map)) in
