@@ -1,4 +1,5 @@
 open Core
+open Poly
 open Import
 
 let rs = Random.State.make [| 0 |]

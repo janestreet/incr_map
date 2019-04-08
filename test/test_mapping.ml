@@ -1,4 +1,5 @@
 open Core
+open Poly
 open Import
 
 (** version of filter_mapi that tests the real implementation against a simple, all-at
