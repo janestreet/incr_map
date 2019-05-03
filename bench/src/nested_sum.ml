@@ -49,14 +49,79 @@ let nested_sum ~outer ~inner =
   Bench.Test.create ~name run
 ;;
 
+module Sum_map_direct = struct
+  (* From the Ocaml manual, chapter 20:
+
+     "As an optimization, records whose fields all have static type float are represented
+     as arrays of floating-point numbers, with tag Double_array_tag."
+
+     This means that a mutable float member of such an record type is effectively unboxed
+     (other than the record itself), and in particular can be mutated in-place without
+     allocation. Interestingly, this optimization is not, as of 4.07, applied to the type
+     [float ref].
+
+     On the other hand, a [float ref] which does not escape a single scope can be lowered
+     to a register, so this trick isn't necessary if we're (say) for-looping over an
+     array. But in any case where we have to use a ref inside a closure we're far better
+     off using this type. Similarly, we can't return a float in %xmm registers. So the
+     obvious [Map.fold] here actually allocates one box per map entry, so we're better off
+     using a ref.
+
+     *)
+  type float_ref = { mutable contents : float }
+
+  let float_ref contents = { contents }
+  let ( := ) ref x = ref.contents <- x
+  let ( ! ) ref = ref.contents
+  let acc = float_ref 0.0
+
+  let sum m ~get =
+    acc := 0.0;
+    Map.iter m ~f:(fun v -> acc := !acc +. get v);
+    !acc
+  ;;
+end
+
+(* Compute the outer sum incrementally using [sum_map], but do the inner sum all-at-once.
+*)
+let nested_outer_incr_sum_raw ~outer ~inner =
+  let open Infix in
+  let env =
+    lazy
+      (let input = Var.create (initialize ~outer ~inner) in
+       let inner_summed =
+         Incr_map.mapi (Var.watch input) ~f:(fun ~key:_ ~data ->
+           Sum_map_direct.sum data ~get:Fn.id)
+       in
+       let sum = Incr.observe (sum_map inner_summed) in
+       input, sum)
+  in
+  ignore (force env);
+  let run () =
+    let input, sum = force env in
+    let o = Random.int outer in
+    let i = Random.int inner in
+    input := set_el !input o i (Random.float 1.0);
+    Incr.stabilize ();
+    ignore (Obs.value_exn sum : float)
+  in
+  let name = sprintf "(%d,%d) outer_incr" outer inner in
+  name, run
+;;
+
+let nested_outer_incr_sum ~outer ~inner =
+  let name, run = nested_outer_incr_sum_raw ~outer ~inner in
+  Bench.Test.create ~name run
+;;
+
 (* Does the nested sum in an all-at-once way, using ordinary map folds *)
 let nested_sum_ord_raw ~outer ~inner =
   let input = lazy (ref (initialize ~outer ~inner)) in
   let sum () =
     let input = force input in
-    Map.fold !input ~init:0. ~f:(fun ~key:_ ~data:m acc ->
-      Map.fold m ~init:acc ~f:(fun ~key:_ ~data:x acc -> x +. acc))
+    Sum_map_direct.sum !input ~get:(Sum_map_direct.sum ~get:Fn.id)
   in
+  ignore (force input);
   let name = sprintf "(%d,%d) ord" outer inner in
   let run () =
     let input = force input in
@@ -80,6 +145,10 @@ let command () =
     ; nested_sum ~outer:100 ~inner:1000
     ; nested_sum ~outer:10 ~inner:10000
     ; nested_sum_ord ~outer:1000 ~inner:100
+    ; nested_outer_incr_sum ~outer:10000 ~inner:10
+    ; nested_outer_incr_sum ~outer:1000 ~inner:100
+    ; nested_outer_incr_sum ~outer:100 ~inner:1000
+    ; nested_outer_incr_sum ~outer:10 ~inner:10000
     ]
 ;;
 

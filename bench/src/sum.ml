@@ -74,7 +74,13 @@ let incr_map_test len =
 (* Here we just do a simple fold over the entire array to get the sum. *)
 let all_at_once_test len =
   let inputs = Array.init len ~f:(fun _ -> 0.) in
-  let sum () = Array.fold ~init:0. ~f:( +. ) inputs in
+  let sum () =
+    let acc = ref 0.0 in
+    for i = 0 to Array.length inputs - 1 do
+      acc := !acc +. inputs.(i)
+    done;
+    !acc
+  in
   Bench.Test.create ~name:"ord" (fun () ->
     let i = Random.int len in
     inputs.(i) <- inputs.(i) +. Random.float 1.0;

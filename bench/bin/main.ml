@@ -9,5 +9,6 @@ let () =
        ; "nested-sum", Nested_sum.command ()
        ; "shares-per-symbol", Shares_per_symbol.command ()
        ; "linear", Linear.command ()
+       ; "map", Map.command ()
        ])
 ;;
