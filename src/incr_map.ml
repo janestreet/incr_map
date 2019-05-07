@@ -37,9 +37,11 @@ module Make (Incr : Incremental.S) = struct
       match old with
       | None -> Map.fold ~init ~f:add new_in
       | Some (old_in, old_out) ->
-        Sequence.fold
+        Map.fold_symmetric_diff
           ~init:old_out
-          (Map.symmetric_diff old_in new_in ~data_equal)
+          old_in
+          new_in
+          ~data_equal
           ~f:(fun acc (key, change) ->
             match change with
             | `Left old -> remove ~key ~data:old acc
@@ -89,19 +91,23 @@ module Make (Incr : Incremental.S) = struct
          | Map_type.Map -> (Map.mapi input ~f : ('key, output_data, 'cmp) Map.t)
          | Map_type.Filter_map -> Map.filter_mapi input ~f)
       | Some (old_input, old_output) ->
-        Map.symmetric_diff old_input input ~data_equal
-        |> Sequence.fold ~init:old_output ~f:(fun output (key, change) ->
-          match change with
-          | `Left _ -> Map.remove output key
-          | `Right new_data
-          | `Unequal (_, new_data) ->
-            let res = f ~key ~data:new_data in
-            (match witness with
-             | Map_type.Map -> Map.set output ~key ~data:res
-             | Map_type.Filter_map ->
-               (match res with
-                | None -> Map.remove output key
-                | Some output_data -> Map.set output ~key ~data:output_data))))
+        Map.fold_symmetric_diff
+          old_input
+          input
+          ~data_equal
+          ~init:old_output
+          ~f:(fun output (key, change) ->
+            match change with
+            | `Left _ -> Map.remove output key
+            | `Right new_data
+            | `Unequal (_, new_data) ->
+              let res = f ~key ~data:new_data in
+              (match witness with
+               | Map_type.Map -> Map.set output ~key ~data:res
+               | Map_type.Filter_map ->
+                 (match res with
+                  | None -> Map.remove output key
+                  | Some output_data -> Map.set output ~key ~data:output_data))))
   ;;
 
   let mapi ?data_equal map ~f = generic_mapi Map ?data_equal map ~f
@@ -209,10 +215,11 @@ module Make (Incr : Incremental.S) = struct
     let rec lhs_change =
       lazy
         (Incr.map lhs ~f:(fun map ->
-           let symmetric_diff = Map.symmetric_diff ~data_equal !prev_map map in
            let new_nodes =
-             Sequence.fold
-               symmetric_diff
+             Map.fold_symmetric_diff
+               ~data_equal
+               !prev_map
+               map
                ~init:!prev_nodes
                ~f:(fun nodes (key, changed) ->
                  match changed with
@@ -311,12 +318,11 @@ module Make (Incr : Incremental.S) = struct
     in
     let lhs_change =
       Incr.map map_incr ~f:(fun map_of_incrs ->
-        let sequence =
-          Map.symmetric_diff ~data_equal:phys_equal !old_map_of_incrs map_of_incrs
-        in
         let new_dependency_map =
-          Sequence.fold
-            sequence
+          Map.fold_symmetric_diff
+            ~data_equal:phys_equal
+            !old_map_of_incrs
+            map_of_incrs
             ~init:!current_dependencies
             ~f:(fun current_dependencies (key, diff) ->
               match diff with
@@ -374,28 +380,30 @@ module Make (Incr : Incremental.S) = struct
           (Incr.map input_map ~f:(fun input_map ->
              let prev_input_map = state.input_map in
              let expert_nodes, output_map =
-               Map.symmetric_diff prev_input_map input_map ~data_equal
-               |> Sequence.fold
-                    ~init:(state.expert_nodes, state.output_map)
-                    ~f:(fun (expert_nodes, output_map) (key, change) ->
-                      match change with
-                      | `Left _old_value ->
-                        let old_node = Map.find_exn expert_nodes key in
-                        Incr.Expert.Node.invalidate old_node;
-                        Incr.Expert.Node.make_stale output_map_node;
-                        Map.remove expert_nodes key, Map.remove output_map key
-                      | `Right _new_value ->
-                        let node = Separate_state.create_lookup_node state key in
-                        make_node_depend_on_input_map_changed node ~input_map_changed;
-                        Incr.Expert.Node.make_stale output_map_node;
-                        ( Map.add_exn expert_nodes ~key ~data:node
-                        , Map.add_exn
-                            output_map
-                            ~key
-                            ~data:(Incr.Expert.Node.watch node) )
-                      | `Unequal (_old_value, _new_value) ->
-                        Incr.Expert.Node.make_stale (Map.find_exn expert_nodes key);
-                        expert_nodes, output_map)
+               Map.fold_symmetric_diff
+                 prev_input_map
+                 input_map
+                 ~data_equal
+                 ~init:(state.expert_nodes, state.output_map)
+                 ~f:(fun (expert_nodes, output_map) (key, change) ->
+                   match change with
+                   | `Left _old_value ->
+                     let old_node = Map.find_exn expert_nodes key in
+                     Incr.Expert.Node.invalidate old_node;
+                     Incr.Expert.Node.make_stale output_map_node;
+                     Map.remove expert_nodes key, Map.remove output_map key
+                   | `Right _new_value ->
+                     let node = Separate_state.create_lookup_node state key in
+                     make_node_depend_on_input_map_changed node ~input_map_changed;
+                     Incr.Expert.Node.make_stale output_map_node;
+                     ( Map.add_exn expert_nodes ~key ~data:node
+                     , Map.add_exn
+                         output_map
+                         ~key
+                         ~data:(Incr.Expert.Node.watch node) )
+                   | `Unequal (_old_value, _new_value) ->
+                     Incr.Expert.Node.make_stale (Map.find_exn expert_nodes key);
+                     expert_nodes, output_map)
              in
              state.input_map <- input_map;
              state.expert_nodes <- expert_nodes;
@@ -460,10 +468,12 @@ module Make (Incr : Incremental.S) = struct
                (* Cutoff the big diff computation if we reach O(|submap|) number of
                   changes that are outside the range *)
                let outside_cutoff = Map.length old_res / 4 in
-               Map.symmetric_diff ~data_equal old_map map
-               |> Sequence.fold
-                    ~init:(outside_cutoff, old_res)
-                    ~f:apply_diff_in_intersection
+               Map.fold_symmetric_diff
+                 ~data_equal
+                 old_map
+                 map
+                 ~init:(outside_cutoff, old_res)
+                 ~f:apply_diff_in_intersection
                |> snd
              in
              if Tuple2.equal ~eq1:equal ~eq2:equal old_range range
@@ -606,23 +616,22 @@ module Make (Incr : Incremental.S) = struct
           in
           (* We only care about the keys changing and not the data, so [data_equal] here
              can be always true *)
-          let diff = Map.symmetric_diff ~data_equal:(fun _ _ -> true) old_map map in
+          let diff ~init ~f =
+            Map.fold_symmetric_diff ~data_equal:(fun _ _ -> true) old_map map ~init ~f
+          in
           let begin_key_opt, end_key_opt =
             match end_key_opt with
             | Some end_key ->
               let map_offset_begin, map_offset_end =
-                Sequence.fold
-                  ~init:(0, 0)
-                  diff
-                  ~f:(fun (offset_begin, offset_end) (key, change) ->
-                    ( offset_begin + find_offset ~key:begin_key ~changed_key:key change
-                    , offset_end + find_offset ~key:end_key ~changed_key:key change ))
+                diff ~init:(0, 0) ~f:(fun (offset_begin, offset_end) (key, change) ->
+                  ( offset_begin + find_offset ~key:begin_key ~changed_key:key change
+                  , offset_end + find_offset ~key:end_key ~changed_key:key change ))
               in
               ( adjust_and_offset begin_key ~by:(map_offset_begin + range_offset_begin)
               , adjust_and_offset end_key ~by:(map_offset_end + range_offset_end) )
             | None ->
               let map_offset_begin =
-                Sequence.fold ~init:0 diff ~f:(fun offset_begin (key, change) ->
+                diff ~init:0 ~f:(fun offset_begin (key, change) ->
                   offset_begin + find_offset ~key:begin_key ~changed_key:key change)
               in
               ( adjust_and_offset begin_key ~by:(map_offset_begin + range_offset_begin)
@@ -687,16 +696,20 @@ module Make (Incr : Incremental.S) = struct
           (let updater_node =
              Incr.map input_map ~f:(fun input_map ->
                let (lazy self) = self in
-               Map.symmetric_diff self.saved_map input_map ~data_equal
-               |> Sequence.iter ~f:(fun (key, changed_value) ->
-                 let entries = Map.find_multi self.lookup_entries key in
-                 List.iter entries ~f:(fun entry ->
-                   entry.saved_value
-                   <- (match changed_value with
-                     | `Left _ -> None
-                     | `Right new_value
-                     | `Unequal (_, new_value) -> Some new_value);
-                   Incr.Expert.Node.make_stale entry.node));
+               Map.fold_symmetric_diff
+                 self.saved_map
+                 input_map
+                 ~data_equal
+                 ~init:()
+                 ~f:(fun () (key, changed_value) ->
+                   let entries = Map.find_multi self.lookup_entries key in
+                   List.iter entries ~f:(fun entry ->
+                     entry.saved_value
+                     <- (match changed_value with
+                       | `Left _ -> None
+                       | `Right new_value
+                       | `Unequal (_, new_value) -> Some new_value);
+                     Incr.Expert.Node.make_stale entry.node));
                self.saved_map <- input_map)
            in
            let empty_map = Map.Using_comparator.empty ~comparator in
