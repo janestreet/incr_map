@@ -35,7 +35,7 @@ let array_fold_test len =
          (Array.map inputs ~f:Var.watch)
          ~init:0.
          ~f:( +. )
-         ~f_inverse:( -. ))
+         ~update:(F_inverse ( -. )))
   in
   Bench.Test.create ~name:"array_fold" (fun () ->
     let i = Random.int len in
