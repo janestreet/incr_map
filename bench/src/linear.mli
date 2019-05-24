@@ -1,4 +1,1 @@
-open! Core
-open! Import
-
-val command : unit -> Command.t
+(*_ This signature is deliberately empty. *)

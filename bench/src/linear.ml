@@ -38,65 +38,52 @@ let sequence kind n =
 ;;
 
 let sequence_raw kind n =
-  let input_output =
-    lazy
-      (let input, output = sequence kind n in
-       input, Incr.observe output)
+  let input, output =
+    let input, output = sequence kind n in
+    input, Incr.observe output
   in
-  let run () =
-    let input, output = force input_output in
+  fun () ->
     let open Infix in
     input := !input + 1;
     Incr.stabilize ();
     ignore (Obs.value_exn output : int)
-  in
-  let name = sprintf "%d linear, %s" n (Sexp.to_string [%sexp (kind : sequence_kind)]) in
-  name, run
-;;
-
-let sequence_test kind n =
-  let name, run = sequence_raw kind n in
-  Bench.Test.create ~name run
 ;;
 
 let sequence_without_change kind n =
   let output =
-    lazy
-      (let _input, output = sequence kind n in
-       Incr.observe output)
+    let _input, output = sequence kind n in
+    Incr.observe output
   in
-  let run () =
-    let output = force output in
+  fun () ->
     Incr.stabilize ();
     ignore (Obs.value_exn output : int)
-  in
-  let name = sprintf "%d linear (just stabilize)" n in
-  Bench.Test.create ~name run
 ;;
 
-let command () =
-  Bench.make_command
-    [ sequence_test Recombine 50
-    ; sequence_test Trivial 50
-    ; sequence_test Wide 5
-    ; sequence_test Wide 10
-    ; sequence_without_change Recombine 50
-    ]
-;;
+let%bench_fun "Recombine 50" = sequence_raw Recombine 50
+let%bench_fun "Trivial 50" = sequence_raw Trivial 50
+let%bench_fun "Wide 5" = sequence_raw Wide 5
+let%bench_fun "Wide 10" = sequence_raw Wide 10
+let%bench_fun "50 (just stabilize)" = sequence_without_change Recombine 50
 
-(* You can see here that the cost of a single fire is somewhere between 50 and 150 ns.
-   Note that the "recombine" node, however, is 30 nodes per stage.
+(*
+   Each iteration of "trivial 50" updates 50 incremental nodes.
+   Each iteration of "recombine 50" updates ~150 nodes.
+   Each iteration of "wide K" updates about 3 * 2^K nodes.
+
+   Dividing out times per run shows that each node update takes somewhere between 15 and
+   50 nanoseconds.
 
    {v
-┌────────────────────────────┬──────────────┬─────────┬──────────┬──────────┬────────────┐
-│ Name                       │     Time/Run │ mWd/Run │ mjWd/Run │ Prom/Run │ Percentage │
-├────────────────────────────┼──────────────┼─────────┼──────────┼──────────┼────────────┤
-│ 50 linear, Recombine       │  13_952.40ns │         │          │          │      4.34% │
-│ 50 linear, Trivial         │   2_202.29ns │         │          │          │      0.69% │
-│ 5 linear, Wide             │   9_319.77ns │         │          │          │      2.90% │
-│ 10 linear, Wide            │ 321_275.45ns │ -14.38w │    8.65w │    8.65w │    100.00% │
-│ 50 linear (just stabilize) │      67.91ns │         │          │          │      0.02% │
-└────────────────────────────┴──────────────┴─────────┴──────────┴──────────┴────────────┘
+┌─────────────────────────────────┬──────────────┬─────────┬────────────┐
+│ Name                            │     Time/Run │ mWd/Run │ Percentage │
+├─────────────────────────────────┼──────────────┼─────────┼────────────┤
+│ [linear.ml] Recombine 50        │   6_925.04ns │         │      3.96% │
+│ [linear.ml] Trivial 50          │     729.76ns │         │      0.42% │
+│ [linear.ml] Wide 5              │   5_059.74ns │         │      2.90% │
+│ [linear.ml] Wide 10             │ 174_702.44ns │  -0.81w │    100.00% │
+│ [linear.ml] 50 (just stabilize) │      36.94ns │         │      0.02% │
+└─────────────────────────────────┴──────────────┴─────────┴────────────┘
+
    v} *)
 
 let%expect_test "stats" =
@@ -106,18 +93,18 @@ let%expect_test "stats" =
     ((recomputed 0)
      (changed    0)
      (created    0)) |}];
-  let _name, run = sequence_raw Recombine 50 in
+  let run = sequence_raw Recombine 50 in
   stats ();
   [%expect {|
     ((recomputed 0)
      (changed    0)
-     (created    0)) |}];
+     (created    151)) |}];
   run ();
   stats ();
   [%expect {|
     ((recomputed 151)
      (changed    151)
-     (created    151)) |}];
+     (created    0)) |}];
   run ();
   stats ();
   [%expect {|

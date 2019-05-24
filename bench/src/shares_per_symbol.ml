@@ -123,30 +123,21 @@ let random_orders rstate n =
        ~f:(fun m o -> Map.set m ~key:o.id ~data:o)
 ;;
 
-let shares_per_symbol_bench n shares_per_symbol_fn name =
+let shares_per_symbol_bench n shares_per_symbol_fn =
   let open Infix in
-  let env =
-    lazy
-      (let rstate = Random.State.make [| 1 |] in
-       let init_orders = random_orders rstate n in
-       let orders = Var.create init_orders in
-       let shares = Incr.observe (shares_per_symbol_fn (Var.watch orders)) in
-       rstate, orders, init_orders, shares)
-  in
-  Bench.Test.create ~name (fun () ->
-    let rstate, orders, init_orders, shares = force env in
+  let rstate = Random.State.make [| 1 |] in
+  let init_orders = random_orders rstate n in
+  let orders = Var.create init_orders in
+  let shares = Incr.observe (shares_per_symbol_fn (Var.watch orders)) in
+  fun () ->
     let o = random_order rstate in
     orders := Map.set init_orders ~key:o.id ~data:o;
     Incr.stabilize ();
-    ignore (Obs.value_exn shares : int Map.M(Symbol).t))
+    ignore (Obs.value_exn shares : int Map.M(Symbol).t)
 ;;
 
-let command () =
-  Bench.make_command
-    [ shares_per_symbol_bench 1_000_000 shares_per_symbol "nested"
-    ; shares_per_symbol_bench 1_000_000 shares_per_symbol_flat "flat"
-    ]
-;;
+let%bench_fun "nested" = shares_per_symbol_bench 1_000_000 shares_per_symbol
+let%bench_fun "flat" = shares_per_symbol_bench 1_000_000 shares_per_symbol_flat
 
 (* Benchmark results:
 
@@ -154,11 +145,14 @@ let command () =
    having a bunch of extra incremental nodes is expensive, but not horribly so.  (The
    memory numbers are obviously messed up, and I don't know why...)
 
-   ┌────────┬──────────┬─────────┬──────────┬──────────┬────────────┐
-   │ Name   │ Time/Run │ mWd/Run │ mjWd/Run │ Prom/Run │ Percentage │
-   ├────────┼──────────┼─────────┼──────────┼──────────┼────────────┤
-   │ nested │  24.80us │ -1.77kw │ -107.32w │ -104.36w │    100.00% │
-   │ flat   │  10.31us │  3.55kw │    3.42w │    3.42w │     41.57% │
-   └────────┴──────────┴─────────┴──────────┴──────────┴────────────┘
+   {v
+┌───────────────────────────────┬──────────┬────────────┬──────────┬──────────┬────────────┐
+│ Name                          │ Time/Run │    mWd/Run │ mjWd/Run │ Prom/Run │ Percentage │
+├───────────────────────────────┼──────────┼────────────┼──────────┼──────────┼────────────┤
+│ [shares_per_symbol.ml] nested │  16.96us │    363.42w │   39.34w │   39.34w │    100.00% │
+│ [shares_per_symbol.ml] flat   │   6.16us │ -5_755.70w │   -2.56w │   -2.56w │     36.31% │
+└───────────────────────────────┴──────────┴────────────┴──────────┴──────────┴────────────┘
+
+      v}
 
 *)
