@@ -43,10 +43,10 @@ struct
         Incr.stabilize ();
         fun () ->
           let open Infix in
-          input :=
-            Map.update !input 1 ~f:(function
-              | None -> 0
-              | Some i -> i + 1);
+          input
+          := Map.update !input 1 ~f:(function
+            | None -> 0
+            | Some i -> i + 1);
           Incr.stabilize ();
           assert (Incr.Observer.value_exn output = size)
       ;;

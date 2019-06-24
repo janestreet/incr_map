@@ -74,8 +74,7 @@ let%test_module "random tests" =
     let remove ~key ~data map =
       Map.change map key ~f:(function
         | None -> Some [ Remove data ]
-        | Some (Add other_data :: other_ops)
-          when Float.equal data other_data ->
+        | Some (Add other_data :: other_ops) when Float.equal data other_data ->
           Option.some_if (not (List.is_empty other_ops)) other_ops
         | Some other_ops -> Some (Remove data :: other_ops))
     ;;
@@ -83,8 +82,8 @@ let%test_module "random tests" =
     let update ~key ~old_data ~new_data map =
       Map.change map key ~f:(function
         | None -> Some [ Update (old_data, new_data) ]
-        | Some (Add other_data :: other_ops)
-          when Float.equal old_data other_data -> Some (Add new_data :: other_ops)
+        | Some (Add other_data :: other_ops) when Float.equal old_data other_data ->
+          Some (Add new_data :: other_ops)
         | Some other_ops -> Some (Update (old_data, new_data) :: other_ops))
     ;;
 

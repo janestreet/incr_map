@@ -35,15 +35,18 @@ let%test_module "random tests" =
     module Change_status = struct
       type present =
         [ `Still_present_unchanged
-        | `Value_set ]
+        | `Value_set
+        ]
 
       type missing =
         [ `Still_absent
-        | `Removed ]
+        | `Removed
+        ]
 
       type unchanged =
         [ `Still_present_unchanged
-        | `Still_absent ]
+        | `Still_absent
+        ]
     end
 
     (* [Incr.Map.merge] is tested as follows:
@@ -314,7 +317,8 @@ let%bench_module "merge" =
         and left_input = gen_map
         and right_input = gen_map in
         let t = create ~merge_f left_input right_input in
-        Staged.stage (fun () -> List.iter operations ~f:(fun op -> Operation.perform op t))
+        Staged.stage (fun () ->
+          List.iter operations ~f:(fun op -> Operation.perform op t))
       in
       Quickcheck.random_value
         gen_fun
@@ -327,9 +331,7 @@ let%bench_module "merge" =
     let%bench_fun ("cheap merging function"[@indexed length = [ 1000; 3000; 5000 ]]) =
       generate_fun ~length ~key_range ~initial_size ~merge_f:(fun ~key:_ v ->
         match v with
-        | `Left v
-        | `Right v
-        | `Both (v, _) -> Some v)
+        | `Left v | `Right v | `Both (v, _) -> Some v)
       |> Staged.unstage
     ;;
 
@@ -339,8 +341,7 @@ let%bench_module "merge" =
       =
       generate_fun ~length ~key_range ~initial_size ~merge_f:(fun ~key:_ v ->
         match v with
-        | `Left v
-        | `Right v -> Some v
+        | `Left v | `Right v -> Some v
         | `Both (v, _) ->
           Time.pause (Time.Span.of_us 1.);
           Some v)

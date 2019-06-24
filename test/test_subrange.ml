@@ -87,7 +87,8 @@ type gen_op =
   [ `Set_min of int
   | `Set_max of int
   | `Add of int * int
-  | `Remove of float ]
+  | `Remove of float
+  ]
 
 let gen_op : gen_op Quickcheck.Generator.t =
   let open Quickcheck.Generator.Let_syntax in

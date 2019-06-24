@@ -68,7 +68,8 @@ module Make (Incr : Incremental.S) = struct
           Sequence.fold
             (Set.symmetric_diff !old_input new_input)
             ~init:!old_output
-            ~f:(fun output -> function
+            ~f:(fun output ->
+              function
               | First k -> Map.remove output k
               | Second k -> Map.add_exn output ~key:k ~data:())
         in
@@ -99,8 +100,7 @@ module Make (Incr : Incremental.S) = struct
           ~f:(fun output (key, change) ->
             match change with
             | `Left _ -> Map.remove output key
-            | `Right new_data
-            | `Unequal (_, new_data) ->
+            | `Right new_data | `Unequal (_, new_data) ->
               let res = f ~key ~data:new_data in
               (match witness with
                | Map_type.Map -> Map.set output ~key ~data:res
@@ -153,8 +153,7 @@ module Make (Incr : Incremental.S) = struct
       |> Sequence.fold ~init:old_output ~f:(fun output diff_element ->
         let key =
           match diff_element with
-          | Left (key, _)
-          | Right (key, _) -> key
+          | Left (key, _) | Right (key, _) -> key
           | Both ((left_key, _), (right_key, _)) ->
             assert (comparator.compare left_key right_key = 0);
             left_key
@@ -164,8 +163,7 @@ module Make (Incr : Incremental.S) = struct
         let left_data_opt, right_data_opt =
           let new_data = function
             | `Left _ -> None
-            | `Right x
-            | `Unequal (_, x) -> Some x
+            | `Right x | `Unequal (_, x) -> Some x
           in
           match diff_element with
           | Both ((_, left_diff), (_, right_diff)) ->
@@ -194,7 +192,8 @@ module Make (Incr : Incremental.S) = struct
         (lhs : ('key, input_data, 'cmp) Map.t Incr.t)
         ~(comparator : ('key, 'cmp) Comparator.t)
         ~(f : key:'key -> data:input_data Incr.t -> f_output Incr.t)
-    : ('key, output_data, 'cmp) Map.t Incr.t =
+    : ('key, output_data, 'cmp) Map.t Incr.t
+    =
     let module E = Incr.Expert in
     let empty_map = Map.Using_comparator.empty ~comparator in
     let prev_map = ref empty_map in
@@ -207,10 +206,10 @@ module Make (Incr : Incremental.S) = struct
       | Map_type.Filter_map ->
         fun ~key opt ->
           let old = !acc in
-          acc :=
-            (match opt with
-             | None -> if Map.mem old key then Map.remove old key else old
-             | Some data -> Map.set old ~key ~data)
+          acc
+          := (match opt with
+            | None -> if Map.mem old key then Map.remove old key else old
+            | Some data -> Map.set old ~key ~data)
     in
     let rec lhs_change =
       lazy
@@ -426,8 +425,8 @@ module Make (Incr : Incremental.S) = struct
           Map.subrange map ~lower_bound:(Incl min) ~upper_bound:(Incl max)
         in
         (match old with
-         | None
-         | Some (_, None, _) -> (* no old range *)
+         | None | Some (_, None, _) ->
+           (* no old range *)
            from_scratch ()
          | Some (_, Some (old_min, old_max), _)
            when compare old_min old_max > 0
@@ -455,8 +454,7 @@ module Make (Incr : Incremental.S) = struct
                then (
                  match data with
                  | `Left _ -> outside, Map.remove map key
-                 | `Right data
-                 | `Unequal (_, data) -> outside, Map.set map ~key ~data)
+                 | `Right data | `Unequal (_, data) -> outside, Map.set map ~key ~data)
                else (
                  let outside = outside - 1 in
                  if outside < 0
@@ -537,7 +535,8 @@ module Make (Incr : Incremental.S) = struct
   end
 
   let key_range_linear (type k) ~from ~to_ (map : (k, _, _) Map.t)
-    : (k * k option) option =
+    : (k * k option) option
+    =
     let open Key_status in
     let len = Map.length map in
     let begin_key = if Int.( >= ) from len then Known_none else Unknown in
@@ -559,7 +558,8 @@ module Make (Incr : Incremental.S) = struct
          smaller one. *)
       if to_ < len - from
       then find_keys Map.fold ~start_pos:0 ~advance_pos:(fun pos -> pos + 1)
-      else find_keys Map.fold_right ~start_pos:(len - 1) ~advance_pos:(fun pos -> pos - 1)
+      else
+        find_keys Map.fold_right ~start_pos:(len - 1) ~advance_pos:(fun pos -> pos - 1)
     in
     Option.map (Key_status.to_option begin_key) ~f:(fun begin_key ->
       begin_key, Key_status.to_option end_key)
@@ -640,8 +640,7 @@ module Make (Incr : Incremental.S) = struct
           assert (Option.for_all ~f:(Map.mem map) begin_key_opt);
           assert (Option.for_all ~f:(Map.mem map) end_key_opt);
           Option.map begin_key_opt ~f:(fun begin_key -> begin_key, end_key_opt)
-        | None
-        | Some (_, _, None) ->
+        | None | Some (_, _, None) ->
           (* On first run (when we have to) or when both the keys are none, run O(n)
              scan. This is fine for keys-are-none case as it happens when the positions
              are past end of the map, so they shouldn't be too far from end after the
@@ -673,8 +672,7 @@ module Make (Incr : Incremental.S) = struct
       }
 
     type ('k, 'v, 'cmp) t =
-      { mutable saved_map :
-          ('k, 'v, 'cmp) Map.t
+      { mutable saved_map : ('k, 'v, 'cmp) Map.t
       (* We may have multiple entries per key if nodes become necessary again after being
          removed. *)
       ; mutable lookup_entries : ('k, 'v entry list, 'cmp) Map.t
@@ -707,8 +705,8 @@ module Make (Incr : Incremental.S) = struct
                      entry.saved_value
                      <- (match changed_value with
                        | `Left _ -> None
-                       | `Right new_value
-                       | `Unequal (_, new_value) -> Some new_value);
+                       | `Right new_value | `Unequal (_, new_value) ->
+                         Some new_value);
                      Incr.Expert.Node.make_stale entry.node));
                self.saved_map <- input_map)
            in
@@ -776,8 +774,8 @@ module Make (Incr : Incremental.S) = struct
           ; node_is_invalid =
               (Option.some_if (not (Incr.is_valid node)) () : (unit option[@sexp.option]))
           ; node_is_unnecessary =
-              ( Option.some_if (not (Incr.is_necessary node)) ()
-                : (unit option[@sexp.option]) )
+              (Option.some_if (not (Incr.is_necessary node)) () : (unit option[@sexp.option
+                                                                   ]))
           }]
       ;;
 

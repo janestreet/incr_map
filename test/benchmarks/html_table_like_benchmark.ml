@@ -68,7 +68,8 @@ let generate_view t =
 let cell_update t updates =
   let old_value = Incr.Var.latest_value t.rows in
   let new_value =
-    List.fold updates ~init:old_value ~f:(fun rows (key, data) -> Map.set rows ~key ~data)
+    List.fold updates ~init:old_value ~f:(fun rows (key, data) ->
+      Map.set rows ~key ~data)
   in
   Incr.Var.set t.rows new_value;
   generate_view t
