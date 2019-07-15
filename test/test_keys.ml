@@ -6,7 +6,7 @@ let%test_unit "correctness" =
     let map_var = Incr.Var.create init in
     let set_obs = map_var |> Incr.Var.watch |> Incr.Map.keys |> Incr.observe in
     let update_and_check m =
-      let expect = Set.of_map_keys m in
+      let expect = Map.key_set m in
       Incr.Var.set map_var m;
       Incr.stabilize ();
       [%test_result: Int.Set.t] ~expect (Incr.Observer.value_exn set_obs)
