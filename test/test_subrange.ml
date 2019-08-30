@@ -453,7 +453,7 @@ let%test_unit "quickcheck subrange_by_rank large fixed range" =
   let open Quickcheck in
   let map_small_op_gen = map_op_gen ~key_range:(0, 300) () in
   let map_gen =
-    let%bind_open.Generator.Let_syntax len = Generator.of_list [ 300; 10000 ] in
+    let%bind_open.Generator len = Generator.of_list [ 300; 10000 ] in
     map_with_length_gen ~key_range:(-10, 20000) len
   in
   Quickcheck.test
