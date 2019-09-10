@@ -41,7 +41,7 @@ type action =
 let create_view rows range_begin range_length =
   let range =
     Incr.map range_begin ~f:(fun range_begin ->
-      Some (range_begin, range_begin + range_length))
+      Some (Incl range_begin, Incl (range_begin + range_length)))
   in
   Incr.observe (Incr.Map.subrange rows range)
 ;;

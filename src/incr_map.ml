@@ -412,36 +412,69 @@ module Make (Incr : Incremental.S) = struct
       Incr.Expert.Node.watch output_map_node)
   ;;
 
-  let subrange ?(data_equal = phys_equal) map_incr range =
+  let subrange
+        (type k v cmp)
+        ?(data_equal = phys_equal)
+        (map_incr : (k, v, cmp) Map.t Incr.t)
+        range
+    =
     with_old2 map_incr range ~f:(fun ~old map range ->
       let compare = (Map.comparator map).compare in
       let equal l r = compare l r = 0 in
+      let ( > ) a b = compare a b > 0
+      and ( >= ) a b = compare a b >= 0
+      and ( < ) a b = compare a b < 0
+      and ( <= ) a b = compare a b <= 0 in
+      let maybe_bound_equal a b : bool =
+        match a, b with
+        | Unbounded, Unbounded -> true
+        | Unbounded, (Incl _ | Excl _) -> false
+        | (Incl _ | Excl _), Unbounded -> false
+        | Incl _, Excl _ -> false
+        | Excl _, Incl _ -> false
+        | Incl a, Incl b -> equal a b
+        | Excl a, Excl b -> equal a b
+      in
+      let range_is_empty ~min ~max : bool =
+        match min, max with
+        | Unbounded, (Unbounded | Excl _ | Incl _) | (Excl _ | Incl _), Unbounded ->
+          false
+        | Incl min, Incl max -> min > max
+        | Excl min, Excl max | Incl min, Excl max | Excl min, Incl max -> min >= max
+      in
+      let range_includes ~min ~max key : bool =
+        (match min with
+         | Unbounded -> true
+         | Incl min -> min <= key
+         | Excl min -> min < key)
+        &&
+        match max with
+        | Unbounded -> true
+        | Incl max -> max >= key
+        | Excl max -> max > key
+      in
       match range with
       | None ->
         (* Empty new range means empty map *)
         Map.Using_comparator.empty ~comparator:(Map.comparator map)
       | Some ((min, max) as range) ->
-        let from_scratch () =
-          Map.subrange map ~lower_bound:(Incl min) ~upper_bound:(Incl max)
-        in
+        let from_scratch () = Map.subrange map ~lower_bound:min ~upper_bound:max in
         (match old with
          | None | Some (_, None, _) ->
            (* no old range *)
            from_scratch ()
          | Some (_, Some (old_min, old_max), _)
-           when compare old_min old_max > 0
-             || compare old_max min < 0
-             || compare old_min max > 0 ->
+           when range_is_empty ~min:old_min ~max:old_max
+             || range_is_empty ~min ~max:old_max
+             || range_is_empty ~min:old_min ~max ->
            (* empty old range or old range disjoint with new *)
            from_scratch ()
          | Some (old_map, Some ((old_min, old_max) as old_range), old_res) ->
            with_return (fun { return } ->
              (* Returns true iff the key is in both new and old ranges *)
              let in_range_intersection key =
-               compare min key <= 0
-               && compare key max <= 0
-               && compare old_min key <= 0
-               && compare key old_max <= 0
+               range_includes ~min ~max key
+               && range_includes ~min:old_min ~max:old_max key
              in
              (* Apply changes to keys which are in the intersection of both ranges.
 
@@ -457,7 +490,7 @@ module Make (Incr : Incremental.S) = struct
                  | `Right data | `Unequal (_, data) -> outside, Map.set map ~key ~data)
                else (
                  let outside = outside - 1 in
-                 if outside < 0
+                 if Int.O.(outside < 0)
                  then return (from_scratch ())
                  else outside, Map.remove map key)
              in
@@ -474,7 +507,11 @@ module Make (Incr : Incremental.S) = struct
                  ~f:apply_diff_in_intersection
                |> snd
              in
-             if Tuple2.equal ~eq1:equal ~eq2:equal old_range range
+             if Tuple2.equal
+                  ~eq1:maybe_bound_equal
+                  ~eq2:maybe_bound_equal
+                  old_range
+                  range
              then
                (* There are no keys to remove and everything in range is updated. *)
                with_updated_values_in_intersection
@@ -483,8 +520,8 @@ module Make (Incr : Incremental.S) = struct
                let without_keys_out_of_range =
                  Map.subrange
                    with_updated_values_in_intersection
-                   ~lower_bound:(Incl min)
-                   ~upper_bound:(Incl max)
+                   ~lower_bound:min
+                   ~upper_bound:max
                in
                (* Add in any keys which are in the new range but not the old range. *)
                let with_new_keys_now_in_range =
@@ -495,15 +532,21 @@ module Make (Incr : Incremental.S) = struct
                      failwith "impossible case: BUG in incr_map.ml subrange"
                  in
                  let lower_part =
-                   Map.subrange
-                     map
-                     ~lower_bound:(Incl min)
-                     ~upper_bound:(Excl old_min)
+                   match old_min with
+                   | Unbounded ->
+                     Map.Using_comparator.empty ~comparator:(Map.comparator map)
+                   | Excl old_min ->
+                     Map.subrange map ~lower_bound:min ~upper_bound:(Incl old_min)
+                   | Incl old_min ->
+                     Map.subrange map ~lower_bound:min ~upper_bound:(Excl old_min)
                  and upper_part =
-                   Map.subrange
-                     map
-                     ~lower_bound:(Excl old_max)
-                     ~upper_bound:(Incl max)
+                   match old_max with
+                   | Unbounded ->
+                     Map.Using_comparator.empty ~comparator:(Map.comparator map)
+                   | Excl old_max ->
+                     Map.subrange map ~lower_bound:(Incl old_max) ~upper_bound:max
+                   | Incl old_max ->
+                     Map.subrange map ~lower_bound:(Excl old_max) ~upper_bound:max
                  in
                  map_append_exn
                    lower_part
@@ -652,10 +695,10 @@ module Make (Incr : Incremental.S) = struct
       let%map key_range = key_range
       and map = map in
       match key_range with
-      | Some (begin_key, Some end_key) -> Some (begin_key, end_key)
+      | Some (begin_key, Some end_key) -> Some (Incl begin_key, Incl end_key)
       | Some (begin_key, None) ->
         let last_key = Map.max_elt map |> Option.value_exn |> fst in
-        Some (begin_key, last_key)
+        Some (Incl begin_key, Incl last_key)
       | None -> None
     in
     subrange ?data_equal map subrange_key_range

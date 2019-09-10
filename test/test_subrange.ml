@@ -2,12 +2,9 @@ open Core_kernel
 open Import
 
 let subrange map range =
-  let empty = Map.Using_comparator.empty ~comparator:(Map.comparator map) in
   match range with
-  | None -> empty
-  | Some (min, max) ->
-    Map.fold_range_inclusive map ~min ~max ~init:empty ~f:(fun ~key ~data map ->
-      Map.set map ~key ~data)
+  | None -> Map.Using_comparator.empty ~comparator:(Map.comparator map)
+  | Some (lower_bound, upper_bound) -> Map.subrange map ~lower_bound ~upper_bound
 ;;
 
 let setup_subrange map_incr range_incr =
@@ -41,20 +38,20 @@ let%expect_test "check subrange" =
     (Int.Map.of_alist_exn [ 1, "one"; 2, "two"; 3, "three"; 4, "four"; 5, "five" ]);
   print_stable ();
   [%expect {| () |}];
-  Incr.Var.set input_range (Some (1, 3));
+  Incr.Var.set input_range (Some (Incl 1, Incl 3));
   print_stable ();
   [%expect {|
              ((1 one)
               (2 two)
               (3 three)) |}];
-  Incr.Var.set input_range (Some (0, 2));
+  Incr.Var.set input_range (Some (Incl 0, Incl 2));
   Incr.Var.set input_map (Map.set ~key:0 ~data:"zero" (Incr.Var.value input_map));
   print_stable ();
   [%expect {|
              ((0 zero)
               (1 one)
               (2 two)) |}];
-  Incr.Var.set input_range (Some (4, 17));
+  Incr.Var.set input_range (Some (Incl 4, Incl 17));
   print_stable ();
   [%expect {|
              ((4 four)
@@ -62,17 +59,17 @@ let%expect_test "check subrange" =
   Incr.Var.set input_range None;
   print_stable ();
   [%expect {| () |}];
-  Incr.Var.set input_range (Some (4, 5));
+  Incr.Var.set input_range (Some (Incl 4, Incl 5));
   print_stable ();
   [%expect {|
              ((4 four)
               (5 five)) |}];
-  Incr.Var.set input_range (Some (5, 4));
+  Incr.Var.set input_range (Some (Incl 5, Incl 4));
   print_stable ();
   [%expect {| () |}];
   (* This test case (lots of changes outside range) should trigger
      the "shortcutting" code path. *)
-  Incr.Var.set input_range (Some (4, 5));
+  Incr.Var.set input_range (Some (Incl 4, Incl 5));
   Incr.stabilize ();
   Incr.Var.set
     input_map
@@ -83,61 +80,115 @@ let%expect_test "check subrange" =
               (5 d)) |}]
 ;;
 
-type gen_op =
-  [ `Set_min of int
-  | `Set_max of int
-  | `Add of int * int
-  | `Remove of float
-  ]
+module Maybe_bound = struct
+  include Maybe_bound
 
-let gen_op : gen_op Quickcheck.Generator.t =
-  let open Quickcheck.Generator.Let_syntax in
-  Quickcheck.Generator.weighted_union
-    [ ( 1.0
-      , let%map k = Int.quickcheck_generator in
-        `Set_min k )
-    ; ( 1.0
-      , let%map k = Int.quickcheck_generator in
-        `Set_max k )
-    ; ( 10.0
-      , let%map k = Int.quickcheck_generator
-        and v = Int.quickcheck_generator in
-        `Add (k, v) )
-    ; ( 10.0
-      , let%map i = Float.gen_uniform_excl 0. 1. in
-        `Remove i )
-    ]
-;;
+  type 'a t = 'a Maybe_bound.t =
+    | Incl of 'a
+    | Excl of 'a
+    | Unbounded
+  [@@deriving quickcheck, sexp_of]
+end
 
-let map_gen : int Int.Map.t Quickcheck.Generator.t =
-  Quickcheck.Generator.list
-    (Quickcheck.Generator.tuple2 Int.quickcheck_generator Int.quickcheck_generator)
-  |> Quickcheck.Generator.map ~f:(fun l -> Int.Map.of_alist_reduce l ~f:(fun _a b -> b))
-;;
+module Test_operation = struct
+  type t =
+    | Set_min of int Maybe_bound.t
+    | Set_max of int Maybe_bound.t
+    | Add of
+        { key : int
+        ; data : int
+        }
+    | Remove of float
+  [@@deriving sexp_of, quickcheck]
 
-let range_gen : (int * int) Quickcheck.Generator.t =
-  let open Quickcheck.Generator.Let_syntax in
-  let%map a = Int.quickcheck_generator
-  and b = Int.quickcheck_generator in
-  if a < b then a, b else b, a
-;;
+  let quickcheck_generator : t Quickcheck.Generator.t =
+    let open Quickcheck.Generator.Let_syntax in
+    Quickcheck.Generator.weighted_union
+      [ ( 1.0
+        , let%map k = Maybe_bound.quickcheck_generator Int.quickcheck_generator in
+          Set_min k )
+      ; ( 1.0
+        , let%map k = Maybe_bound.quickcheck_generator Int.quickcheck_generator in
+          Set_max k )
+      ; ( 10.0
+        , let%map key = Int.quickcheck_generator
+          and data = Int.quickcheck_generator in
+          Add { key; data } )
+      ; ( 10.0
+        , let%map i = Float.gen_uniform_excl 0. 1. in
+          Remove i )
+      ]
+  ;;
+end
 
-let apply_op (map, (min, max)) = function
-  | `Set_min min' -> map, if min' <= max then min', max else max, min'
-  | `Set_max max' -> map, if max' >= min then min, max' else max', min
-  | `Add (key, data) -> Map.set map ~key ~data, (min, max)
-  | `Remove idx ->
+module Initial_state : sig
+  (* Not included directly as [Int.Map] so that [@@deriving quickcheck] will work correctly. *)
+  type t = int Int.Map.t [@@deriving sexp_of]
+
+  include Quickcheckable.S with type t := t
+end = struct
+  type t = int Int.Map.t [@@deriving quickcheck, sexp_of]
+
+  let quickcheck_shrinker = quickcheck_shrinker Int.quickcheck_shrinker
+  let quickcheck_observer = quickcheck_observer Int.quickcheck_observer
+
+  let quickcheck_generator : t Quickcheck.Generator.t =
+    Quickcheck.Generator.list
+      (Quickcheck.Generator.tuple2 Int.quickcheck_generator Int.quickcheck_generator)
+    |> Quickcheck.Generator.map ~f:(fun l ->
+      Int.Map.of_alist_reduce l ~f:(fun _a b -> b))
+  ;;
+end
+
+module Range = struct
+  type t = int Maybe_bound.t * int Maybe_bound.t [@@deriving quickcheck, sexp_of]
+
+  let quickcheck_generator : t Quickcheck.Generator.t =
+    let open Quickcheck.Generator.Let_syntax in
+    let%map a = [%quickcheck.generator: Int.t Maybe_bound.t]
+    and b = [%quickcheck.generator: Int.t Maybe_bound.t] in
+    if Maybe_bound.bounds_crossed ~lower:b ~upper:a ~compare:Int.compare
+    then a, b
+    else b, a
+  ;;
+end
+
+let apply_op (map, (min, max)) : Test_operation.t -> _ = function
+  | Set_min min' ->
+    ( map
+    , if Maybe_bound.As_lower_bound.compare Int.compare min' max <= 0
+      then min', max
+      else max, min' )
+  | Set_max max' ->
+    ( map
+    , if Maybe_bound.As_upper_bound.compare Int.compare max' min >= 0
+      then min, max'
+      else max', min )
+  | Add { key; data } -> Map.set map ~key ~data, (min, max)
+  | Remove idx ->
     let nth = int_of_float (float_of_int (Map.length map) *. idx) in
     (match Map.nth map nth with
      | None -> map, (min, max)
      | Some (key, _) -> Map.remove map key, (min, max))
 ;;
 
-let%test_unit "quickcheck ops test" =
-  Quickcheck.test
-    (Quickcheck.Generator.tuple3 (Quickcheck.Generator.list gen_op) map_gen range_gen)
-    ~f:(fun (ops, map, range) ->
-      let data = Incr.Var.create (map, range) in
+module Test_case = struct
+  type t =
+    { operations : Test_operation.t list
+    ; initial_state : Initial_state.t
+    ; range : Range.t
+    }
+  [@@deriving quickcheck, sexp_of]
+end
+
+let%expect_test "quickcheck ops test" =
+  Expect_test_helpers_kernel.quickcheck
+    [%here]
+    ~shrinker:Test_case.quickcheck_shrinker
+    ~sexp_of:Test_case.sexp_of_t
+    Test_case.quickcheck_generator
+    ~f:(fun { operations; initial_state; range } ->
+      let data = Incr.Var.create (initial_state, range) in
       let incr = Incr.Var.watch data in
       let map_incr = Incr.map incr ~f:fst in
       let range_incr = Incr.map incr ~f:snd |> Incr.map ~f:Option.some in
@@ -149,9 +200,10 @@ let%test_unit "quickcheck ops test" =
           (Incr.Observer.value_exn submap)
       in
       check ();
-      List.iter ops ~f:(fun op ->
+      List.iter operations ~f:(fun op ->
         Incr.Var.set data (apply_op (Incr.Var.value data) op);
-        check ()))
+        check ()));
+  [%expect {| |}]
 ;;
 
 let observe incr =

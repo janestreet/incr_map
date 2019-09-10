@@ -89,8 +89,8 @@ module type S = sig
   val keys : ('k, 'v, 'c) Map.t Incr.t -> ('k, 'c) Set.t Incr.t
 
   (** [subrange map (min, max)] constructs an incremental submap that includes all of the
-      keys and data from [map] between [min] and [max], inclusive, and none of the keys
-      outside the range.
+      keys and data from [map] between [min] and [max], and none of the keys outside the
+      range.
 
       [subrange map None] is the empty map. [range] being [None] means no elements are
       chosen.
@@ -104,7 +104,7 @@ module type S = sig
   val subrange
     :  ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, 'cmp) Map.t Incr.t
-    -> ('k * 'k) option Incr.t
+    -> ('k Maybe_bound.t * 'k Maybe_bound.t) option Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
 
   (** [subrange_by_rank map (s, e)] constructs an incremental submap that includes (e-s+1)
