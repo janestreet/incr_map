@@ -104,7 +104,7 @@ module type S = sig
   val subrange
     :  ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, 'cmp) Map.t Incr.t
-    -> ('k Maybe_bound.t * 'k Maybe_bound.t) option Incr.t
+    -> ('k Maybe_bound.As_lower_bound.t * 'k Maybe_bound.As_upper_bound.t) option Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
 
   (** [subrange_by_rank map (s, e)] constructs an incremental submap that includes (e-s+1)

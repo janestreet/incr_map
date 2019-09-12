@@ -412,6 +412,13 @@ module Make (Incr : Incremental.S) = struct
       Incr.Expert.Node.watch output_map_node)
   ;;
 
+  (* Just for deriving structural equality. *)
+  type 'a maybe_bound_structurally = 'a Maybe_bound.t =
+    | Incl of 'a
+    | Excl of 'a
+    | Unbounded
+  [@@deriving equal]
+
   let subrange
         (type k v cmp)
         ?(data_equal = phys_equal)
@@ -422,19 +429,8 @@ module Make (Incr : Incremental.S) = struct
       let compare = (Map.comparator map).compare in
       let equal l r = compare l r = 0 in
       let ( > ) a b = compare a b > 0
-      and ( >= ) a b = compare a b >= 0
-      and ( < ) a b = compare a b < 0
-      and ( <= ) a b = compare a b <= 0 in
-      let maybe_bound_equal a b : bool =
-        match a, b with
-        | Unbounded, Unbounded -> true
-        | Unbounded, (Incl _ | Excl _) -> false
-        | (Incl _ | Excl _), Unbounded -> false
-        | Incl _, Excl _ -> false
-        | Excl _, Incl _ -> false
-        | Incl a, Incl b -> equal a b
-        | Excl a, Excl b -> equal a b
-      in
+      and ( >= ) a b = compare a b >= 0 in
+      let maybe_bound_equal a b : bool = equal_maybe_bound_structurally equal a b in
       let range_is_empty ~min ~max : bool =
         match min, max with
         | Unbounded, (Unbounded | Excl _ | Incl _) | (Excl _ | Incl _), Unbounded ->
@@ -443,15 +439,8 @@ module Make (Incr : Incremental.S) = struct
         | Excl min, Excl max | Incl min, Excl max | Excl min, Incl max -> min >= max
       in
       let range_includes ~min ~max key : bool =
-        (match min with
-         | Unbounded -> true
-         | Incl min -> min <= key
-         | Excl min -> min < key)
-        &&
-        match max with
-        | Unbounded -> true
-        | Incl max -> max >= key
-        | Excl max -> max > key
+        Maybe_bound.is_lower_bound min ~of_:key ~compare
+        && Maybe_bound.is_upper_bound max ~of_:key ~compare
       in
       match range with
       | None ->
