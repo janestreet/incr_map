@@ -201,5 +201,7 @@ module type Incr_map = sig
       [Map] module.  *)
 
   module Make (Incr : Incremental.S) : S with module Incr := Incr
+
+  module type S = S
 end
 
