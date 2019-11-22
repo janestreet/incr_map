@@ -17,9 +17,9 @@ module Map_type = struct
      | Filter : ('output_data, 'output_data, bool) t *)
 end
 
-module Make (Incr : Incremental.S) = struct
+module Generic = struct
   let with_old i ~f =
-    let open Incr.Let_syntax in
+    let open Incremental.Let_syntax in
     let old = ref None in
     let%map a = i in
     let b = f ~old:!old a in
@@ -51,11 +51,11 @@ module Make (Incr : Incremental.S) = struct
   ;;
 
   let with_comparator' get_comparator x f =
-    Incr.bind (Incr.freeze (Incr.map x ~f:get_comparator)) ~f
+    Incremental.bind (Incremental.freeze (Incremental.map x ~f:get_comparator)) ~f
   ;;
 
   (** Captures the comparator (which can't change anyway, since the type determines the
-      comparator) by freezing the corresponding map.  Note that by first using Incr.map to
+      comparator) by freezing the corresponding map.  Note that by first using Incremental.map to
       get the comparator out of the map, we allow the initial map itself to be garbage
       collected *)
   let with_comparator map f = with_comparator' Map.comparator map f
@@ -64,7 +64,7 @@ module Make (Incr : Incremental.S) = struct
     with_comparator' Set.comparator set (fun comparator ->
       let old_input = ref (Set.Using_comparator.empty ~comparator) in
       let old_output = ref (Map.Using_comparator.empty ~comparator) in
-      Incr.map set ~f:(fun new_input ->
+      Incremental.map set ~f:(fun new_input ->
         let new_output =
           Sequence.fold
             (Set.symmetric_diff !old_input new_input)
@@ -80,10 +80,10 @@ module Make (Incr : Incremental.S) = struct
   ;;
 
   let generic_mapi
-        (type input_data output_data f_output)
+        (type input_data output_data f_output state_witness)
         (witness : (input_data, output_data, f_output) Map_type.t)
         ?(data_equal = phys_equal)
-        (map : ('key, input_data, 'cmp) Map.t Incr.t)
+        (map : (('key, input_data, 'cmp) Map.t, state_witness) Incremental.t)
         ~(f : key:'key -> data:input_data -> f_output)
     =
     with_old map ~f:(fun ~old input ->
@@ -116,7 +116,7 @@ module Make (Incr : Incremental.S) = struct
 
   let with_old2 i1 i2 ~f =
     let old = ref None in
-    Incr.map2 i1 i2 ~f:(fun a1 a2 ->
+    Incremental.map2 i1 i2 ~f:(fun a1 a2 ->
       let b = f ~old:!old a1 a2 in
       old := Some (a1, a2, b);
       b)
@@ -186,21 +186,25 @@ module Make (Incr : Incremental.S) = struct
   ;;
 
   let generic_mapi_with_comparator'
-        (type input_data output_data f_output)
+        (type input_data output_data f_output state_witness)
         (witness : (input_data, output_data, f_output) Map_type.t)
         ?cutoff
         ?(data_equal = phys_equal)
-        (lhs : ('key, input_data, 'cmp) Map.t Incr.t)
+        (lhs : (('key, input_data, 'cmp) Map.t, state_witness) Incremental.t)
         ~(comparator : ('key, 'cmp) Comparator.t)
-        ~(f : key:'key -> data:input_data Incr.t -> f_output Incr.t)
-    : ('key, output_data, 'cmp) Map.t Incr.t
+        ~(f :
+            key:'key
+          -> data:(input_data, state_witness) Incremental.t
+          -> (f_output, state_witness) Incremental.t)
+    : (('key, output_data, 'cmp) Map.t, state_witness) Incremental.t
     =
-    let module E = Incr.Expert in
+    let module E = Incremental.Expert in
+    let incremental_state = Incremental.state lhs in
     let empty_map = Map.Using_comparator.empty ~comparator in
     let prev_map = ref empty_map in
     let prev_nodes = ref empty_map in
     let acc : ('key, output_data, 'cmp) Map.t ref = ref empty_map in
-    let result = E.Node.create (fun () -> !acc) in
+    let result = E.Node.create incremental_state (fun () -> !acc) in
     let (on_inner_change : key:'key -> f_output -> unit) =
       match witness with
       | Map_type.Map -> fun ~key data -> acc := Map.set !acc ~key ~data
@@ -214,7 +218,7 @@ module Make (Incr : Incremental.S) = struct
     in
     let rec lhs_change =
       lazy
-        (Incr.map lhs ~f:(fun map ->
+        (Incremental.map lhs ~f:(fun map ->
            let new_nodes =
              Map.fold_symmetric_diff
                ~data_equal
@@ -235,9 +239,12 @@ module Make (Incr : Incremental.S) = struct
                    E.Node.invalidate node;
                    nodes
                  | `Right _ ->
-                   let node = E.Node.create (fun () -> Map.find_exn !prev_map key) in
+                   let node =
+                     E.Node.create incremental_state (fun () ->
+                       Map.find_exn !prev_map key)
+                   in
                    Option.iter cutoff ~f:(fun c ->
-                     Incr.set_cutoff (E.Node.watch node) c);
+                     Incremental.set_cutoff (E.Node.watch node) c);
                    E.Node.add_dependency node (E.Dependency.create (force lhs_change));
                    let user_function_dep =
                      E.Dependency.create
@@ -283,10 +290,10 @@ module Make (Incr : Incremental.S) = struct
         ~remove)
   ;;
 
-  let flatten map =
-    let module E = Incr.Expert in
+  let flatten state map =
+    let module E = Incremental.Expert in
     let result = ref (Map.Using_comparator.empty ~comparator:(Map.comparator map)) in
-    let node = E.Node.create (fun () -> !result) in
+    let node = E.Node.create state (fun () -> !result) in
     Map.iteri map ~f:(fun ~key ~data:incr ->
       E.Node.add_dependency
         node
@@ -296,12 +303,13 @@ module Make (Incr : Incremental.S) = struct
   ;;
 
   let join_with_comparator map_incr ~comparator =
-    let module E = Incr.Expert in
+    let module E = Incremental.Expert in
+    let incremental_state = Incremental.state map_incr in
     let empty_map = Map.Using_comparator.empty ~comparator in
     let result_map = ref empty_map in
     let old_map_of_incrs = ref empty_map in
     let current_dependencies = ref empty_map in
-    let result = E.Node.create (fun () -> !result_map) in
+    let result = E.Node.create incremental_state (fun () -> !result_map) in
     let add_subnode current_dependencies ~key ~data_node =
       let new_dep =
         E.Dependency.create data_node ~on_change:(fun data ->
@@ -317,7 +325,7 @@ module Make (Incr : Incremental.S) = struct
       Map.remove current_dependencies key
     in
     let lhs_change =
-      Incr.map map_incr ~f:(fun map_of_incrs ->
+      Incremental.map map_incr ~f:(fun map_of_incrs ->
         let new_dependency_map =
           Map.fold_symmetric_diff
             ~data_equal:phys_equal
@@ -343,10 +351,10 @@ module Make (Incr : Incremental.S) = struct
   ;;
 
   module Separate_state = struct
-    type ('k, 'v, 'cmp) t =
+    type ('k, 'v, 'cmp, 'w) t =
       { mutable input_map : ('k, 'v, 'cmp) Map.t
-      ; mutable expert_nodes : ('k, 'v Incr.Expert.Node.t, 'cmp) Map.t
-      ; mutable output_map : ('k, 'v Incr.t, 'cmp) Map.t
+      ; mutable expert_nodes : ('k, ('v, 'w) Incremental.Expert.Node.t, 'cmp) Map.t
+      ; mutable output_map : ('k, ('v, 'w) Incremental.t, 'cmp) Map.t
       }
 
     let create comparator =
@@ -354,20 +362,23 @@ module Make (Incr : Incremental.S) = struct
       { input_map = empty; expert_nodes = empty; output_map = empty }
     ;;
 
-    let create_lookup_node t key =
-      Incr.Expert.Node.create (fun () -> Map.find_exn t.input_map key)
+    let create_lookup_node state t key =
+      Incremental.Expert.Node.create state (fun () -> Map.find_exn t.input_map key)
     ;;
   end
 
   let separate input_map ~data_equal =
+    let incremental_state = Incremental.state input_map in
     with_comparator input_map (fun comparator ->
       let state = Separate_state.create comparator in
-      let output_map_node = Incr.Expert.Node.create (fun () -> state.output_map) in
+      let output_map_node =
+        Incremental.Expert.Node.create incremental_state (fun () -> state.output_map)
+      in
       let make_node_depend_on_input_map_changed node ~input_map_changed =
         let dependency =
-          Incr.Expert.Dependency.create (Lazy.force_val input_map_changed)
+          Incremental.Expert.Dependency.create (Lazy.force_val input_map_changed)
         in
-        Incr.Expert.Node.add_dependency node dependency
+        Incremental.Expert.Node.add_dependency node dependency
       in
       (* We want to make nodes depend on [input_map_changed] so that [input_map_changed]
          is allowed to make them stale, but we do not want them to be recomputed for any
@@ -377,7 +388,7 @@ module Make (Incr : Incremental.S) = struct
       *)
       let rec input_map_changed =
         lazy
-          (Incr.map input_map ~f:(fun input_map ->
+          (Incremental.map input_map ~f:(fun input_map ->
              let prev_input_map = state.input_map in
              let expert_nodes, output_map =
                Map.fold_symmetric_diff
@@ -389,20 +400,23 @@ module Make (Incr : Incremental.S) = struct
                    match change with
                    | `Left _old_value ->
                      let old_node = Map.find_exn expert_nodes key in
-                     Incr.Expert.Node.invalidate old_node;
-                     Incr.Expert.Node.make_stale output_map_node;
+                     Incremental.Expert.Node.invalidate old_node;
+                     Incremental.Expert.Node.make_stale output_map_node;
                      Map.remove expert_nodes key, Map.remove output_map key
                    | `Right _new_value ->
-                     let node = Separate_state.create_lookup_node state key in
+                     let node =
+                       Separate_state.create_lookup_node incremental_state state key
+                     in
                      make_node_depend_on_input_map_changed node ~input_map_changed;
-                     Incr.Expert.Node.make_stale output_map_node;
+                     Incremental.Expert.Node.make_stale output_map_node;
                      ( Map.add_exn expert_nodes ~key ~data:node
                      , Map.add_exn
                          output_map
                          ~key
-                         ~data:(Incr.Expert.Node.watch node) )
+                         ~data:(Incremental.Expert.Node.watch node) )
                    | `Unequal (_old_value, _new_value) ->
-                     Incr.Expert.Node.make_stale (Map.find_exn expert_nodes key);
+                     Incremental.Expert.Node.make_stale
+                       (Map.find_exn expert_nodes key);
                      expert_nodes, output_map)
              in
              state.input_map <- input_map;
@@ -410,7 +424,7 @@ module Make (Incr : Incremental.S) = struct
              state.output_map <- output_map))
       in
       make_node_depend_on_input_map_changed output_map_node ~input_map_changed;
-      Incr.Expert.Node.watch output_map_node)
+      Incremental.Expert.Node.watch output_map_node)
   ;;
 
   (* Just for deriving structural equality. *)
@@ -421,9 +435,9 @@ module Make (Incr : Incremental.S) = struct
   [@@deriving equal]
 
   let subrange
-        (type k v cmp)
+        (type k v cmp state_witness)
         ?(data_equal = phys_equal)
-        (map_incr : (k, v, cmp) Map.t Incr.t)
+        (map_incr : ((k, v, cmp) Map.t, state_witness) Incremental.t)
         range
     =
     with_old2 map_incr range ~f:(fun ~old map range ->
@@ -628,8 +642,13 @@ module Make (Incr : Incremental.S) = struct
   ;;
 
   (** Range map by indices *)
-  let subrange_by_rank (type k) ?data_equal (map : (k, _, _) Map.t Incr.t) range =
-    let key_range : (k * k option) option Incr.t =
+  let subrange_by_rank
+        (type k state_witness)
+        ?data_equal
+        (map : ((k, _, _) Map.t, state_witness) Incremental.t)
+        range
+    =
+    let key_range : ((k * k option) option, state_witness) Incremental.t =
       with_old2 map range ~f:(fun ~old map (from, to_) ->
         (* This function returns no keys, only begin key, or begin and end keys.
            These are the keys at [from] and [to_] positions in the map, or None if the
@@ -681,7 +700,7 @@ module Make (Incr : Incremental.S) = struct
           key_range_linear map ~from ~to_)
     in
     let subrange_key_range =
-      let open Incr.Let_syntax in
+      let open Incremental.Let_syntax in
       let%map key_range = key_range
       and map = map in
       match key_range with
@@ -699,18 +718,18 @@ module Make (Incr : Incremental.S) = struct
   end
 
   module Lookup = struct
-    type 'v entry =
+    type ('v, 'w) entry =
       { mutable saved_value : 'v option
-      ; node : 'v option Incr.Expert.Node.t
+      ; node : ('v option, 'w) Incremental.Expert.Node.t
       }
 
-    type ('k, 'v, 'cmp) t =
+    type ('k, 'v, 'cmp, 'w) t =
       { mutable saved_map : ('k, 'v, 'cmp) Map.t
       (* We may have multiple entries per key if nodes become necessary again after being
          removed. *)
-      ; mutable lookup_entries : ('k, 'v entry list, 'cmp) Map.t
-      ; updater_node : unit Incr.t
-      ; scope : Incr.Scope.t
+      ; mutable lookup_entries : ('k, ('v, 'w) entry list, 'cmp) Map.t
+      ; updater_node : (unit, 'w) Incremental.t
+      ; scope : 'w Incremental.Scope.t
       }
 
     module M (K : sig
@@ -718,14 +737,14 @@ module Make (Incr : Incremental.S) = struct
         type comparator_witness
       end) =
     struct
-      type nonrec 'v t = (K.t, 'v, K.comparator_witness) t
+      type nonrec ('v, 'w) t = (K.t, 'v, K.comparator_witness, 'w) t
     end
 
     let create ?(data_equal = phys_equal) input_map ~comparator =
       let rec self =
         lazy
           (let updater_node =
-             Incr.map input_map ~f:(fun input_map ->
+             Incremental.map input_map ~f:(fun input_map ->
                let (lazy self) = self in
                Map.fold_symmetric_diff
                  self.saved_map
@@ -740,14 +759,14 @@ module Make (Incr : Incremental.S) = struct
                        | `Left _ -> None
                        | `Right new_value | `Unequal (_, new_value) ->
                          Some new_value);
-                     Incr.Expert.Node.make_stale entry.node));
+                     Incremental.Expert.Node.make_stale entry.node));
                self.saved_map <- input_map)
            in
            let empty_map = Map.Using_comparator.empty ~comparator in
            { saved_map = empty_map
            ; lookup_entries = empty_map
            ; updater_node
-           ; scope = Incr.Scope.current ()
+           ; scope = Incremental.Scope.current (Incremental.state input_map) ()
            })
       in
       Lazy.force self
@@ -772,43 +791,46 @@ module Make (Incr : Incremental.S) = struct
     ;;
 
     let slow_path_create_node t key =
-      Incr.Scope.within t.scope ~f:(fun () ->
+      let incremental_state = Incremental.state t.updater_node in
+      Incremental.Scope.within incremental_state t.scope ~f:(fun () ->
         let rec entry =
           lazy
             { saved_value = Map.find t.saved_map key
             ; node =
-                Incr.Expert.Node.create
+                Incremental.Expert.Node.create
+                  incremental_state
                   (fun () -> (force entry).saved_value)
                   ~on_observability_change:(slow_path_link_entry t entry ~key)
             }
         in
         let (lazy entry) = entry in
-        Incr.Expert.Node.add_dependency
+        Incremental.Expert.Node.add_dependency
           entry.node
-          (Incr.Expert.Dependency.create t.updater_node);
-        Incr.Expert.Node.watch entry.node)
+          (Incremental.Expert.Dependency.create t.updater_node);
+        Incremental.Expert.Node.watch entry.node)
     ;;
 
     let find t key =
       match Map.find_multi t.lookup_entries key with
-      | entry :: _ -> Incr.Expert.Node.watch entry.node
+      | entry :: _ -> Incremental.Expert.Node.watch entry.node
       | [] -> slow_path_create_node t key
     ;;
 
     module For_debug = struct
       let sexp_of_entry sexp_of_value entry =
         let { saved_value; node } = entry in
-        let node = Incr.Expert.Node.watch node in
+        let node = Incremental.Expert.Node.watch node in
         [%sexp
           { saved_value : value option
-          ; node_info = (Incr.user_info node : (Info.t option[@sexp.option]))
+          ; node_info = (Incremental.user_info node : (Info.t option[@sexp.option]))
           ; node_is_const =
-              (Option.some_if (Incr.is_const node) () : (unit option[@sexp.option]))
+              (Option.some_if (Incremental.is_const node) () : (unit option[@sexp.option]))
           ; node_is_invalid =
-              (Option.some_if (not (Incr.is_valid node)) () : (unit option[@sexp.option]))
+              (Option.some_if (not (Incremental.is_valid node)) () : (unit option[@sexp.option
+                                                                      ]))
           ; node_is_unnecessary =
-              (Option.some_if (not (Incr.is_necessary node)) () : (unit option[@sexp.option
-                                                                   ]))
+              (Option.some_if (not (Incremental.is_necessary node)) () : (unit option[@sexp.option
+                                                                          ]))
           }]
       ;;
 
@@ -833,3 +855,36 @@ module Make (Incr : Incremental.S) = struct
     end
   end
 end
+
+module type S = sig
+  type state_witness
+
+  include
+    S_gen
+    with type 'a Incr.t = ('a, state_witness) Incremental.t
+     and type 'a Incr.Cutoff.t = 'a Incremental.Cutoff.t
+     and type ('k, 'v, 'cmp) Lookup.t = ('k, 'v, 'cmp, state_witness) Generic.Lookup.t
+end
+
+module Make (Incr : Incremental.S) = struct
+  include Generic
+
+  let flatten x = flatten Incr.State.t x
+
+  module Lookup = struct
+    include Lookup
+
+    type ('k, 'v, 'cmp) t = ('k, 'v, 'cmp, Incr.state_witness) Lookup.t
+
+    module M (K : sig
+        type t
+        type comparator_witness
+      end) : sig
+      type nonrec 'v t = (K.t, 'v, K.comparator_witness) t
+    end = struct
+      type nonrec 'v t = (K.t, 'v, K.comparator_witness) t
+    end
+  end
+end
+
+include Generic
