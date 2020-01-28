@@ -83,6 +83,12 @@ module type S_gen = sig
     -> (int * int) Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
 
+  val transpose
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k2, 'k2_cmp) Map.comparator
+    -> ('k1, ('k2, 'v, 'k2_cmp) Map.t, 'k1_cmp) Map.t Incr.t
+    -> ('k2, ('k1, 'v, 'k1_cmp) Map.t, 'k2_cmp) Map.t Incr.t
+
   module Lookup : sig
     type ('k, 'v, 'cmp) t
 
@@ -256,6 +262,12 @@ module type Incr_map = sig
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> (int * int, 'w) Incremental.t
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
+
+  val transpose
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k2, 'k2_cmp) Map.comparator
+    -> (('k1, ('k2, 'v, 'k2_cmp) Map.t, 'k1_cmp) Map.t, 'w) Incremental.t
+    -> (('k2, ('k1, 'v, 'k1_cmp) Map.t, 'k2_cmp) Map.t, 'w) Incremental.t
 
   (** [('k, 'v) Lookup.t] provides a way to lookup keys in a map which uses symmetric
       diffs to trigger updates of the lookups.

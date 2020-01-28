@@ -713,6 +713,52 @@ module Generic = struct
     subrange ?data_equal map subrange_key_range
   ;;
 
+  let transpose
+    : type k1 k2 v k1_cmp k2_cmp state_witness.
+      ?data_equal:(v -> v -> bool)
+      -> (k2, k2_cmp) Map.comparator
+      -> ((k1, (k2, v, k2_cmp) Map.t, k1_cmp) Map.t, state_witness) Incremental.t
+      -> ((k2, (k1, v, k1_cmp) Map.t, k2_cmp) Map.t, state_witness) Incremental.t
+    =
+    fun ?(data_equal = phys_equal) k2_comparator m ->
+      with_comparator m (fun k1_comparator ->
+        let update
+          :  key:k1 -> old_data:(k2, v, k2_cmp) Map.t -> new_data:(k2, v, k2_cmp) Map.t
+            -> (k2, (k1, v, k1_cmp) Map.t, k2_cmp) Map.t
+            -> (k2, (k1, v, k1_cmp) Map.t, k2_cmp) Map.t
+          =
+          fun ~key:k1 ~old_data ~new_data acc ->
+            Map.fold_symmetric_diff
+              old_data
+              new_data
+              ~data_equal
+              ~init:acc
+              ~f:(fun acc (k2, diff) ->
+                let value =
+                  match diff with
+                  | `Left _ -> None
+                  | `Right x | `Unequal (_, x) -> Some x
+                in
+                Map.change acc k2 ~f:(fun acc_inner ->
+                  let acc_inner =
+                    Map.change
+                      (Option.value
+                         acc_inner
+                         ~default:(Map.Using_comparator.empty ~comparator:k1_comparator))
+                      k1
+                      ~f:(fun _ -> value)
+                  in
+                  if Map.is_empty acc_inner then None else Some acc_inner))
+        in
+        let add ~key ~data =
+          update ~key ~old_data:(Map.empty k2_comparator) ~new_data:data
+        in
+        let remove ~key ~data =
+          update ~key ~old_data:data ~new_data:(Map.empty k2_comparator)
+        in
+        unordered_fold m ~init:(Map.empty k2_comparator) ~update ~add ~remove)
+  ;;
+
   module For_testing = struct
     let key_range_linear = key_range_linear
   end
