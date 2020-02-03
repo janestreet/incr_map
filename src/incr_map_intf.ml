@@ -83,6 +83,12 @@ module type S_gen = sig
     -> (int * int) Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
 
+  val index_by
+    :  ('k, 'v, 'cmp) Map.t Incr.t
+    -> comparator:('l, 'cmpo) Map.comparator
+    -> index:('v -> 'l option)
+    -> ('l, ('k, 'v, 'cmp) Map.t, 'cmpo) Map.t Incr.t
+
   val transpose
     :  ?data_equal:('v -> 'v -> bool)
     -> ('k2, 'k2_cmp) Map.comparator
@@ -262,6 +268,32 @@ module type Incr_map = sig
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> (int * int, 'w) Incremental.t
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
+
+  (** [index_by map ~comparator ~index] constructs an incremental map-of-maps where each
+      key-data pair of the input map is present in one (or none) of the inner maps.
+      [index] specifies the outer map key under which each original key-data pair is
+      found.
+
+      All of the resulting inner maps are guaranteed to be non-empty.
+
+      An all-at-once version of [index_by] would look like:
+
+      {[
+        let index_by map ~comparator ~index =
+          Map.to_alist map
+          |> List.filter_map ~f:(fun (key, data) ->
+            match index data with
+            | None -> None
+            | Some index -> index, (key, data))
+          |> Map.of_alist_multi comparator
+          |> Map.map ~f:(Map.of_alist_exn (Map.comparator_s map))
+        ;;
+      ]} *)
+  val index_by
+    :  (('inner_key, 'v, 'cmp) Map.t, 'w) Incremental.t
+    -> comparator:('outer_key, 'cmpo) Map.comparator
+    -> index:('v -> 'outer_key option)
+    -> (('outer_key, ('inner_key, 'v, 'cmp) Map.t, 'cmpo) Map.t, 'w) Incremental.t
 
   val transpose
     :  ?data_equal:('v -> 'v -> bool)

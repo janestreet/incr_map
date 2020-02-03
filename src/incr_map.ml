@@ -559,6 +559,34 @@ module Generic = struct
                with_new_keys_now_in_range))))
   ;;
 
+  let index_by map_incr ~comparator:outer_comparator ~index =
+    with_comparator map_incr (fun inner_comparator ->
+      unordered_fold
+        map_incr
+        ~init:(Map.empty outer_comparator)
+        ~add:(fun ~key:inner_key ~data outer_map ->
+          match index data with
+          | None -> outer_map
+          | Some outer_key ->
+            Map.update outer_map outer_key ~f:(function
+              | None ->
+                Map.Using_comparator.singleton
+                  inner_key
+                  data
+                  ~comparator:inner_comparator
+              | Some inner_map -> Map.add_exn inner_map ~key:inner_key ~data))
+        ~remove:(fun ~key:inner_key ~data outer_map ->
+          match index data with
+          | None -> outer_map
+          | Some outer_key ->
+            Map.change outer_map outer_key ~f:(function
+              | None ->
+                failwith "BUG: Hit supposedly impossible case in Incr_map.index_by"
+              | Some inner_map ->
+                let inner_map = Map.remove inner_map inner_key in
+                if Map.is_empty inner_map then None else Some inner_map)))
+  ;;
+
 
   (** Find two keys in map by index, O(n). We use just one fold (two Map.nth would use two)
       and optimize for keys close to either beginning or end by using either fold or
