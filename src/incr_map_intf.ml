@@ -80,7 +80,7 @@ module type S_gen = sig
   val subrange_by_rank
     :  ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, 'cmp) Map.t Incr.t
-    -> (int * int) Incr.t
+    -> (int Maybe_bound.As_lower_bound.t * int Maybe_bound.As_upper_bound.t) Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
 
   val index_by
@@ -119,7 +119,7 @@ module type S_gen = sig
   end
 
   module For_testing : sig
-    val key_range_linear
+    val find_key_range_linear
       :  from:int
       -> to_:int
       -> ('a, 'b, 'c) Base.Map.t
@@ -266,7 +266,9 @@ module type Incr_map = sig
   val subrange_by_rank
     :  ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
-    -> (int * int, 'w) Incremental.t
+    -> ( int Maybe_bound.As_lower_bound.t * int Maybe_bound.As_upper_bound.t
+       , 'w )
+         Incremental.t
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
 
   (** [index_by map ~comparator ~index] constructs an incremental map-of-maps where each
@@ -351,7 +353,7 @@ module type Incr_map = sig
   end
 
   module For_testing : sig
-    val key_range_linear
+    val find_key_range_linear
       :  from:int
       -> to_:int
       -> ('a, 'b, 'c) Base.Map.t

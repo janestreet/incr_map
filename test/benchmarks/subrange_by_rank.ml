@@ -74,29 +74,37 @@ let%bench_module "inline_benchmarks" =
     let size = 1_000_000
     let num_ops = 200
 
-    let%bench_fun "first page" = benchmark_fixed_range ~range:(0, 30) ~size ~num_ops
+    let%bench_fun "first page" =
+      benchmark_fixed_range ~range:(Incl 0, Incl 30) ~size ~num_ops
+    ;;
 
     let%bench_fun "first page from scratch" =
-      benchmark_fixed_range_from_scratch ~range:(0, 30) ~size ~num_ops
+      benchmark_fixed_range_from_scratch ~range:(Incl 0, Incl 30) ~size ~num_ops
     ;;
 
     let%bench_fun "middle page" =
-      benchmark_fixed_range ~range:(size / 2, (size / 2) + 30) ~size ~num_ops
+      benchmark_fixed_range
+        ~range:(Incl (size / 2), Incl ((size / 2) + 30))
+        ~size
+        ~num_ops
     ;;
 
     let%bench_fun "middle page from scratch" =
       benchmark_fixed_range_from_scratch
-        ~range:(size / 2, (size / 2) + 30)
+        ~range:(Incl (size / 2), Incl ((size / 2) + 30))
         ~size
         ~num_ops
     ;;
 
     let%bench_fun "last page" =
-      benchmark_fixed_range ~range:(size - 31, size - 1) ~size ~num_ops
+      benchmark_fixed_range ~range:(Incl (size - 31), Incl (size - 1)) ~size ~num_ops
     ;;
 
     let%bench_fun "last page from scratch" =
-      benchmark_fixed_range_from_scratch ~range:(size - 31, size - 1) ~size ~num_ops
+      benchmark_fixed_range_from_scratch
+        ~range:(Incl (size - 31), Incl (size - 1))
+        ~size
+        ~num_ops
     ;;
 
     let map =
@@ -107,20 +115,31 @@ let%bench_module "inline_benchmarks" =
 
     let%bench_fun "next page" =
       let x = 500_000 in
-      benchmark_fixed_map ~range:(x, x + 30) ~new_range:(x + 31, x + 60) ~size:1_000_000
+      benchmark_fixed_map
+        ~range:(Incl x, Incl (x + 30))
+        ~new_range:(Incl (x + 31), Incl (x + 60))
+        ~size:1_000_000
     ;;
 
-    let key_range_linear ~from ~to_ () =
+    let find_key_range_linear ~from ~to_ () =
       let (_ : (int * int option) option) =
-        Incr.Map.For_testing.key_range_linear ~from ~to_ map
+        Incr.Map.For_testing.find_key_range_linear ~from ~to_ map
       in
       ()
     ;;
 
     (* Test that beginning and end is fast, and middle is slow *)
 
-    let%bench_fun "key_range_linear beginning" = key_range_linear ~from:0 ~to_:30
-    let%bench_fun "key_range_linear middle" = key_range_linear ~from:500_000 ~to_:500_030
-    let%bench_fun "key_range_linear end" = key_range_linear ~from:999_970 ~to_:1_000_000
+    let%bench_fun "find_key_range_linear beginning" =
+      find_key_range_linear ~from:0 ~to_:30
+    ;;
+
+    let%bench_fun "find_key_range_linear middle" =
+      find_key_range_linear ~from:500_000 ~to_:500_030
+    ;;
+
+    let%bench_fun "find_key_range_linear end" =
+      find_key_range_linear ~from:999_970 ~to_:1_000_000
+    ;;
   end)
 ;;

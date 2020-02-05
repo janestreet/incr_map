@@ -609,7 +609,7 @@ module Generic = struct
     ;;
   end
 
-  let key_range_linear (type k) ~from ~to_ (map : (k, _, _) Map.t)
+  let find_key_range_linear (type k) ~from ~to_ (map : (k, _, _) Map.t)
     : (k * k option) option
     =
     let open Key_status in
@@ -641,7 +641,7 @@ module Generic = struct
   ;;
 
   let nth_from_either_side (type k) n (map : (k, _, _) Map.t) : k option =
-    Option.map ~f:fst (key_range_linear ~from:n ~to_:n map)
+    Option.map ~f:fst (find_key_range_linear ~from:n ~to_:n map)
   ;;
 
   (** Find key [by] positions earlier/later in a map. Returns none if out of bounds. *)
@@ -674,9 +674,11 @@ module Generic = struct
         (type k state_witness)
         ?data_equal
         (map : ((k, _, _) Map.t, state_witness) Incremental.t)
-        range
+        (range : (int Maybe_bound.t * int Maybe_bound.t, state_witness) Incremental.t)
     =
-    let key_range : ((k * k option) option, state_witness) Incremental.t =
+    let find_key_range (range : (int * int, state_witness) Incremental.t)
+      : ((k * k option) option, state_witness) Incremental.t
+      =
       with_old2 map range ~f:(fun ~old map (from, to_) ->
         (* This function returns no keys, only begin key, or begin and end keys.
            These are the keys at [from] and [to_] positions in the map, or None if the
@@ -724,21 +726,41 @@ module Generic = struct
           (* On first run (when we have to) or when both the keys are none, run O(n)
              scan. This is fine for keys-are-none case as it happens when the positions
              are past end of the map, so they shouldn't be too far from end after the
-             map changes, and [key_range_linear] is fast in such case. *)
-          key_range_linear map ~from ~to_)
+             map changes, and [find_key_range_linear] is fast in such case. *)
+          find_key_range_linear map ~from ~to_)
     in
-    let subrange_key_range =
-      let open Incremental.Let_syntax in
-      let%map key_range = key_range
-      and map = map in
-      match key_range with
-      | Some (begin_key, Some end_key) -> Some (Incl begin_key, Incl end_key)
-      | Some (begin_key, None) ->
-        let last_key = Map.max_elt map |> Option.value_exn |> fst in
-        Some (Incl begin_key, Incl last_key)
-      | None -> None
+    (* Handle different Maybe_bound cases and call find_key_range if necessary. It's
+       nicer to do this here as opposed to making find_key_range even more complicated *)
+    let open Incremental.Let_syntax in
+    let ( >>> ) new_ bound = Maybe_bound.map ~f:(fun _ -> new_) bound in
+    let return = Incremental.return (Incremental.state map) in
+    let key_range =
+      match%pattern_bind range with
+      | Maybe_bound.Unbounded, Maybe_bound.Unbounded ->
+        return (Some (Maybe_bound.Unbounded, Maybe_bound.Unbounded))
+      | ( ((Maybe_bound.Incl l | Maybe_bound.Excl l) as lb)
+        , ((Maybe_bound.Incl u | Maybe_bound.Excl u) as ub) ) ->
+        let%map key_range = find_key_range (Incremental.both l u)
+        and lb = lb
+        and ub = ub in
+        (match key_range with
+         | Some (begin_key, Some end_key) -> Some (begin_key >>> lb, end_key >>> ub)
+         | Some (begin_key, None) -> Some (begin_key >>> lb, Unbounded)
+         | None -> None)
+      | ((Maybe_bound.Incl l | Maybe_bound.Excl l) as lb), Maybe_bound.Unbounded ->
+        let%map key_range = find_key_range (Incremental.both l l)
+        and lb = lb in
+        (match key_range with
+         | Some (key, _) -> Some (key >>> lb, Unbounded)
+         | None -> None)
+      | Maybe_bound.Unbounded, ((Maybe_bound.Incl u | Maybe_bound.Excl u) as ub) ->
+        let%map key_range = find_key_range (Incremental.both u u)
+        and ub = ub in
+        (match key_range with
+         | Some (key, _) -> Some (Unbounded, key >>> ub)
+         | None -> None)
     in
-    subrange ?data_equal map subrange_key_range
+    subrange ?data_equal map key_range
   ;;
 
   let transpose
@@ -788,7 +810,7 @@ module Generic = struct
   ;;
 
   module For_testing = struct
-    let key_range_linear = key_range_linear
+    let find_key_range_linear = find_key_range_linear
   end
 
   module Lookup = struct
