@@ -875,7 +875,16 @@ module Generic = struct
       if Bool.equal is_linked is_now_observable
       then ()
       else if is_now_observable
-      then t.lookup_entries <- Map.add_multi t.lookup_entries ~key ~data:entry
+      then
+        t.lookup_entries
+        <- Map.update t.lookup_entries key ~f:(function
+          | Some (other_entry :: _ as other_entries) ->
+            (* Update this entry's value to be current. *)
+            entry.saved_value <- other_entry.saved_value;
+            entry :: other_entries
+          | None | Some [] ->
+            entry.saved_value <- Map.find t.saved_map key;
+            [ entry ])
       else (
         let new_entries =
           List.filter current_entries ~f:(fun x -> not (phys_equal entry x))

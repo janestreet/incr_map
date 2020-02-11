@@ -212,3 +212,25 @@ let%test_unit "test vs slow lookup" =
   test_alist [ 1, "hello"; 15, "what" ];
   test_alist [ 1, "hello"; 15, "what"; 5, "five"; 7, "seven"; 2, "two" ]
 ;;
+
+(* This bug was related to nodes which become necessary after being unnecessary while
+   the related value in the map was changed.
+*)
+let%expect_test "double lookup bug has been fixed" =
+  let map_var = Incr.Var.create String.Map.empty in
+  let key = "A" in
+  Incr.Var.set map_var (Map.add_exn (Incr.Var.latest_value map_var) ~key ~data:1);
+  let lookup =
+    Incr_map.Lookup.create (Incr.Var.watch map_var) ~comparator:String.comparator
+  in
+  let incr1 = Incr_map.Lookup.find lookup key in
+  let incr2 = Incr_map.Lookup.find lookup key in
+  let a = Incr.observe incr1 in
+  Incr.stabilize ();
+  let b = Incr.observe incr2 in
+  Incr.stabilize ();
+  let a = Incr.Observer.value_exn a
+  and b = Incr.Observer.value_exn b in
+  require [%here] ([%compare.equal: int option] a b);
+  [%expect {| |}]
+;;
