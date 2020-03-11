@@ -84,10 +84,24 @@ module type S_gen = sig
     -> ('k, 'v, 'cmp) Map.t Incr.t
 
   val index_by
-    :  ('k, 'v, 'cmp) Map.t Incr.t
-    -> comparator:('l, 'cmpo) Map.comparator
-    -> index:('v -> 'l option)
-    -> ('l, ('k, 'v, 'cmp) Map.t, 'cmpo) Map.t Incr.t
+    :  ('inner_key, 'v, 'inner_cmp) Map.t Incr.t
+    -> comparator:('outer_key, 'outer_cmp) Map.comparator
+    -> index:('v -> 'outer_key option)
+    -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
+
+  val unordered_fold_nested_maps
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ?update:(outer_key:'outer_key
+                -> inner_key:'inner_key
+                -> old_data:'v
+                -> new_data:'v
+                -> 'acc
+                -> 'acc)
+    -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
+    -> init:'acc
+    -> add:(outer_key:'outer_key -> inner_key:'inner_key -> data:'v -> 'acc -> 'acc)
+    -> remove:(outer_key:'outer_key -> inner_key:'inner_key -> data:'v -> 'acc -> 'acc)
+    -> 'acc Incr.t
 
   val transpose
     :  ?data_equal:('v -> 'v -> bool)
@@ -292,10 +306,28 @@ module type Incr_map = sig
         ;;
       ]} *)
   val index_by
-    :  (('inner_key, 'v, 'cmp) Map.t, 'w) Incremental.t
-    -> comparator:('outer_key, 'cmpo) Map.comparator
+    :  (('inner_key, 'v, 'inner_cmp) Map.t, 'w) Incremental.t
+    -> comparator:('outer_key, 'outer_cmp) Map.comparator
     -> index:('v -> 'outer_key option)
-    -> (('outer_key, ('inner_key, 'v, 'cmp) Map.t, 'cmpo) Map.t, 'w) Incremental.t
+    -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
+       , 'w )
+         Incremental.t
+
+  val unordered_fold_nested_maps
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ?update:(outer_key:'outer_key
+                -> inner_key:'inner_key
+                -> old_data:'v
+                -> new_data:'v
+                -> 'acc
+                -> 'acc)
+    -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
+       , 'w )
+         Incremental.t
+    -> init:'acc
+    -> add:(outer_key:'outer_key -> inner_key:'inner_key -> data:'v -> 'acc -> 'acc)
+    -> remove:(outer_key:'outer_key -> inner_key:'inner_key -> data:'v -> 'acc -> 'acc)
+    -> ('acc, 'w) Incremental.t
 
   val transpose
     :  ?data_equal:('v -> 'v -> bool)

@@ -50,6 +50,45 @@ module Generic = struct
             | `Unequal (old, new_) -> update ~key ~old_data:old ~new_data:new_ acc))
   ;;
 
+  let unordered_fold_nested_maps
+        ?(data_equal = phys_equal)
+        ?update
+        incr_map
+        ~init
+        ~add
+        ~remove
+    =
+    let update =
+      match update with
+      | Some update -> update
+      | None ->
+        fun ~outer_key ~inner_key ~old_data ~new_data acc ->
+          add
+            ~outer_key
+            ~inner_key
+            ~data:new_data
+            (remove ~outer_key ~inner_key ~data:old_data acc)
+    in
+    unordered_fold
+      incr_map
+      ~init
+      ~update:(fun ~key:outer_key ~old_data:old_inner_map ~new_data:new_inner_map acc ->
+        (Map.fold_symmetric_diff old_inner_map new_inner_map ~data_equal)
+          ~init:acc
+          ~f:(fun acc (inner_key, diff) ->
+            match diff with
+            | `Left data_removed -> remove ~outer_key ~inner_key ~data:data_removed acc
+            | `Right data_added -> add ~outer_key ~inner_key ~data:data_added acc
+            | `Unequal (old_data, new_data) ->
+              update ~outer_key ~inner_key ~old_data ~new_data acc))
+      ~add:(fun ~key:outer_key ~data:inner_map acc ->
+        Map.fold inner_map ~init:acc ~f:(fun ~key:inner_key ~data acc ->
+          add ~outer_key ~inner_key ~data acc))
+      ~remove:(fun ~key:outer_key ~data:inner_map acc ->
+        Map.fold inner_map ~init:acc ~f:(fun ~key:inner_key ~data acc ->
+          remove ~outer_key ~inner_key ~data acc))
+  ;;
+
   let with_comparator' get_comparator x f =
     Incremental.bind (Incremental.freeze (Incremental.map x ~f:get_comparator)) ~f
   ;;
