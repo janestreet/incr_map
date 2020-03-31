@@ -35,8 +35,7 @@ let%expect_test "Simple usage example" =
     let original = stabilize_and_get_sexp () in
     Incr.Var.set m (f (Incr.Var.value m));
     let updated = stabilize_and_get_sexp () in
-    let diff = Sexp_diff_kernel.Algo.diff ~original ~updated () in
-    print_endline (Sexp_diff_kernel.Display.display_as_plain_string diff)
+    Expect_test_sexp_diff.print_sexp_diff original updated
   in
   print_s (stabilize_and_get_sexp ());
   [%expect {|
@@ -64,7 +63,7 @@ let%expect_test "Simple usage example" =
                            +   (d 57)
       )))                     ))) |}];
   print_changes (fun m -> Map.add_exn m ~key:"e" ~data:(-1));
-  [%expect {| (no changes) |}];
+  [%expect {| |}];
   print_changes (fun m -> Map.set m ~key:"e" ~data:1);
   [%expect
     {|
