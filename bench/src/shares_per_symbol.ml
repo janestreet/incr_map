@@ -48,7 +48,7 @@ let index_by inner_comparator outer_comparator map get_outer_index =
 ;;
 
 let%expect_test "index_by" =
-  let open Expect_test_helpers_kernel in
+  let open Expect_test_helpers_core in
   let v = Incr.Var.create (Map.empty (module Int)) in
   let o =
     index_by (module Int) (module String) (Incr.Var.watch v) String.uppercase

@@ -1,4 +1,4 @@
-include Expect_test_helpers_kernel
+include Expect_test_helpers_core
 
 module Incr = struct
   module Z = Incremental.Make ()

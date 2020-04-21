@@ -23,7 +23,7 @@ let snap () =
 ;;
 
 let reporter () =
-  let open Expect_test_helpers_kernel in
+  let open Expect_test_helpers_core in
   let old_stats = ref (snap ()) in
   let report () =
     let stats = snap () in

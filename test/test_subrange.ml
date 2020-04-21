@@ -182,7 +182,7 @@ module Test_case = struct
 end
 
 let%expect_test "quickcheck ops test" =
-  Expect_test_helpers_kernel.quickcheck
+  Expect_test_helpers_core.quickcheck
     [%here]
     ~shrinker:Test_case.quickcheck_shrinker
     ~sexp_of:Test_case.sexp_of_t
