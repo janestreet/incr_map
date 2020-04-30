@@ -2,8 +2,10 @@ open! Core
 open! Import
 
 (* version of unorderd fold which will fail if there isn't a match. *)
-let unordered_fold (type a) ~data_equal m ~(init : a) ~add ~remove =
-  let a = Incr.Map.unordered_fold ~data_equal m ~init ~add ~remove in
+let unordered_fold (type a) ~data_equal ?specialized_initial m ~(init : a) ~add ~remove =
+  let a =
+    Incr.Map.unordered_fold ~data_equal ?specialized_initial m ~init ~add ~remove
+  in
   let b =
     let%map m = m in
     Map.fold ~init ~f:add m
@@ -44,6 +46,30 @@ let%expect_test _ =
   change (fun m -> Map.set m ~key:"c" ~data:0);
   dump ();
   [%expect {| (1 ((a 1) (c 0))) |}]
+;;
+
+let%expect_test _ =
+  let map = Incr.Var.create (String.Map.of_alist_exn [ "a", 1; "b", 2 ]) in
+  let map_o = Incr.observe (Incr.Var.watch map) in
+  let sum_o =
+    unordered_fold
+      (Incr.Var.watch map)
+      ~data_equal:Int.equal
+      ~init:0
+      ~add:(fun ~key:_ ~data:v acc -> acc + v)
+      ~remove:(fun ~key:_ ~data:v acc -> acc - v)
+      ~specialized_initial:(fun ~init:_ map ->
+        Core.List.sum (module Int) ~f:Fn.id (Map.data map))
+    |> Incr.observe
+  in
+  let dump () =
+    Incr.stabilize ();
+    let value = Incr.Observer.value_exn in
+    Sexp.to_string_hum ([%sexp_of: int * int String.Map.t] (value sum_o, value map_o))
+    |> print_endline
+  in
+  dump ();
+  [%expect {| (3 ((a 1) (b 2))) |}]
 ;;
 
 let%test_module "random tests" =

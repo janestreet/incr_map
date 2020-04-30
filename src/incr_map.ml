@@ -27,7 +27,15 @@ module Generic = struct
     b
   ;;
 
-  let unordered_fold ?(data_equal = phys_equal) ?update map ~init ~add ~remove =
+  let unordered_fold
+        ?(data_equal = phys_equal)
+        ?update
+        ?specialized_initial
+        map
+        ~init
+        ~add
+        ~remove
+    =
     let update =
       let default ~key ~old_data ~new_data acc =
         add ~key ~data:new_data (remove ~key ~data:old_data acc)
@@ -36,7 +44,10 @@ module Generic = struct
     in
     with_old map ~f:(fun ~old new_in ->
       match old with
-      | None -> Map.fold ~init ~f:add new_in
+      | None ->
+        (match specialized_initial with
+         | None -> Map.fold ~init ~f:add new_in
+         | Some initial -> initial ~init new_in)
       | Some (old_in, old_out) ->
         Map.fold_symmetric_diff
           ~init:old_out

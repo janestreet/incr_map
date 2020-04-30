@@ -47,6 +47,7 @@ module type S_gen = sig
   val unordered_fold
     :  ?data_equal:('v -> 'v -> bool)
     -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
+    -> ?specialized_initial:(init:'acc -> ('k, 'v, 'cmp) Map.t -> 'acc)
     -> ('k, 'v, 'cmp) Map.t Incr.t
     -> init:'acc
     -> add:(key:'k -> data:'v -> 'acc -> 'acc)
@@ -197,10 +198,15 @@ module type Incr_map = sig
       and then [add] is called on the new data.
       [update] provides an alternative single function to call each time a key's data
       updates, and can be used to improve efficiency.
+
+      For the initial computation, by default [add] is called on all the elements in the
+      map. As this can be inefficient, [specialized_initial] can be provided to perform
+      the computation in a more effective way.
   *)
   val unordered_fold
     :  ?data_equal:('v -> 'v -> bool)
     -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
+    -> ?specialized_initial:(init:'acc -> ('k, 'v, 'cmp) Map.t -> 'acc)
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> init:'acc
     -> add:(key:'k -> data:'v -> 'acc -> 'acc)
