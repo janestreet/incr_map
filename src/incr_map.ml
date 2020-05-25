@@ -1,5 +1,4 @@
 open! Core_kernel
-open! Int.Replace_polymorphic_compare
 include Incr_map_intf
 
 (** This type lets us capture the kind of map function being performed, so we can with
