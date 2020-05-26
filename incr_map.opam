@@ -1,4 +1,5 @@
 opam-version: "2.0"
+version: "v0.14.0"
 maintainer: "opensource@janestreet.com"
 authors: ["Jane Street Group, LLC <opensource@janestreet.com>"]
 homepage: "https://github.com/janestreet/incr_map"
@@ -10,11 +11,11 @@ build: [
   ["dune" "build" "-p" name "-j" jobs]
 ]
 depends: [
-  "ocaml" {>= "4.08.0"}
-  "core_kernel"
-  "incremental"
-  "ppx_jane"
-  "ppx_pattern_bind"
+  "ocaml"            {>= "4.08.0"}
+  "core_kernel"      {>= "v0.14" & < "v0.15"}
+  "incremental"      {>= "v0.14" & < "v0.15"}
+  "ppx_jane"         {>= "v0.14" & < "v0.15"}
+  "ppx_pattern_bind" {>= "v0.14" & < "v0.15"}
   "dune"             {>= "2.0.0"}
 ]
 synopsis: "Helpers for incremental operations on map like data structures"
