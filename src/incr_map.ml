@@ -339,6 +339,25 @@ module Generic = struct
         ~remove)
   ;;
 
+  let partition_mapi ?data_equal map ~f =
+    with_comparator map (fun comparator ->
+      let empty = Map.Using_comparator.empty ~comparator in
+      unordered_fold
+        ?data_equal
+        map
+        ~init:(empty, empty)
+        ~update:(fun ~key ~old_data:_ ~new_data:data (first, second) ->
+          match f ~key ~data with
+          | First data -> Map.set first ~key ~data, Map.remove second key
+          | Second data -> Map.remove first key, Map.set second ~key ~data)
+        ~add:(fun ~key ~data (first, second) ->
+          match f ~key ~data with
+          | First data -> Map.add_exn first ~key ~data, second
+          | Second data -> first, Map.add_exn second ~key ~data)
+        ~remove:(fun ~key ~data:_ (first, second) ->
+          Map.remove first key, Map.remove second key))
+  ;;
+
   let flatten state map =
     let module E = Incremental.Expert in
     let result = ref (Map.Using_comparator.empty ~comparator:(Map.comparator map)) in
@@ -856,6 +875,32 @@ module Generic = struct
           update ~key ~old_data:data ~new_data:(Map.empty k2_comparator)
         in
         unordered_fold m ~init:(Map.empty k2_comparator) ~update ~add ~remove)
+  ;;
+
+  let collapse
+        (type outer_key outer_cmp inner_key inner_cmp)
+        ?data_equal
+        (map_incr :
+           ((outer_key, (inner_key, _, inner_cmp) Map.t, outer_cmp) Map.t, _) Incremental.t)
+        ~comparator:(inner_comparator : (inner_key, inner_cmp) Map.comparator)
+    =
+    with_comparator map_incr (fun outer_comparator ->
+      let comparator =
+        Tuple2.comparator
+          outer_comparator
+          (let module M = (val inner_comparator) in
+           M.comparator)
+      in
+      unordered_fold_nested_maps
+        ?data_equal
+        map_incr
+        ~init:(Map.Using_comparator.empty ~comparator)
+        ~update:(fun ~outer_key ~inner_key ~old_data:_ ~new_data acc ->
+          Map.set acc ~key:(outer_key, inner_key) ~data:new_data)
+        ~add:(fun ~outer_key ~inner_key ~data acc ->
+          Map.add_exn acc ~key:(outer_key, inner_key) ~data)
+        ~remove:(fun ~outer_key ~inner_key ~data:_ acc ->
+          Map.remove acc (outer_key, inner_key)))
   ;;
 
   module For_testing = struct

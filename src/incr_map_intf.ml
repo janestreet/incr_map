@@ -44,6 +44,12 @@ module type S_gen = sig
     -> f:(key:'k -> data:'v1 Incr.t -> 'v2 Incr.t)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
+  val partition_mapi
+    :  ?data_equal:('v1 -> 'v1 -> bool)
+    -> ('k, 'v1, 'cmp) Map.t Incr.t
+    -> f:(key:'k -> data:'v1 -> ('v2, 'v3) Either.t)
+    -> (('k, 'v2, 'cmp) Map.t * ('k, 'v3, 'cmp) Map.t) Incr.t
+
   val unordered_fold
     :  ?data_equal:('v -> 'v -> bool)
     -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
@@ -109,6 +115,16 @@ module type S_gen = sig
     -> ('k2, 'k2_cmp) Map.comparator
     -> ('k1, ('k2, 'v, 'k2_cmp) Map.t, 'k1_cmp) Map.t Incr.t
     -> ('k2, ('k1, 'v, 'k1_cmp) Map.t, 'k2_cmp) Map.t Incr.t
+
+  val collapse
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
+    -> comparator:('inner_key, 'inner_cmp) Map.comparator
+    -> ( 'outer_key * 'inner_key
+       , 'v
+       , ('outer_cmp, 'inner_cmp) Tuple2.comparator_witness )
+         Map.t
+         Incr.t
 
   module Lookup : sig
     type ('k, 'v, 'cmp) t
@@ -182,6 +198,12 @@ module type Incr_map = sig
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:(key:'k -> data:('v1, 'w) Incremental.t -> ('v2, 'w) Incremental.t)
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
+
+  val partition_mapi
+    :  ?data_equal:('v1 -> 'v1 -> bool)
+    -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
+    -> f:(key:'k -> data:'v1 -> ('v2, 'v3) Either.t)
+    -> (('k, 'v2, 'cmp) Map.t * ('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
 
   (** [unordered_fold i ~init ~add ~remove] constructs a more incremental version of:
 
@@ -340,6 +362,19 @@ module type Incr_map = sig
     -> ('k2, 'k2_cmp) Map.comparator
     -> (('k1, ('k2, 'v, 'k2_cmp) Map.t, 'k1_cmp) Map.t, 'w) Incremental.t
     -> (('k2, ('k1, 'v, 'k1_cmp) Map.t, 'k2_cmp) Map.t, 'w) Incremental.t
+
+  val collapse
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
+       , 'w )
+         Incremental.t
+    -> comparator:('inner_key, 'inner_cmp) Map.comparator
+    -> ( ( 'outer_key * 'inner_key
+         , 'v
+         , ('outer_cmp, 'inner_cmp) Tuple2.comparator_witness )
+           Map.t
+       , 'w )
+         Incremental.t
 
   (** [('k, 'v) Lookup.t] provides a way to lookup keys in a map which uses symmetric
       diffs to trigger updates of the lookups.
