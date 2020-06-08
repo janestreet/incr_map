@@ -962,7 +962,7 @@ module Generic = struct
       Lazy.force self
     ;;
 
-    let slow_path_link_entry t entry ~key ~is_now_observable =
+    let[@cold] slow_path_link_entry t entry ~key ~is_now_observable =
       let (lazy entry) = entry in
       let current_entries = Map.find_multi t.lookup_entries key in
       let is_linked = List.exists current_entries ~f:(phys_equal entry) in
@@ -989,7 +989,7 @@ module Generic = struct
             else Map.set t.lookup_entries ~key ~data:new_entries))
     ;;
 
-    let slow_path_create_node t key =
+    let[@cold] slow_path_create_node t key =
       let incremental_state = Incremental.state t.updater_node in
       Incremental.Scope.within incremental_state t.scope ~f:(fun () ->
         let rec entry =
@@ -1016,7 +1016,7 @@ module Generic = struct
     ;;
 
     module For_debug = struct
-      let sexp_of_entry sexp_of_value entry =
+      let[@cold] sexp_of_entry sexp_of_value entry =
         let { saved_value; node } = entry in
         let node = Incremental.Expert.Node.watch node in
         [%sexp
@@ -1033,7 +1033,7 @@ module Generic = struct
           }]
       ;;
 
-      let sexp_of_t sexp_of_key sexp_of_value t =
+      let[@cold] sexp_of_t sexp_of_key sexp_of_value t =
         let info_per_key =
           Map.merge t.saved_map t.lookup_entries ~f:(fun ~key data ->
             let actual_value, entries =
