@@ -26,8 +26,15 @@ let%test_module "random tests" =
         Some (v1 +. v2)
     ;;
 
-    (* [incr_map_merge] is the [Incr.Map] function being tested *)
+    (* [incr_map_merge] is the first [Incr.Map] function being tested *)
     let incr_map_merge map1 map2 = Incr.Map.merge map1 map2 ~f:(f ~incr_counters:true)
+
+    (* [incr_map_merge'] is the second [Incr.Map] function being tested *)
+    let incr_map_merge' map1 map2 =
+      Incr.Map.merge' map1 map2 ~f:(fun ~key diff ->
+        let%map diff = diff in
+        f ~incr_counters:true ~key diff)
+    ;;
 
     (* [map_merge] is the equivalent [Map] function that we test against *)
     let map_merge map1 map2 = Map.merge map1 map2 ~f:(f ~incr_counters:false)
@@ -49,12 +56,13 @@ let%test_module "random tests" =
         ]
     end
 
-    (* [Incr.Map.merge] is tested as follows:
+    (* [Incr.Map.merge] and [Incr.Map.merge'] are tested as follows:
 
        First, create [map_incr1] and [map_incr2] of type [float Int.Map.t Incr.t] with
        initial values [map1] and [map2] respectively.
 
-       Next, apply [incr_map_merge] to [map_incr1] and [map_incr2] to get [result_incr].
+       Next, apply [incr_map_merge] or [incr_map_merge'] (chosen based on the value of
+       [use_merge']) to [map_incr1] and [map_incr2] to get [result_incr].
 
        At each of the [num_steps] steps, randomly change the value of exactly one of
        [map_incr1] and [map_incr2] by adding, removing, or replacing a single entry.
@@ -65,11 +73,12 @@ let%test_module "random tests" =
        - check the value of [result_incr]
        - check the counter values
     *)
-    let test_merge map1 map2 ~steps ~stabilize_every_n =
+    let test_merge map1 map2 ~steps ~stabilize_every_n ~use_merge' =
       let map1_var, map2_var = Incr.Var.create map1, Incr.Var.create map2 in
       let map1_incr, map2_incr = Incr.Var.watch map1_var, Incr.Var.watch map2_var in
       let map1_obs, map2_obs = Incr.observe map1_incr, Incr.observe map2_incr in
-      let result_incr = incr_map_merge map1_incr map2_incr in
+      let incr_map_merge_fn = if use_merge' then incr_map_merge' else incr_map_merge in
+      let result_incr = incr_map_merge_fn map1_incr map2_incr in
       let result_obs = Incr.observe result_incr in
       let reset_counters () =
         f_left_count := 0;
@@ -77,10 +86,10 @@ let%test_module "random tests" =
         f_both_count := 0
       in
       let test_value () =
-        (* Since [result_incr] was obtained as [incr_map_merge map_incr1 map_incr2],
-           check that the value of [result_incr] is equal to the result of applying the
-           equivalent function [map_merge] directly to the values of [map_incr1] and
-           [map_incr2] *)
+        (* Since [result_incr] was obtained by applying [incr_map_merge] or
+           [incr_map_merge'] to [map_incr1] and [map_incr2], check that the value of
+           [result_incr] is equal to the result of applying the equivalent function
+           [map_merge] directly to the values of [map_incr1] and [map_incr2] *)
         Incr.stabilize ();
         let expect =
           map_merge (Incr.Observer.value_exn map1_obs) (Incr.Observer.value_exn map2_obs)
@@ -179,27 +188,42 @@ let%test_module "random tests" =
     ;;
 
     let%test_unit "rand test: start with two empty maps, stabilize every step" =
-      test_merge Int.Map.empty Int.Map.empty ~steps:500 ~stabilize_every_n:1
+      List.iter Bool.all ~f:(fun use_merge' ->
+        test_merge
+          Int.Map.empty
+          Int.Map.empty
+          ~steps:500
+          ~stabilize_every_n:1
+          ~use_merge')
     ;;
 
     let%test_unit "rand test: start with empty and non-empty map, stabilize every step" =
-      let start_map2 = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
-      test_merge Int.Map.empty start_map2 ~steps:500 ~stabilize_every_n:1
+      List.iter Bool.all ~f:(fun use_merge' ->
+        let start_map2 = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
+        test_merge Int.Map.empty start_map2 ~steps:500 ~stabilize_every_n:1 ~use_merge')
     ;;
 
     let%test_unit "rand test: start with non-empty and empty map, stabilize every step" =
-      let start_map1 = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
-      test_merge start_map1 Int.Map.empty ~steps:500 ~stabilize_every_n:1
+      List.iter Bool.all ~f:(fun use_merge' ->
+        let start_map1 = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
+        test_merge start_map1 Int.Map.empty ~steps:500 ~stabilize_every_n:1 ~use_merge')
     ;;
 
     let%test_unit "rand test: start with two non-empty maps, stabilize every step" =
-      let start_map1 = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
-      let start_map2 = Rand_map_helper.init_rand_map ~from:20 ~to_:40 in
-      test_merge start_map1 start_map2 ~steps:1000 ~stabilize_every_n:1
+      List.iter Bool.all ~f:(fun use_merge' ->
+        let start_map1 = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
+        let start_map2 = Rand_map_helper.init_rand_map ~from:20 ~to_:40 in
+        test_merge start_map1 start_map2 ~steps:1000 ~stabilize_every_n:1 ~use_merge')
     ;;
 
     let%test_unit "rand test: stat with two empty maps, stabilize every 10 steps" =
-      test_merge Int.Map.empty Int.Map.empty ~steps:500 ~stabilize_every_n:10
+      List.iter Bool.all ~f:(fun use_merge' ->
+        test_merge
+          Int.Map.empty
+          Int.Map.empty
+          ~steps:500
+          ~stabilize_every_n:10
+          ~use_merge')
     ;;
   end)
 ;;

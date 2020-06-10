@@ -326,6 +326,11 @@ module Generic = struct
       generic_mapi_with_comparator' Map_type.Map ?cutoff ?data_equal map ~f ~comparator)
   ;;
 
+  let merge' ?cutoff ?data_equal_left ?data_equal_right map1 map2 ~f =
+    merge ?data_equal_left ?data_equal_right map1 map2 ~f:(fun ~key:_ diff -> Some diff)
+    |> filter_mapi' ?cutoff ~f:(fun ~key ~data:diff -> f ~key diff)
+  ;;
+
   let keys map =
     with_comparator map (fun comparator ->
       let add ~key ~data:_ acc = Set.add acc key in
