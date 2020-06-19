@@ -88,6 +88,7 @@ module type S_gen = sig
     -> ('k, 'v Incr.t, 'cmp) Map.t Incr.t
 
   val keys : ('k, 'v, 'c) Map.t Incr.t -> ('k, 'c) Set.t Incr.t
+  val rank : ('k, 'v, 'cmp) Base.Map.t Incr.t -> 'k Incr.t -> int option Incr.t
 
   val subrange
     :  ?data_equal:('v -> 'v -> bool)
@@ -289,6 +290,29 @@ module type Incr_map = sig
     -> (('k, ('v, 'w) Incremental.t, 'cmp) Map.t, 'w) Incremental.t
 
   val keys : (('k, 'v, 'c) Map.t, 'w) Incremental.t -> (('k, 'c) Set.t, 'w) Incremental.t
+
+  (** Computes the [rank] of a key (given incrementally) inside of a map (also
+      incremental).  The traditional [Map.rank] function is O(n), and this incremental
+      rank function has the following performance characteristics:
+
+      definitions:
+      n : the size of the map
+      r : the time to compute [Map.symmetric_diff] between the two maps
+      k : the change in rank of the key between two stabilizations
+
+      note that [r] and [k] are _much_ smaller than [n] for most practical purposes
+
+      - O(log n) when the key is not in the map.
+        This takes precedence over other every other scenario.
+      - O(n) on the initial stabilization
+      - O(n) when the key transitions from not being in the map to being in the map
+      - O(log n + r) when the map changes
+      - O(log n + k) when the key changes
+      - O(log n + r + k) when both key and map change *)
+  val rank
+    :  (('k, 'v, 'cmp) Base.Map.t, 'state_witness) Incremental.t
+    -> ('k, 'state_witness) Incremental.t
+    -> (int option, 'state_witness) Incremental.t
 
   (** [subrange map (min, max)] constructs an incremental submap that includes all of the
       keys and data from [map] between [min] and [max], and none of the keys outside the

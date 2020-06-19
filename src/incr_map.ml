@@ -742,6 +742,74 @@ module Generic = struct
     else 0
   ;;
 
+  let rank
+        (type k v cmp state_witness)
+        (map : ((k, v, cmp) Map.t, state_witness) Incremental.t)
+        (key : (k, state_witness) Incremental.t)
+    =
+    with_comparator map (fun comparator ->
+      let compare_key = comparator.compare in
+      let same_key a b = compare_key a b = 0 in
+      let when_key_changed ~map ~old_key ~new_key ~old_rank =
+        if compare_key new_key old_key < 0
+        then (
+          (* If the new key is smaller than the old key, find the size of the map subrange
+             between them and subtract it from the previous rank *)
+          let lower_bound, upper_bound = Excl new_key, Excl old_key in
+          let subrange = Map.subrange map ~lower_bound ~upper_bound in
+          old_rank - Map.length subrange - 1)
+        else (
+          (* Otherwise, the new key is larger than the old key, so find the size of the
+             map subrange between them and add it to the previous rank *)
+          let lower_bound, upper_bound = Excl old_key, Excl new_key in
+          let subrange = Map.subrange map ~lower_bound ~upper_bound in
+          old_rank + Map.length subrange + 1)
+      in
+      let when_map_changed ~old_map ~new_map ~key ~old_rank =
+        Map.fold_symmetric_diff
+          (* We don't care about the data, so optimize these checks *)
+          ~data_equal:(fun _ _ -> true)
+          old_map
+          new_map
+          ~init:old_rank
+          ~f:(fun acc (diff_key, diff) ->
+            match diff with
+            | `Left _ when compare_key diff_key key < 0 -> acc - 1
+            | `Right _ when compare_key diff_key key < 0 -> acc + 1
+            | _ -> acc)
+      in
+      let rec process ~(old : ((k, v, _) Map.t * _ * _) option) new_map (new_key : k) =
+        if not (Map.mem new_map new_key)
+        then None
+        else (
+          match old with
+          (* If the map and key are the same, just reuse the old rank *)
+          | Some (old_map, old_key, old_rank)
+            when phys_equal new_map old_map && same_key old_key new_key -> old_rank
+          (* If the map is the same but the key changed *)
+          | Some (old_map, old_key, Some old_rank) when phys_equal new_map old_map ->
+            Some (when_key_changed ~map:new_map ~old_key ~new_key ~old_rank)
+          (* If the key is the same but the map changed *)
+          | Some (old_map, old_key, Some old_rank) when same_key new_key old_key ->
+            Some (when_map_changed ~old_map ~new_map ~key:new_key ~old_rank)
+          (* If both the map and the key changed, this can be simulated as the
+             map changing followed by the key changing *)
+          | Some (old_map, old_key, Some old_rank) ->
+            (* We call [process] recursively instead of directly calling
+               [when_map_changed] followed by [when_key_changed] since it might be the
+               case that [old_key] is in [old_map] and [new_key] is in [new_map], but
+               [old_key] is not in [new_map]. *)
+            let old_rank =
+              process ~old:(Some (old_map, old_key, Some old_rank)) new_map old_key
+            in
+            process ~old:(Some (new_map, old_key, old_rank)) new_map new_key
+          (* If the previous key was not in the map or this is the first stabilization,
+             compute the rank from scratch *)
+          | Some (_, _, None) | None -> Map.rank new_map new_key)
+      in
+      with_old2 map key ~f:process)
+  ;;
+
   (** Range map by indices *)
   let subrange_by_rank
         (type k state_witness)
