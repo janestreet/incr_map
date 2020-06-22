@@ -30,6 +30,18 @@ module type S_gen = sig
     -> f:(key:'k -> data:'v1 -> 'v2)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
+  val filter_map
+    :  ?data_equal:('v1 -> 'v1 -> bool)
+    -> ('k, 'v1, 'cmp) Map.t Incr.t
+    -> f:('v1 -> 'v2 option)
+    -> ('k, 'v2, 'cmp) Map.t Incr.t
+
+  val map
+    :  ?data_equal:('v1 -> 'v1 -> bool)
+    -> ('k, 'v1, 'cmp) Map.t Incr.t
+    -> f:('v1 -> 'v2)
+    -> ('k, 'v2, 'cmp) Map.t Incr.t
+
   val filter_mapi'
     :  ?cutoff:'v1 Incr.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
@@ -42,6 +54,20 @@ module type S_gen = sig
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> f:(key:'k -> data:'v1 Incr.t -> 'v2 Incr.t)
+    -> ('k, 'v2, 'cmp) Map.t Incr.t
+
+  val filter_map'
+    :  ?cutoff:'v1 Incr.Cutoff.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
+    -> ('k, 'v1, 'cmp) Map.t Incr.t
+    -> f:('v1 Incr.t -> 'v2 option Incr.t)
+    -> ('k, 'v2, 'cmp) Map.t Incr.t
+
+  val map'
+    :  ?cutoff:'v1 Incr.Cutoff.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
+    -> ('k, 'v1, 'cmp) Map.t Incr.t
+    -> f:('v1 Incr.t -> 'v2 Incr.t)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
   val partition_mapi
@@ -197,11 +223,37 @@ module type Incr_map = sig
     -> f:(key:'k -> data:'v1 -> 'v2)
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
 
+  val filter_map
+    :  ?data_equal:('v1 -> 'v1 -> bool)
+    -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
+    -> f:('v1 -> 'v2 option)
+    -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
+
+  val map
+    :  ?data_equal:('v1 -> 'v1 -> bool)
+    -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
+    -> f:('v1 -> 'v2)
+    -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
+
   val filter_mapi'
     :  ?cutoff:'v1 Incremental.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:(key:'k -> data:('v1, 'w) Incremental.t -> ('v2 option, 'w) Incremental.t)
+    -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
+
+  val map'
+    :  ?cutoff:'v1 Incremental.Cutoff.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
+    -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
+    -> f:(('v1, 'w) Incremental.t -> ('v2, 'w) Incremental.t)
+    -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
+
+  val filter_map'
+    :  ?cutoff:'v1 Incremental.Cutoff.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
+    -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
+    -> f:(('v1, 'w) Incremental.t -> ('v2 option, 'w) Incremental.t)
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
 
   val mapi'

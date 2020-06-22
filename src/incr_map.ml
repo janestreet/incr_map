@@ -162,6 +162,11 @@ module Generic = struct
 
   let mapi ?data_equal map ~f = generic_mapi Map ?data_equal map ~f
   let filter_mapi ?data_equal map ~f = generic_mapi Filter_map ?data_equal map ~f
+  let map ?data_equal map ~f = mapi ?data_equal map ~f:(fun ~key:_ ~data -> f data)
+
+  let filter_map ?data_equal map ~f =
+    filter_mapi ?data_equal map ~f:(fun ~key:_ ~data -> f data)
+  ;;
 
   let with_old2 i1 i2 ~f =
     let old = ref None in
@@ -324,6 +329,14 @@ module Generic = struct
   let mapi' ?cutoff ?data_equal map ~f =
     with_comparator map (fun comparator ->
       generic_mapi_with_comparator' Map_type.Map ?cutoff ?data_equal map ~f ~comparator)
+  ;;
+
+  let map' ?cutoff ?data_equal map ~f =
+    mapi' ?cutoff ?data_equal map ~f:(fun ~key:_ ~data -> f data)
+  ;;
+
+  let filter_map' ?cutoff ?data_equal map ~f =
+    filter_mapi' ?cutoff ?data_equal map ~f:(fun ~key:_ ~data -> f data)
   ;;
 
   let merge' ?cutoff ?data_equal_left ?data_equal_right map1 map2 ~f =
