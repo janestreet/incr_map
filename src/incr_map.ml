@@ -989,6 +989,19 @@ module Generic = struct
           Map.remove acc (outer_key, inner_key)))
   ;;
 
+  let counti ?data_equal map_incr ~f =
+    unordered_fold
+      ?data_equal
+      map_incr
+      ~init:0
+      ~add:(fun ~key ~data count -> if f ~key ~data then count + 1 else count)
+      ~remove:(fun ~key ~data count -> if f ~key ~data then count - 1 else count)
+  ;;
+
+  let count ?data_equal map_incr ~f =
+    counti ?data_equal map_incr ~f:(fun ~key:_ ~data -> f data)
+  ;;
+
   module For_testing = struct
     let find_key_range_linear = find_key_range_linear
   end
