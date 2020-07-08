@@ -1002,6 +1002,24 @@ module Generic = struct
     counti ?data_equal map_incr ~f:(fun ~key:_ ~data -> f data)
   ;;
 
+  let existsi ?data_equal map_incr ~f =
+    Incremental.map (counti ?data_equal map_incr ~f) ~f:(fun count -> count <> 0)
+  ;;
+
+  let exists ?data_equal map_incr ~f =
+    existsi ?data_equal map_incr ~f:(fun ~key:_ ~data -> f data)
+  ;;
+
+  let for_alli ?data_equal map_incr ~f =
+    Incremental.map
+      (counti ?data_equal map_incr ~f:(fun ~key ~data -> not (f ~key ~data)))
+      ~f:(fun count -> count = 0)
+  ;;
+
+  let for_all ?data_equal map_incr ~f =
+    for_alli ?data_equal map_incr ~f:(fun ~key:_ ~data -> f data)
+  ;;
+
   module For_testing = struct
     let find_key_range_linear = find_key_range_linear
   end

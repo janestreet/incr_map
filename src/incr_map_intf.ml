@@ -176,6 +176,30 @@ module type S_gen = sig
     -> f:('v -> bool)
     -> int Incr.t
 
+  val for_alli
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, _) Map.t Incr.t
+    -> f:(key:'k -> data:'v -> bool)
+    -> bool Incr.t
+
+  val for_all
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (_, 'v, _) Map.t Incr.t
+    -> f:('v -> bool)
+    -> bool Incr.t
+
+  val existsi
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, _) Map.t Incr.t
+    -> f:(key:'k -> data:'v -> bool)
+    -> bool Incr.t
+
+  val exists
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (_, 'v, _) Map.t Incr.t
+    -> f:('v -> bool)
+    -> bool Incr.t
+
   module Lookup : sig
     type ('k, 'v, 'cmp) t
 
@@ -499,6 +523,30 @@ module type Incr_map = sig
     -> ((_, 'v, _) Map.t, 'w) Incremental.t
     -> f:('v -> bool)
     -> (int, 'w) Incremental.t
+
+  val for_alli
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, _) Map.t, 'w) Incremental.t
+    -> f:(key:'k -> data:'v -> bool)
+    -> (bool, 'w) Incremental.t
+
+  val for_all
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ((_, 'v, _) Map.t, 'w) Incremental.t
+    -> f:('v -> bool)
+    -> (bool, 'w) Incremental.t
+
+  val existsi
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, _) Map.t, 'w) Incremental.t
+    -> f:(key:'k -> data:'v -> bool)
+    -> (bool, 'w) Incremental.t
+
+  val exists
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ((_, 'v, _) Map.t, 'w) Incremental.t
+    -> f:('v -> bool)
+    -> (bool, 'w) Incremental.t
 
   (** [('k, 'v) Lookup.t] provides a way to lookup keys in a map which uses symmetric
       diffs to trigger updates of the lookups.
