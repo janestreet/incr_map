@@ -1,0 +1,5 @@
+(library (name incr_map_collate_experimental)
+ (libraries core_kernel incr_map incr_memoize incremental diffable
+  streamable)
+ (preprocess
+  (pps ppx_jane ppx_pattern_bind -annotated-ignores -check-doc-comments)))
