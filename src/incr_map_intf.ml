@@ -100,7 +100,8 @@ module type S_gen = sig
     -> ?data_equal_right:('v2 -> 'v2 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> ('k, 'v2, 'cmp) Map.t Incr.t
-    -> f:(key:'k
+    -> f:
+         (key:'k
           -> [ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ] Incr.t
           -> 'v3 option Incr.t)
     -> ('k, 'v3, 'cmp) Map.t Incr.t
@@ -136,12 +137,13 @@ module type S_gen = sig
 
   val unordered_fold_nested_maps
     :  ?data_equal:('v -> 'v -> bool)
-    -> ?update:(outer_key:'outer_key
-                -> inner_key:'inner_key
-                -> old_data:'v
-                -> new_data:'v
-                -> 'acc
-                -> 'acc)
+    -> ?update:
+         (outer_key:'outer_key
+          -> inner_key:'inner_key
+          -> old_data:'v
+          -> new_data:'v
+          -> 'acc
+          -> 'acc)
     -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
     -> init:'acc
     -> add:(outer_key:'outer_key -> inner_key:'inner_key -> data:'v -> 'acc -> 'acc)
@@ -354,7 +356,8 @@ module type Incr_map = sig
     -> ?data_equal_right:('v2 -> 'v2 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
-    -> f:(key:'k
+    -> f:
+         (key:'k
           -> ([ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ], 'w) Incremental.t
           -> ('v3 option, 'w) Incremental.t)
     -> (('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
@@ -479,12 +482,13 @@ module type Incr_map = sig
 
   val unordered_fold_nested_maps
     :  ?data_equal:('v -> 'v -> bool)
-    -> ?update:(outer_key:'outer_key
-                -> inner_key:'inner_key
-                -> old_data:'v
-                -> new_data:'v
-                -> 'acc
-                -> 'acc)
+    -> ?update:
+         (outer_key:'outer_key
+          -> inner_key:'inner_key
+          -> old_data:'v
+          -> new_data:'v
+          -> 'acc
+          -> 'acc)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
          Incremental.t

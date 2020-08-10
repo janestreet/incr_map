@@ -20,8 +20,7 @@ let initialize ~outer ~inner =
     (Sequence.range 0 outer)
     ~init:(Map.empty (module Int))
     ~f:(fun acc o ->
-      Sequence.fold (Sequence.range 0 inner) ~init:acc ~f:(fun acc i ->
-        set_el acc o i 0.))
+      Sequence.fold (Sequence.range 0 inner) ~init:acc ~f:(fun acc i -> set_el acc o i 0.))
 ;;
 
 module Sum_map_direct = struct

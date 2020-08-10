@@ -20,9 +20,7 @@ let assert_same ~iterations ~stabilize_every ~mutator =
       Incr.stabilize ();
       let rank_computed_naively = Map.rank new_map new_key in
       let rank_computed_incrementally = Incr.Observer.value_exn observed in
-      [%test_result: int option]
-        rank_computed_incrementally
-        ~expect:rank_computed_naively;
+      [%test_result: int option] rank_computed_incrementally ~expect:rank_computed_naively;
       old_key := new_key)
   done
 ;;

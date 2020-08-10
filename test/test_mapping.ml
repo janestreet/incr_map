@@ -17,9 +17,7 @@ let filter_mapi ~data_equal m ~f =
 ;;
 
 let%expect_test "simple filter_mapi" =
-  let m =
-    String.Map.of_alist_exn [ "foo", 3; "bar", 10; "snoo", 5 ] |> Incr.Var.create
-  in
+  let m = String.Map.of_alist_exn [ "foo", 3; "bar", 10; "snoo", 5 ] |> Incr.Var.create in
   let fm =
     filter_mapi ~data_equal:Int.equal (Incr.Var.watch m) ~f:(fun ~key:_ ~data:x ->
       let y = x * x in
@@ -430,8 +428,8 @@ let%test_module "random tests on filter and non-filter mapping functions" =
         ~incr_map_mapping_i_fn:incr_map_mapping_i'_with_map
     ;;
 
-    let%test_unit "mapping_i' with bind rand test: start with empty map, stabilize \
-                   every step"
+    let%test_unit "mapping_i' with bind rand test: start with empty map, stabilize every \
+                   step"
       =
       test_mapping_i
         Int.Map.empty
@@ -440,8 +438,8 @@ let%test_module "random tests on filter and non-filter mapping functions" =
         ~incr_map_mapping_i_fn:incr_map_mapping_i'_with_bind
     ;;
 
-    let%test_unit "mapping_i' with bind rand test: start with empty map, stabilize \
-                   every 10 steps"
+    let%test_unit "mapping_i' with bind rand test: start with empty map, stabilize every \
+                   10 steps"
       =
       test_mapping_i
         Int.Map.empty

@@ -135,8 +135,7 @@ let fresh_benchmarks ~verbose =
     ~init_f:(fun () ->
       let map = make_map ~map_len in
       stage (fun () ->
-        ignore
-          (Map.filter map ~f:(fun key -> filter_almost_all ~key ~data:0) : _ Map.t)));
+        ignore (Map.filter map ~f:(fun key -> filter_almost_all ~key ~data:0) : _ Map.t)));
   run ~name:(sprintf "fresh (%d) - just array.sort" map_len) ~init_f:(fun () ->
     let arr =
       Array.init map_len ~f:(fun key ->
@@ -156,7 +155,7 @@ let fresh_benchmarks ~verbose =
            let a = Array.create ~len:(Map.length map) ((key, data), data) in
            let idx = ref 0 in
            Map.iteri map ~f:(fun ~key ~data ->
-             a.(!idx) <- ((key, data), data);
+             a.(!idx) <- (key, data), data;
              incr idx);
            Array.sort a ~compare:Sorted.compare_ignore_second;
            Sorted.Map.of_sorted_array_unchecked a
@@ -174,8 +173,7 @@ let fresh_benchmarks ~verbose =
     fresh_test
       ~map_len
       ~operation_order:`Filter_first
-      ~collate:
-        (Collate.default ~filter:(Some filter_almost_all) ~order:Order.Unchanged));
+      ~collate:(Collate.default ~filter:(Some filter_almost_all) ~order:Order.Unchanged));
   run ~name:(sprintf "fresh (%d) - filter, sort, no range" map_len) ~init_f:(fun () ->
     fresh_test
       ~map_len
@@ -255,8 +253,7 @@ let incr_benchmarks ~verbose =
       incr_test
         ~map_len
         ~diff_len
-        ~collate:
-          (Collate.default ~filter:(Some filter_almost_all) ~order:Order.Unchanged));
+        ~collate:(Collate.default ~filter:(Some filter_almost_all) ~order:Order.Unchanged));
   run
     ~name:(sprintf "incr (%d, %d) - no filter, sort, no range" map_len diff_len)
     ~init_f:(fun () ->

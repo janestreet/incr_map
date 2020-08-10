@@ -142,7 +142,7 @@ module Make (Incr : Incremental.S) = struct
               in
               let idx = ref 0 in
               Map.iteri new_in ~f:(fun ~key ~data ->
-                arr.(!idx) <- ((key, data), data);
+                arr.(!idx) <- (key, data), data;
                 incr idx);
               Array.sort arr ~compare:compare_ignoring_second;
               Map.Using_comparator.of_sorted_array_unchecked

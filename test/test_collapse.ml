@@ -39,8 +39,7 @@ let%test_module _ =
       [%expect {|
         (((a 1) a)
          ((b 2) b)) |}];
-      update_and_test ~f:(fun m ->
-        Map.add_exn m ~key:"c" ~data:(Int.Map.singleton 4 "c"));
+      update_and_test ~f:(fun m -> Map.add_exn m ~key:"c" ~data:(Int.Map.singleton 4 "c"));
       [%expect {|
         (((a 1) a)
          ((b 2) b)

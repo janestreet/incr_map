@@ -46,8 +46,7 @@ end
 
 include Parametrized
 
-module type Concrete =
-  Collated_intf.Concrete with type ('k, 'v) parametrized = ('k, 'v) t
+module type Concrete = Collated_intf.Concrete with type ('k, 'v) parametrized = ('k, 'v) t
 
 module Make_concrete
     (Key : Collated_intf.Bin_comp_sexp)

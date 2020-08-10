@@ -7,9 +7,7 @@ module Measurement = struct
     }
   [@@deriving fields]
 
-  let to_string ({ time; words } : t) =
-    sprintf !"t=%{Time_ns.Span}, mem=%d Wd" time words
-  ;;
+  let to_string ({ time; words } : t) = sprintf !"t=%{Time_ns.Span}, mem=%d Wd" time words
 end
 
 let measure thunk =

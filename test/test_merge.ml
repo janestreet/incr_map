@@ -263,10 +263,7 @@ let%bench_module "merge" =
       let left_input = Incr.Var.create left_input in
       let right_input = Incr.Var.create right_input in
       let output =
-        Incr.Map.merge
-          (Incr.Var.watch left_input)
-          (Incr.Var.watch right_input)
-          ~f:merge_f
+        Incr.Map.merge (Incr.Var.watch left_input) (Incr.Var.watch right_input) ~f:merge_f
         |> Incr.observe
       in
       { left_input; right_input; output }

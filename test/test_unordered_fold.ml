@@ -3,9 +3,7 @@ open! Import
 
 (* version of unorderd fold which will fail if there isn't a match. *)
 let unordered_fold (type a) ~data_equal ?specialized_initial m ~(init : a) ~add ~remove =
-  let a =
-    Incr.Map.unordered_fold ~data_equal ?specialized_initial m ~init ~add ~remove
-  in
+  let a = Incr.Map.unordered_fold ~data_equal ?specialized_initial m ~init ~add ~remove in
   let b =
     let%map m = m in
     Map.fold ~init ~f:add m
@@ -224,11 +222,7 @@ let%test_module "random tests" =
     ;;
 
     let%test_unit "rand test: start with empty map, stabilize every 10 steps, no update" =
-      test_unordered_fold
-        Int.Map.empty
-        ~steps:100
-        ~stabilize_every_n:10
-        ~use_update:false
+      test_unordered_fold Int.Map.empty ~steps:100 ~stabilize_every_n:10 ~use_update:false
     ;;
 
     let%test_unit "rand test: start with empty map, stabilize every step, update" =

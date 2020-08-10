@@ -118,8 +118,7 @@ module Generic = struct
           Sequence.fold
             (Set.symmetric_diff !old_input new_input)
             ~init:!old_output
-            ~f:(fun output ->
-              function
+            ~f:(fun output -> function
               | First k -> Map.remove output k
               | Second k -> Map.add_exn output ~key:k ~data:())
         in
@@ -224,8 +223,7 @@ module Generic = struct
           | Both ((_, left_diff), (_, right_diff)) ->
             new_data left_diff, new_data right_diff
           | Left (_, left_diff) -> new_data left_diff, Map.find new_right_map key
-          | Right (_, right_diff) ->
-            Map.find new_left_map key, new_data right_diff
+          | Right (_, right_diff) -> Map.find new_left_map key, new_data right_diff
         in
         let output_data_opt =
           match left_data_opt, right_data_opt with
@@ -719,8 +717,7 @@ module Generic = struct
          smaller one. *)
       if to_ < len - from
       then find_keys Map.fold ~start_pos:0 ~advance_pos:(fun pos -> pos + 1)
-      else
-        find_keys Map.fold_right ~start_pos:(len - 1) ~advance_pos:(fun pos -> pos - 1)
+      else find_keys Map.fold_right ~start_pos:(len - 1) ~advance_pos:(fun pos -> pos - 1)
     in
     Option.map (Key_status.to_option begin_key) ~f:(fun begin_key ->
       begin_key, Key_status.to_option end_key)
@@ -1139,14 +1136,14 @@ module Generic = struct
         [%sexp
           { saved_value : value option
           ; node_info = (Incremental.user_info node : (Info.t option[@sexp.option]))
-          ; node_is_const =
-              (Option.some_if (Incremental.is_const node) () : (unit option[@sexp.option]))
+          ; node_is_const = (Option.some_if (Incremental.is_const node) () : (unit option
+                                                                              [@sexp.option]))
           ; node_is_invalid =
-              (Option.some_if (not (Incremental.is_valid node)) () : (unit option[@sexp.option
-                                                                      ]))
+              (Option.some_if (not (Incremental.is_valid node)) () : (unit option
+                                                                      [@sexp.option]))
           ; node_is_unnecessary =
-              (Option.some_if (not (Incremental.is_necessary node)) () : (unit option[@sexp.option
-                                                                          ]))
+              (Option.some_if (not (Incremental.is_necessary node)) () : (unit option
+                                                                          [@sexp.option]))
           }]
       ;;
 

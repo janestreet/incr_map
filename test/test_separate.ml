@@ -154,9 +154,7 @@ let%expect_test "separate -> join (but random)" =
     |> Incr.observe
   in
   List.iter (List.range 0 1000) ~f:(fun _ ->
-    let new_map =
-      Rand_map_helper.rand_modify_map (Incr.Var.value input_original_map)
-    in
+    let new_map = Rand_map_helper.rand_modify_map (Incr.Var.value input_original_map) in
     Incr.Var.set input_original_map new_map;
     Incr.stabilize ();
     let original_map = Incr.Observer.value_exn original_map

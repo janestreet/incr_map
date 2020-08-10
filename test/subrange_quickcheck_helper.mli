@@ -38,8 +38,4 @@ val apply_map_op : map -> map_op -> map
 val apply_map_op_incr : map Incr.Var.t -> map_op -> unit
 val apply_range_op : range -> range_op -> range
 val apply_range_op_incr : range Incr.Var.t -> range_op -> unit
-
-val map_and_range_op_gen
-  :  ?key_range:int * int
-  -> unit
-  -> (map_op * range_op) Generator.t
+val map_and_range_op_gen : ?key_range:int * int -> unit -> (map_op * range_op) Generator.t

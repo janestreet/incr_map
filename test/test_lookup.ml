@@ -142,9 +142,7 @@ let%expect_test "test cleaned nodes still work" =
     [%test_result: string option]
       ~expect:(Incr.Observer.value_exn obs_b)
       (Incr.Observer.value_exn obs_a);
-    [%test_result: string option]
-      ~expect:(Some "world")
-      (Incr.Observer.value_exn obs_a));
+    [%test_result: string option] ~expect:(Some "world") (Incr.Observer.value_exn obs_a));
   [%expect {| "did not raise" |}];
   Incr.Observer.disallow_future_use obs_b;
   Incr.stabilize ();

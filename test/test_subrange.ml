@@ -135,8 +135,7 @@ end = struct
   let quickcheck_generator : t Quickcheck.Generator.t =
     Quickcheck.Generator.list
       (Quickcheck.Generator.tuple2 Int.quickcheck_generator Int.quickcheck_generator)
-    |> Quickcheck.Generator.map ~f:(fun l ->
-      Int.Map.of_alist_reduce l ~f:(fun _a b -> b))
+    |> Quickcheck.Generator.map ~f:(fun l -> Int.Map.of_alist_reduce l ~f:(fun _a b -> b))
   ;;
 end
 
@@ -228,8 +227,8 @@ let subrange_by_rank_test
   let i = Incr.Map.subrange_by_rank map range in
   printf
     !"Initial full                      : %{sexp:unit String.Map.t}\n\
-      Initial range (%{sexp: int Maybe_bound.t}, %{sexp:int Maybe_bound.t}): \
-      %{sexp:unit String.Map.t}\n"
+      Initial range (%{sexp: int Maybe_bound.t}, %{sexp:int Maybe_bound.t}): %{sexp:unit \
+      String.Map.t}\n"
     initial_map
     (fst initial_range)
     (snd initial_range)
@@ -529,8 +528,7 @@ open Subrange_quickcheck_helper
 let%test_unit "quickcheck subrange_by_rank" =
   Quickcheck.test
     ~sexp_of:
-      [%sexp_of:
-        (map_op * range_op) list * map * (int Maybe_bound.t * int Maybe_bound.t)]
+      [%sexp_of: (map_op * range_op) list * map * (int Maybe_bound.t * int Maybe_bound.t)]
     (Quickcheck.Generator.tuple3
        (Quickcheck.Generator.list (map_and_range_op_gen ()))
        map_gen

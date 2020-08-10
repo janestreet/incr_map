@@ -110,9 +110,7 @@ let random_order rstate : Order.t =
   let size = Random.State.int rstate 10_000 in
   let price = Random.State.int rstate 10_000 // 100 in
   let dir = if Random.State.bool rstate then Dir.Buy else Dir.Sell in
-  let id =
-    Order.Id.of_string (sprintf "ID-%i" (Random.State.int rstate Int.max_value))
-  in
+  let id = Order.Id.of_string (sprintf "ID-%i" (Random.State.int rstate Int.max_value)) in
   { sym; size; price; dir; id }
 ;;
 

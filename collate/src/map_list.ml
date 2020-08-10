@@ -121,7 +121,6 @@ let of_map
          from_scratch
            new_in
            ~separation:
-             Int63.(
-               if separation > of_int 10 then separation / of_int 2 else separation)))
+             Int63.(if separation > of_int 10 then separation / of_int 2 else separation)))
   >>| snd
 ;;
