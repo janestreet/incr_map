@@ -7,6 +7,7 @@ module Parametrized = struct
     ; num_filtered_rows : int
     ; key_range : 'k Which_range.t (** Ranges that this value was computed for *)
     ; rank_range : int Which_range.t
+    ; num_before_range : int
     }
   [@@deriving sexp, compare, fields, equal, bin_io]
 
@@ -15,7 +16,12 @@ module Parametrized = struct
     ; num_filtered_rows = 0
     ; key_range = All_rows
     ; rank_range = All_rows
+    ; num_before_range = 0
     }
+  ;;
+
+  let num_after_range { num_before_range; num_filtered_rows; data; _ } =
+    num_filtered_rows - num_before_range - Map.length data
   ;;
 
   let fold t ~init ~f = Map.fold t.data ~init ~f:(fun ~key:_ ~data acc -> f acc data)
@@ -32,13 +38,14 @@ module Parametrized = struct
   end
 
   module For_testing = struct
-    let of_list ~num_filtered_rows ~key_range ~rank_range data =
+    let of_list ~num_filtered_rows ~key_range ~rank_range ~num_before_range data =
       { data =
           List.mapi data ~f:(fun i x -> 100 * i |> Int63.of_int, x)
           |> Int63.Map.of_alist_exn
       ; num_filtered_rows
       ; rank_range
       ; key_range
+      ; num_before_range
       }
     ;;
   end
@@ -77,6 +84,7 @@ struct
           | Num_filtered_rows of int
           | Key_range of Key.t Which_range.t
           | Rank_range of int Which_range.t
+          | Elements_prior_to_range of int
         [@@deriving sexp, bin_io]
       end
 
@@ -89,7 +97,8 @@ struct
         | Data map_diff -> { acc with data = Update.Map.update acc.data [ map_diff ] }
         | Num_filtered_rows num_filtered_rows -> { acc with num_filtered_rows }
         | Key_range key_range -> { acc with key_range }
-        | Rank_range rank_range -> { acc with rank_range })
+        | Rank_range rank_range -> { acc with rank_range }
+        | Elements_prior_to_range num_before_range -> { acc with num_before_range })
     ;;
 
     let wrap_map_update = List.map ~f:(fun x -> Update.Diff.Data x)
@@ -110,6 +119,9 @@ struct
         ~rank_range:(fun acc field ->
           let from, to_ = get field from, get field to_ in
           if Which_range.equal Int.equal from to_ then acc else Rank_range to_ :: acc)
+        ~num_before_range:(fun acc field ->
+          let from, to_ = get field from, get field to_ in
+          if Int.equal from to_ then acc else Elements_prior_to_range to_ :: acc)
     ;;
 
     let to_diffs (t : t) =
@@ -121,6 +133,8 @@ struct
           Update.Diff.Num_filtered_rows (get field) :: acc)
         ~key_range:(fun acc field -> Update.Diff.Key_range (get field) :: acc)
         ~rank_range:(fun acc field -> Update.Diff.Rank_range (get field) :: acc)
+        ~num_before_range:(fun acc field ->
+          Update.Diff.Elements_prior_to_range (get field) :: acc)
     ;;
 
     let of_diffs (update : Update.t) =
@@ -128,11 +142,13 @@ struct
       let num_filtered_rows = ref None in
       let key_range = ref None in
       let rank_range = ref None in
+      let num_before_range = ref 0 in
       List.iter update ~f:(function
         | Data map_diff -> data_update := map_diff :: !data_update
         | Num_filtered_rows n -> num_filtered_rows := Some n
         | Key_range r -> key_range := Some r
-        | Rank_range r -> rank_range := Some r);
+        | Rank_range r -> rank_range := Some r
+        | Elements_prior_to_range i -> num_before_range := i);
       let data = Update.Map.of_diffs !data_update in
       let get_exn ref ~name =
         Option.value_exn
@@ -144,6 +160,7 @@ struct
         ~num_filtered_rows:(get_exn num_filtered_rows ~name:"num_filtered_rows")
         ~key_range:(get_exn key_range ~name:"key_range")
         ~rank_range:(get_exn rank_range ~name:"rank_range")
+        ~num_before_range:!num_before_range
     ;;
   end
 

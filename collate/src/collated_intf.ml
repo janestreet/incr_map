@@ -24,6 +24,12 @@ module type Parametrized = sig
   (** Total number of rows after filtering, but before limiting to range. *)
   val num_filtered_rows : _ t -> int
 
+  (** Total number of rows that preceed the rank-range and key-range ranges. *)
+  val num_before_range : _ t -> int
+
+  (** Total number of rows that follow the rank-range and key-range ranges. *)
+  val num_after_range : _ t -> int
+
   (** The key range this result was computed for *)
   val key_range : ('k, _) t -> 'k Which_range.t
 
@@ -36,6 +42,7 @@ module type Parametrized = sig
       -> num_filtered_rows:int
       -> key_range:'k Which_range.t
       -> rank_range:int Which_range.t
+      -> num_before_range:int
       -> ('k, 'v) t
   end
 
@@ -46,6 +53,7 @@ module type Parametrized = sig
       :  num_filtered_rows:int
       -> key_range:'k Which_range.t
       -> rank_range:int Which_range.t
+      -> num_before_range:int
       -> ('k * 'v) list
       -> ('k, 'v) t
   end

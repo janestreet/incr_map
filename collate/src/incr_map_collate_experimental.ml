@@ -153,11 +153,11 @@ module Make (Incr : Incremental.S) = struct
       Sorted (sorted, custom_comparator)
   ;;
 
-  let do_rank_range_restrict
+  let do_rank_range_restrict_and_rank
         (type k v cmp custom_cmp)
         (data : (k, v, cmp, custom_cmp) Incr_collated_map.t)
         ~(rank_range : int Collate.Which_range.t Incr.t)
-    : (k, v, cmp, custom_cmp) Incr_collated_map.t
+    : (k, v, cmp, custom_cmp) Incr_collated_map.t * int Incr.t
     =
     let apply_range data =
       match%pattern_bind rank_range with
@@ -167,18 +167,22 @@ module Make (Incr : Incremental.S) = struct
       | From l -> Incr_map.subrange_by_rank data (l >>| fun l -> Incl l, Unbounded)
       | To u -> Incr_map.subrange_by_rank data (u >>| fun u -> Unbounded, Incl u)
     in
+    let count_before =
+      match%pattern_bind rank_range with
+      | All_rows | To _ -> Incr.return 0
+      | Between (l, _) | From l -> l
+    in
     match data with
-    | Original (m, cmp) -> Original (apply_range m, cmp)
-    | Sorted (m, cmp) -> Sorted (apply_range m, cmp)
+    | Original (m, cmp) -> Original (apply_range m, cmp), count_before
+    | Sorted (m, cmp) -> Sorted (apply_range m, cmp), count_before
   ;;
 
   let do_key_range_restrict
         (type k v cmp custom_cmp)
         (data : (k, v, cmp, custom_cmp) Incr_collated_map.t)
         ~(orig_map : (k, v, cmp) Map.t Incr.t)
-        ~map_comparator
         ~(key_range : k Collate.Which_range.t Incr.t)
-    : (k, v, cmp, custom_cmp) Incr_collated_map.t
+    : (k, v, cmp, custom_cmp) Incr_collated_map.t * int Incr.t
     =
     let resolve_range_and_do
           (type full_key)
@@ -207,23 +211,59 @@ module Make (Incr : Incremental.S) = struct
         in
         Incr_map.subrange data range
     in
+    let count_before =
+      match data with
+      | Original (map, _cmp) ->
+        (match%pattern_bind key_range with
+         | All_rows | To _ -> Incr.return None
+         | Between (k, _) | From k ->
+           let closest =
+             let%map key = k
+             and map = map in
+             Map.closest_key map `Less_or_equal_to key
+           in
+           (match%pattern_bind closest with
+            | Some (k, _) -> Incr_map.rank map k
+            | None -> Incr.return None))
+      | Sorted (map, _cmp) ->
+        (match%pattern_bind key_range with
+         | All_rows | To _ -> Incr.return None
+         | Between (k, _) | From k ->
+           let v =
+             let%map orig_map = orig_map
+             and k = k in
+             Map.find orig_map k
+           in
+           (match%pattern_bind v with
+            | None -> Incr.return None
+            | Some v ->
+              let closest =
+                let%map key = k
+                and v = v
+                and map = map in
+                Map.closest_key map `Less_or_equal_to (key, v)
+              in
+              (match%pattern_bind closest with
+               | Some (k, _) -> Incr_map.rank map k
+               | None -> Incr.return None)))
+    in
+    let count_before = Incr.map count_before ~f:(Option.value ~default:0) in
     match data with
     | Original (data, cmp) ->
       let lookup k =
         let%map k = k in
         Maybe_bound.Incl k
       in
-      Original (resolve_range_and_do data ~lookup, cmp)
+      Original (resolve_range_and_do data ~lookup, cmp), count_before
     | Sorted (data, cmp) ->
       let lookup k =
-        let lookup = Incr_map.Lookup.create orig_map ~comparator:map_comparator in
-        let%bind k = k in
-        let%map value = Incr_map.Lookup.find lookup k in
-        match value with
+        let%map orig_map = orig_map
+        and k = k in
+        match Map.find orig_map k with
         | None -> Maybe_bound.Unbounded
         | Some v -> Maybe_bound.Incl (k, v)
       in
-      Sorted (resolve_range_and_do data ~lookup, cmp)
+      Sorted (resolve_range_and_do data ~lookup, cmp), count_before
   ;;
 
   type ('k, 'v) kv_custom_comparator =
@@ -299,21 +339,26 @@ module Make (Incr : Incremental.S) = struct
     let order = Incr_memoize.with_params order order_memoize_params in
     let orig_data = data in
     let with_filtered_and_sorted data ~num_filtered_rows =
-      let data =
-        do_key_range_restrict data ~key_range ~map_comparator ~orig_map:orig_data
+      let data, count_before_key_rank =
+        do_key_range_restrict data ~key_range ~orig_map:orig_data
       in
-      let data = do_rank_range_restrict data ~rank_range in
-      (* When we switch pages, there is no point in incrementally building the
-         rows list, as usually the contents of new page is totally different
-         from the old one *)
-      let%bind _ = key_range
-      and _ = rank_range in
+      let data, count_before_range_rank =
+        do_rank_range_restrict_and_rank data ~rank_range
+      in
       let data = do_to_pos_map data in
       let%map data = data
       and num_filtered_rows = num_filtered_rows
       and key_range = key_range
-      and rank_range = rank_range in
-      Collated.Private.create ~data ~num_filtered_rows ~key_range ~rank_range
+      and rank_range = rank_range
+      and count_before_key_rank = count_before_key_rank
+      and count_before_range_rank = count_before_range_rank in
+      let num_before_range = count_before_key_rank + count_before_range_rank in
+      Collated.Private.create
+        ~data
+        ~num_filtered_rows
+        ~key_range
+        ~rank_range
+        ~num_before_range
     in
     match operation_order with
     | `Filter_first ->
