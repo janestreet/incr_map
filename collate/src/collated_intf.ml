@@ -21,6 +21,9 @@ module type Parametrized = sig
   val mapi : ('k, 'v1) t -> f:('k -> 'v1 -> 'v2) -> ('k, 'v2) t
   val length : _ t -> int
 
+  (** Total number of rows before filtering *)
+  val num_unfiltered_rows : _ t -> int
+
   (** Total number of rows after filtering, but before limiting to range. *)
   val num_filtered_rows : _ t -> int
 
@@ -43,6 +46,7 @@ module type Parametrized = sig
       -> key_range:'k Which_range.t
       -> rank_range:int Which_range.t
       -> num_before_range:int
+      -> num_unfiltered_rows:int
       -> ('k, 'v) t
   end
 
@@ -54,6 +58,7 @@ module type Parametrized = sig
       -> key_range:'k Which_range.t
       -> rank_range:int Which_range.t
       -> num_before_range:int
+      -> num_unfiltered_rows:int
       -> ('k * 'v) list
       -> ('k, 'v) t
   end

@@ -1,6 +1,7 @@
 open! Core_kernel
 module Collate = Collate
 module Collated = Collated
+module Map_list = Map_list
 
 module Compare = struct
   type ('k, 'v) t =
@@ -302,7 +303,7 @@ module Make (Incr : Incremental.S) = struct
       T (Some Cmp.comparator)
   ;;
 
-  let with_cutoff equal incr =
+  let with_cutoff incr ~equal =
     Incr.set_cutoff incr (Incremental.Cutoff.of_equal equal);
     incr
   ;;
@@ -320,11 +321,11 @@ module Make (Incr : Incremental.S) = struct
   (* Incrementally compute all of our transformations. *)
   let collate
         (type k v cmp filter order)
-        ?(operation_order = `Filter_first)
-        ?(equal_filter = phys_equal)
-        ?(equal_order = phys_equal)
-        ?(filter_memoize_params = Incr_memoize.Store_params.none)
-        ?(order_memoize_params = Incr_memoize.Store_params.none)
+        ?(operation_order = `Sort_first)
+        ?filter_memoize_params
+        ?order_memoize_params
+        ~filter_equal
+        ~order_equal
         ~(filter_to_predicate : filter -> _)
         ~(order_to_compare : order -> _)
         (data : (k, v, cmp) Map.t Incr.t)
@@ -333,10 +334,24 @@ module Make (Incr : Incremental.S) = struct
     =
     let%bind map_comparator = data >>| Map.comparator in
     let%pattern_bind { key_range; rank_range; filter; order } = collate in
-    let filter = with_cutoff equal_filter filter in
-    let order = with_cutoff equal_order order in
-    let filter = Incr_memoize.with_params filter filter_memoize_params in
-    let order = Incr_memoize.with_params order order_memoize_params in
+    let filter = with_cutoff filter ~equal:filter_equal in
+    let order = with_cutoff order ~equal:order_equal in
+    let filter =
+      Incr_memoize.with_params
+        filter
+        (Option.value
+           filter_memoize_params
+           ~default:
+             (Incr_memoize.Store_params.alist_based__lru ~equal:filter_equal ~max_size:1))
+    in
+    let order =
+      Incr_memoize.with_params
+        order
+        (Option.value
+           order_memoize_params
+           ~default:
+             (Incr_memoize.Store_params.alist_based__lru ~equal:order_equal ~max_size:10))
+    in
     let orig_data = data in
     let with_filtered_and_sorted data ~num_filtered_rows =
       let data, count_before_key_rank =
@@ -348,6 +363,7 @@ module Make (Incr : Incremental.S) = struct
       let data = do_to_pos_map data in
       let%map data = data
       and num_filtered_rows = num_filtered_rows
+      and num_unfiltered_rows = orig_data >>| Map.length
       and key_range = key_range
       and rank_range = rank_range
       and count_before_key_rank = count_before_key_rank
@@ -359,6 +375,7 @@ module Make (Incr : Incremental.S) = struct
         ~key_range
         ~rank_range
         ~num_before_range
+        ~num_unfiltered_rows
     in
     match operation_order with
     | `Filter_first ->

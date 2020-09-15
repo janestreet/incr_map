@@ -1,6 +1,7 @@
 open! Core_kernel
 module Collate = Collate
 module Collated = Collated
+module Map_list = Map_list
 
 module Compare : sig
   type ('k, 'v) t =
@@ -35,11 +36,13 @@ module Make (Incr : Incremental.S) : sig
       prepared to explore the fascinating world of functions' physical equality.
   *)
   val collate
-    :  ?operation_order:[ `Filter_first | `Sort_first ] (** default: `Filter_first *)
-    -> ?equal_filter:('filter -> 'filter -> bool) (** default: [phys_equal] *)
-    -> ?equal_order:('order -> 'order -> bool) (** default: [phys_equal] *)
-    -> ?filter_memoize_params:'filter Incr_memoize.Store_params.t (** default: none *)
-    -> ?order_memoize_params:'order Incr_memoize.Store_params.t (** default: none *)
+    :  ?operation_order:[ `Filter_first | `Sort_first ] (** default: `Sort_first *)
+    -> ?filter_memoize_params:'filter Incr_memoize.Store_params.t
+    (** default: an alist-based LRU with size 1 *)
+    -> ?order_memoize_params:'order Incr_memoize.Store_params.t
+    (** default: an alist-based LRU with size 10 *)
+    -> filter_equal:('filter -> 'filter -> bool)
+    -> order_equal:('order -> 'order -> bool)
     -> filter_to_predicate:('filter -> (key:'k -> data:'v -> bool) option)
     -> order_to_compare:('order -> ('k, 'v) Compare.t)
     -> ('k, 'v, 'cmp) Map.t Incr.t

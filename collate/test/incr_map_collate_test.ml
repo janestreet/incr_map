@@ -87,7 +87,8 @@ let print_res ?(full_sexp = false) t =
       [%message
         ""
           ~_:(Collated.to_alist res : (Key.t * Value.t) list)
-          ~num_filtered_rows:(Collated.num_filtered_rows res : int)]
+          ~num_filtered_rows:(Collated.num_filtered_rows res : int)
+          ~num_unfiltered_rows:(Collated.num_unfiltered_rows res : int)]
 ;;
 
 let modify_map t ~f = Incr.Var.set t.map (f (Incr.Var.value t.map))
@@ -122,8 +123,10 @@ let init_test
     Incr.observe
       (Incr_map_collate.collate
          ?operation_order
-         ~order_to_compare:Order.to_compare
          ~filter_to_predicate:Filter.to_predicate
+         ~order_to_compare:Order.to_compare
+         ~filter_equal:Filter.equal
+         ~order_equal:Order.equal
          (Incr.Var.watch map)
          (Incr.Var.watch collate))
   in
@@ -147,7 +150,8 @@ let%expect_test "full range, no sort, no filter" =
     (((AAPL (10 1))
       (GOOG (10 3))
       (VOD  (10 2)))
-     (num_filtered_rows 3))
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3))
      |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   print_res t;
@@ -157,7 +161,8 @@ let%expect_test "full range, no sort, no filter" =
       (FB   (10 4))
       (GOOG (10 3))
       (VOD  (10 2)))
-     (num_filtered_rows 4))
+     (num_filtered_rows   4)
+     (num_unfiltered_rows 4))
      |}]
 ;;
 
@@ -169,7 +174,8 @@ let%expect_test "full range, no sort, filter" =
     (((AAPL (10 1))
       (GOOG (10 3))
       (VOD  (10 2)))
-     (num_filtered_rows 3))
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3))
      |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   modify_map t ~f:(Map.add_exn ~key:"EEE" ~data:(10, 0.0));
@@ -180,7 +186,8 @@ let%expect_test "full range, no sort, filter" =
       (EEE  (10 0))
       (GOOG (10 3))
       (VOD  (10 2)))
-     (num_filtered_rows 4))
+     (num_filtered_rows   4)
+     (num_unfiltered_rows 5))
      |}]
 ;;
 
@@ -192,7 +199,8 @@ let%expect_test "full range, sort, filter" =
     (((AAPL (10 1))
       (VOD  (10 2))
       (GOOG (10 3)))
-     (num_filtered_rows 3))
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3))
      |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   modify_map t ~f:(Map.add_exn ~key:"EEE" ~data:(10, 0.0));
@@ -203,7 +211,8 @@ let%expect_test "full range, sort, filter" =
       (AAPL (10 1))
       (VOD  (10 2))
       (GOOG (10 3)))
-     (num_filtered_rows 4))
+     (num_filtered_rows   4)
+     (num_unfiltered_rows 5))
      |}]
 ;;
 
@@ -220,7 +229,8 @@ let%expect_test "second & third, sort, filter" =
     {|
     (((VOD  (10 2))
       (GOOG (10 3)))
-     (num_filtered_rows 3))
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3))
      |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   modify_map t ~f:(Map.add_exn ~key:"EEE" ~data:(10, 0.0));
@@ -229,7 +239,8 @@ let%expect_test "second & third, sort, filter" =
     {|
     (((AAPL (10 1))
       (VOD  (10 2)))
-     (num_filtered_rows 4))
+     (num_filtered_rows   4)
+     (num_unfiltered_rows 5))
      |}]
 ;;
 
@@ -244,7 +255,8 @@ let%expect_test "changing range" =
     {|
     (((AAPL (10 1))
       (VOD  (10 2)))
-     (num_filtered_rows 5))
+     (num_filtered_rows   5)
+     (num_unfiltered_rows 5))
      |}];
   set_collate ~rank_range:(Between (3, 4)) t;
   print_res t;
@@ -252,7 +264,8 @@ let%expect_test "changing range" =
     {|
     (((GOOG (10 3))
       (FB   (10 4)))
-     (num_filtered_rows 5))
+     (num_filtered_rows   5)
+     (num_unfiltered_rows 5))
      |}]
 ;;
 
@@ -293,7 +306,8 @@ let%expect_test "changing sort" =
     (((AAPL (10 1))
       (GOOG (10 3))
       (VOD  (10 2)))
-     (num_filtered_rows 3))
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3))
      |}];
   set_collate ~order:Order.By_price t;
   print_res t;
@@ -302,7 +316,8 @@ let%expect_test "changing sort" =
     (((AAPL (10 1))
       (VOD  (10 2))
       (GOOG (10 3)))
-     (num_filtered_rows 3))
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3))
      |}];
   set_collate ~order:Order.By_price_reversed t;
   print_res t;
@@ -311,7 +326,8 @@ let%expect_test "changing sort" =
     (((GOOG (10 3))
       (VOD  (10 2))
       (AAPL (10 1)))
-     (num_filtered_rows 3))
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3))
      |}]
 ;;
 
@@ -322,7 +338,8 @@ let%expect_test "no sort, no filter, key range" =
     {|
     (((GOOG (10 3))
       (VOD  (10 2)))
-     (num_filtered_rows 3))
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3))
      |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   print_res t;
@@ -330,7 +347,8 @@ let%expect_test "no sort, no filter, key range" =
     {|
     (((GOOG (10 3))
       (VOD  (10 2)))
-     (num_filtered_rows 4))
+     (num_filtered_rows   4)
+     (num_unfiltered_rows 4))
      |}]
 ;;
 
@@ -341,7 +359,8 @@ let%expect_test "sort, no filter, key range" =
     {|
     (((VOD  (10 2))
       (GOOG (10 3)))
-     (num_filtered_rows 3))
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3))
      |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   print_res t;
@@ -350,17 +369,26 @@ let%expect_test "sort, no filter, key range" =
     (((VOD  (10 2))
       (GOOG (10 3))
       (FB   (10 4)))
-     (num_filtered_rows 4))
+     (num_filtered_rows   4)
+     (num_unfiltered_rows 4))
      |}]
 ;;
 
 let%expect_test "no sort, no filter, key range + rank range" =
   let t = init_test ~key_range:(From "GOOG") ~rank_range:(Between (0, 0)) () in
   print_res t;
-  [%expect {| (((GOOG (10 3))) (num_filtered_rows 3)) |}];
+  [%expect
+    {|
+    (((GOOG (10 3)))
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3)) |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   print_res t;
-  [%expect {| (((GOOG (10 3))) (num_filtered_rows 4)) |}]
+  [%expect
+    {|
+    (((GOOG (10 3)))
+     (num_filtered_rows   4)
+     (num_unfiltered_rows 4)) |}]
 ;;
 
 let%expect_test "reversed key sort" =
@@ -371,7 +399,8 @@ let%expect_test "reversed key sort" =
     (((VOD  (10 2))
       (GOOG (10 3))
       (AAPL (10 1)))
-     (num_filtered_rows 3)) |}]
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3)) |}]
 ;;
 
 let%expect_test "sort by key & value" =
@@ -386,7 +415,8 @@ let%expect_test "sort by key & value" =
       (EEE  (10 2))
       (GOOG (10 3))
       (FB   (10 3)))
-     (num_filtered_rows 5)) |}]
+     (num_filtered_rows   5)
+     (num_unfiltered_rows 5)) |}]
 ;;
 
 let%expect_test "sort by key, update values" =
@@ -406,7 +436,8 @@ let%expect_test "sort by key, update values" =
     (((VOD  (10 2))
       (GOOG (10 3))
       (AAPL (10 4)))
-     (num_filtered_rows 3)) |}];
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3)) |}];
   modify_map t ~f:(Map.set ~key:"AAPL" ~data:(10, 1.0));
   print_res t;
   [%expect
@@ -414,7 +445,8 @@ let%expect_test "sort by key, update values" =
     (((VOD  (10 2))
       (GOOG (10 3))
       (AAPL (10 1)))
-     (num_filtered_rows 3)) |}];
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3)) |}];
   modify_map t ~f:(Map.set ~key:"AAPL" ~data:(10, 4.0));
   print_res t;
   [%expect
@@ -422,7 +454,8 @@ let%expect_test "sort by key, update values" =
     (((VOD  (10 2))
       (GOOG (10 3))
       (AAPL (10 4)))
-     (num_filtered_rows 3)) |}]
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3)) |}]
 ;;
 
 let%expect_test "update values so that they compare equal" =
@@ -436,17 +469,21 @@ let%expect_test "update values so that they compare equal" =
       ()
   in
   print_res t;
-  [%expect {|
+  [%expect
+    {|
     (((VOD  (10 2))
       (GOOG (10 3)))
-     (num_filtered_rows 3)) |}];
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3)) |}];
   (* Modify to something that compares equal *)
   modify_map t ~f:(Map.set ~key:"VOD" ~data:(11, 2.0));
   print_res t;
-  [%expect {|
+  [%expect
+    {|
     (((VOD  (11 2))
       (GOOG (10 3)))
-     (num_filtered_rows 3)) |}];
+     (num_filtered_rows   3)
+     (num_unfiltered_rows 3)) |}];
   (* Add entries with values that compares equal (but not keys, we don't want
      duplicates!) *)
   modify_map t ~f:(Map.set ~key:"AAA" ~data:(10, 2.0));
@@ -457,19 +494,25 @@ let%expect_test "update values so that they compare equal" =
     (((VOD  (11 2))
       (ZZZ  (10 2))
       (GOOG (10 3)))
-     (num_filtered_rows 5)) |}];
+     (num_filtered_rows   5)
+     (num_unfiltered_rows 5)) |}];
   (* Modify to bigger value *)
   modify_map t ~f:(Map.set ~key:"VOD" ~data:(11, 2.5));
   print_res t;
-  [%expect {|
+  [%expect
+    {|
     (((VOD  (11 2.5))
       (GOOG (10 3)))
-     (num_filtered_rows 5)) |}];
+     (num_filtered_rows   5)
+     (num_unfiltered_rows 5)) |}];
   (* Move GOOG to ensure it gets compared to the new value of VOD *)
   modify_map t ~f:(Map.set ~key:"GOOG" ~data:(10, 2.3));
   print_res t;
-  [%expect {|
-    (((VOD (11 2.5))) (num_filtered_rows 5)) |}]
+  [%expect
+    {|
+    (((VOD (11 2.5)))
+     (num_filtered_rows   5)
+     (num_unfiltered_rows 5)) |}]
 ;;
 
 let%expect_test "trigger rebalance" =
@@ -480,10 +523,11 @@ let%expect_test "trigger rebalance" =
     ((data (
        (0   (A (0 0)))
        (100 (B (0 100)))))
-     (num_filtered_rows 2)
-     (key_range         All_rows)
-     (rank_range        All_rows)
-     (num_before_range  0)) |}];
+     (num_filtered_rows   2)
+     (key_range           All_rows)
+     (rank_range          All_rows)
+     (num_before_range    0)
+     (num_unfiltered_rows 2)) |}];
   modify_map t ~f:(Map.add_exn ~key:"AA" ~data:(0, 50.));
   modify_map t ~f:(Map.add_exn ~key:"AAA" ~data:(0, 75.));
   modify_map t ~f:(Map.add_exn ~key:"AAAA" ~data:(0, 87.));
@@ -505,10 +549,11 @@ let%expect_test "trigger rebalance" =
        (98  (AAAAAAA  (0 98)))
        (99  (AAAAAAAA (0 99)))
        (100 (B        (0 100)))))
-     (num_filtered_rows 9)
-     (key_range         All_rows)
-     (rank_range        All_rows)
-     (num_before_range  0)) |}];
+     (num_filtered_rows   9)
+     (key_range           All_rows)
+     (rank_range          All_rows)
+     (num_before_range    0)
+     (num_unfiltered_rows 9)) |}];
   (* But now it does *)
   modify_map t ~f:(Map.add_exn ~key:"AAAAAAAAA" ~data:(0, 0.));
   print_res ~full_sexp:true t;
@@ -525,10 +570,11 @@ let%expect_test "trigger rebalance" =
        (700 (AAAAAAAA  (0 99)))
        (800 (AAAAAAAAA (0 0)))
        (900 (B         (0 100)))))
-     (num_filtered_rows 10)
-     (key_range         All_rows)
-     (rank_range        All_rows)
-     (num_before_range  0)) |}]
+     (num_filtered_rows   10)
+     (key_range           All_rows)
+     (rank_range          All_rows)
+     (num_before_range    0)
+     (num_unfiltered_rows 10)) |}]
 ;;
 
 let%expect_test "diffs" =
@@ -542,7 +588,8 @@ let%expect_test "diffs" =
   print_s [%sexp (update : Concrete.Update.t)];
   [%expect
     {|
-    ((Num_filtered_rows 4)
+    ((Num_unfiltered_rows 4)
+     (Num_filtered_rows   4)
      (Data (Add 200 (BB (0 200))))
      (Data (Add 50 (AA (0 50))))
      (Data (Add 0 (A (0 1))))) |}];
@@ -557,26 +604,29 @@ let%expect_test "diffs" =
          (50  (AA (0 50)))
          (100 (B  (0 100)))
          (200 (BB (0 200)))))
-       (num_filtered_rows 4)
-       (key_range         All_rows)
-       (rank_range        All_rows)
-       (num_before_range  0)))
+       (num_filtered_rows   4)
+       (key_range           All_rows)
+       (rank_range          All_rows)
+       (num_before_range    0)
+       (num_unfiltered_rows 4)))
      (patched (
        (data (
          (0   (A  (0 1)))
          (50  (AA (0 50)))
          (100 (B  (0 100)))
          (200 (BB (0 200)))))
-       (num_filtered_rows 4)
-       (key_range         All_rows)
-       (rank_range        All_rows)
-       (num_before_range  0)))) |}]
+       (num_filtered_rows   4)
+       (key_range           All_rows)
+       (rank_range          All_rows)
+       (num_before_range    0)
+       (num_unfiltered_rows 4)))) |}]
 ;;
 
 let%expect_test "duplicates in diff" =
   let t1 =
     Collated.For_testing.of_list
       ~num_filtered_rows:1
+      ~num_unfiltered_rows:10
       ~key_range:All_rows
       ~rank_range:All_rows
       ~num_before_range:0
@@ -585,6 +635,7 @@ let%expect_test "duplicates in diff" =
   let t2 =
     Collated.For_testing.of_list
       ~num_filtered_rows:2
+      ~num_unfiltered_rows:10
       ~key_range:All_rows
       ~rank_range:All_rows
       ~num_before_range:0
@@ -602,12 +653,14 @@ let%expect_test "duplicates in diff" =
     {|
     (diffs
       (d1 (
+        (Num_unfiltered_rows     10)
         (Elements_prior_to_range 0)
         (Rank_range              All_rows)
         (Key_range               All_rows)
         (Num_filtered_rows       1)
         (Data (Add 0 (1 (1 1))))))
       (d2 (
+        (Num_unfiltered_rows     10)
         (Elements_prior_to_range 0)
         (Rank_range              All_rows)
         (Key_range               All_rows)
@@ -616,25 +669,29 @@ let%expect_test "duplicates in diff" =
     (t1s (
       "[t1'; t1''; t1'''; t1'''']" (
         ((data ((0 (1 (1 1)))))
-         (num_filtered_rows 1)
-         (key_range         All_rows)
-         (rank_range        All_rows)
-         (num_before_range  0))
+         (num_filtered_rows   1)
+         (key_range           All_rows)
+         (rank_range          All_rows)
+         (num_before_range    0)
+         (num_unfiltered_rows 10))
         ((data ((0 (1 (1 1)))))
-         (num_filtered_rows 1)
-         (key_range         All_rows)
-         (rank_range        All_rows)
-         (num_before_range  0))
+         (num_filtered_rows   1)
+         (key_range           All_rows)
+         (rank_range          All_rows)
+         (num_before_range    0)
+         (num_unfiltered_rows 10))
         ((data ((0 (1 (1 1)))))
-         (num_filtered_rows 1)
-         (key_range         All_rows)
-         (rank_range        All_rows)
-         (num_before_range  0))
+         (num_filtered_rows   1)
+         (key_range           All_rows)
+         (rank_range          All_rows)
+         (num_before_range    0)
+         (num_unfiltered_rows 10))
         ((data ((0 (1 (1 1)))))
-         (num_filtered_rows 1)
-         (key_range         All_rows)
-         (rank_range        All_rows)
-         (num_before_range  0))))) |}];
+         (num_filtered_rows   1)
+         (key_range           All_rows)
+         (rank_range          All_rows)
+         (num_before_range    0)
+         (num_unfiltered_rows 10))))) |}];
   let t2' = Concrete.update t1 (d1 @ d2) in
   print_s [%message "t2s" ([ t2; t2' ] : Concrete.t list)];
   [%expect
@@ -642,13 +699,15 @@ let%expect_test "duplicates in diff" =
     (t2s (
       "[t2; t2']" (
         ((data ((0 (2 (2 2)))))
-         (num_filtered_rows 2)
-         (key_range         All_rows)
-         (rank_range        All_rows)
-         (num_before_range  0))
+         (num_filtered_rows   2)
+         (key_range           All_rows)
+         (rank_range          All_rows)
+         (num_before_range    0)
+         (num_unfiltered_rows 10))
         ((data ((0 (2 (2 2)))))
-         (num_filtered_rows 2)
-         (key_range         All_rows)
-         (rank_range        All_rows)
-         (num_before_range  0))))) |}]
+         (num_filtered_rows   2)
+         (key_range           All_rows)
+         (rank_range          All_rows)
+         (num_before_range    0)
+         (num_unfiltered_rows 10))))) |}]
 ;;

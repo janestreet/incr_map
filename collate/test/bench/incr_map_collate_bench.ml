@@ -6,10 +6,34 @@ module Incr_map_collate = Incr_map_collate_experimental.Make (Incr)
 module Key = String
 module Incr_map_helpers = Incr_map_test.Subrange_quickcheck_helper
 
+module Filter = struct
+  module T = struct
+    type t =
+      | All
+      | Almost_all
+    [@@deriving sexp, equal, compare]
+  end
+
+  include T
+  include Comparator.Make (T)
+
+  let to_predicate t =
+    match t with
+    | All -> None
+    | Almost_all -> Some (fun ~key ~data:_ -> key land 0xfff <> 0)
+  ;;
+end
+
 module Order = struct
-  type t =
-    | Unchanged
-    | By_value
+  module T = struct
+    type t =
+      | Unchanged
+      | By_value
+    [@@deriving sexp, equal, compare]
+  end
+
+  include T
+  include Comparator.Make (T)
 
   let to_compare = function
     | Unchanged -> Incr_map_collate.Compare.Unchanged
@@ -38,8 +62,10 @@ let fresh_test ~map_len ~collate ~operation_order =
     let%bind.Incr _count = Incr.Var.watch count_var in
     Incr_map_collate.collate
       ~operation_order
+      ~filter_to_predicate:Filter.to_predicate
       ~order_to_compare:Order.to_compare
-      ~filter_to_predicate:Fn.id
+      ~filter_equal:Filter.equal
+      ~order_equal:Order.equal
       (Incr.Var.watch map_var)
       (Incr.Var.watch collate_var)
   in
@@ -54,22 +80,20 @@ let change_filter_test ~map_len ~(collate : _ Collate.t) ~operation_order =
   let map = make_map ~map_len in
   let map_var = Incr.Var.create map in
   let collate_var = Incr.Var.create collate in
-  let orig_filter = collate.filter |> Option.value_exn in
+  let orig_filter = collate.filter in
   let res =
     Incr_map_collate.collate
       ~operation_order
+      ~filter_to_predicate:Filter.to_predicate
       ~order_to_compare:Order.to_compare
-      ~filter_to_predicate:Fn.id
+      ~filter_equal:Filter.equal
+      ~order_equal:Order.equal
       (Incr.Var.watch map_var)
       (Incr.Var.watch collate_var)
   in
   let ob = Incr.observe res in
   stage (fun () ->
-    Incr.Var.set
-      collate_var
-      { (Incr.Var.value collate_var) with
-        filter = Some (fun ~key ~data -> orig_filter ~key ~data)
-      };
+    Incr.Var.set collate_var { (Incr.Var.value collate_var) with filter = orig_filter };
     Incr.stabilize ();
     ignore (Incremental.Observer.value_exn ob : _ Collated.t))
 ;;
@@ -89,7 +113,9 @@ let incr_test ~map_len ~diff_len ~collate =
     Incr.observe
       (Incr_map_collate.collate
          ~order_to_compare:Order.to_compare
-         ~filter_to_predicate:Fn.id
+         ~filter_to_predicate:Filter.to_predicate
+         ~filter_equal:Filter.equal
+         ~order_equal:Order.equal
          (Incr.Var.watch map_var)
          (Incr.Var.watch collate_var))
   in
@@ -129,7 +155,7 @@ let fresh_benchmarks ~verbose =
       fresh_test
         ~operation_order:`Filter_first
         ~map_len
-        ~collate:(Collate.default ~filter:None ~order:Order.Unchanged));
+        ~collate:(Collate.default ~filter:Filter.All ~order:Order.Unchanged));
   run
     ~name:(sprintf "fresh (%d) - just Map.filter, for comparison" map_len)
     ~init_f:(fun () ->
@@ -173,31 +199,31 @@ let fresh_benchmarks ~verbose =
     fresh_test
       ~map_len
       ~operation_order:`Filter_first
-      ~collate:(Collate.default ~filter:(Some filter_almost_all) ~order:Order.Unchanged));
+      ~collate:(Collate.default ~filter:Filter.Almost_all ~order:Order.Unchanged));
   run ~name:(sprintf "fresh (%d) - filter, sort, no range" map_len) ~init_f:(fun () ->
     fresh_test
       ~map_len
       ~operation_order:`Filter_first
-      ~collate:(Collate.default ~filter:(Some filter_almost_all) ~order:Order.By_value));
+      ~collate:(Collate.default ~filter:Filter.Almost_all ~order:Order.By_value));
   run ~name:(sprintf "fresh (%d) - filter, sort, range" map_len) ~init_f:(fun () ->
     fresh_test
       ~map_len
       ~operation_order:`Filter_first
       ~collate:
-        { (Collate.default ~filter:(Some filter_almost_all) ~order:Order.By_value) with
+        { (Collate.default ~filter:Filter.Almost_all ~order:Order.By_value) with
           rank_range = Between (100, 200)
         });
   run ~name:(sprintf "fresh (%d) - sort, filter, no range" map_len) ~init_f:(fun () ->
     fresh_test
       ~map_len
       ~operation_order:`Sort_first
-      ~collate:(Collate.default ~filter:(Some filter_almost_all) ~order:Order.By_value));
+      ~collate:(Collate.default ~filter:Filter.Almost_all ~order:Order.By_value));
   run ~name:(sprintf "fresh (%d) - sort, filter, range" map_len) ~init_f:(fun () ->
     fresh_test
       ~map_len
       ~operation_order:`Sort_first
       ~collate:
-        { (Collate.default ~filter:(Some filter_almost_all) ~order:Order.By_value) with
+        { (Collate.default ~filter:Filter.Almost_all ~order:Order.By_value) with
           rank_range = Between (100, 200)
         });
   run
@@ -206,7 +232,7 @@ let fresh_benchmarks ~verbose =
       change_filter_test
         ~map_len
         ~operation_order:`Filter_first
-        ~collate:(Collate.default ~filter:(Some filter_almost_all) ~order:Order.By_value));
+        ~collate:(Collate.default ~filter:Filter.Almost_all ~order:Order.By_value));
   run
     ~name:(sprintf "change filter (%d) - filter, sort, range" map_len)
     ~init_f:(fun () ->
@@ -214,7 +240,7 @@ let fresh_benchmarks ~verbose =
         ~map_len
         ~operation_order:`Filter_first
         ~collate:
-          { (Collate.default ~filter:(Some filter_almost_all) ~order:Order.By_value) with
+          { (Collate.default ~filter:Filter.Almost_all ~order:Order.By_value) with
             rank_range = Between (100, 200)
           });
   run
@@ -223,7 +249,7 @@ let fresh_benchmarks ~verbose =
       change_filter_test
         ~map_len
         ~operation_order:`Sort_first
-        ~collate:(Collate.default ~filter:(Some filter_almost_all) ~order:Order.By_value));
+        ~collate:(Collate.default ~filter:Filter.Almost_all ~order:Order.By_value));
   run
     ~name:(sprintf "change filter (%d) - sort, filter, range" map_len)
     ~init_f:(fun () ->
@@ -231,7 +257,7 @@ let fresh_benchmarks ~verbose =
         ~map_len
         ~operation_order:`Sort_first
         ~collate:
-          { (Collate.default ~filter:(Some filter_almost_all) ~order:Order.By_value) with
+          { (Collate.default ~filter:Filter.Almost_all ~order:Order.By_value) with
             rank_range = Between (100, 200)
           })
 ;;
@@ -246,28 +272,28 @@ let incr_benchmarks ~verbose =
       incr_test
         ~map_len
         ~diff_len
-        ~collate:(Collate.default ~filter:None ~order:Order.Unchanged));
+        ~collate:(Collate.default ~filter:Filter.All ~order:Order.Unchanged));
   run
     ~name:(sprintf "incr (%d, %d) - filter, no sort, no range" map_len diff_len)
     ~init_f:(fun () ->
       incr_test
         ~map_len
         ~diff_len
-        ~collate:(Collate.default ~filter:(Some filter_almost_all) ~order:Order.Unchanged));
+        ~collate:(Collate.default ~filter:Filter.Almost_all ~order:Order.Unchanged));
   run
     ~name:(sprintf "incr (%d, %d) - no filter, sort, no range" map_len diff_len)
     ~init_f:(fun () ->
       incr_test
         ~map_len
         ~diff_len
-        ~collate:(Collate.default ~filter:None ~order:Order.By_value));
+        ~collate:(Collate.default ~filter:Filter.All ~order:Order.By_value));
   run
     ~name:(sprintf "incr (%d, %d) - filter, sort, no range" map_len diff_len)
     ~init_f:(fun () ->
       incr_test
         ~map_len
         ~diff_len
-        ~collate:(Collate.default ~filter:(Some filter_almost_all) ~order:Order.By_value))
+        ~collate:(Collate.default ~filter:Filter.Almost_all ~order:Order.By_value))
 ;;
 
 let all_benchmarks ~verbose =
