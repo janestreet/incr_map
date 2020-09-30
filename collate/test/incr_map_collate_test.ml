@@ -1,7 +1,7 @@
 open! Core_kernel
 open Expect_test_helpers_core
 module Incr = Incremental.Make ()
-module Incr_map_collate = Incr_map_collate_experimental.Make (Incr)
+module Incr_map_collate = Incr_map_collate.Make (Incr)
 open Incr_map_collate
 module Key = String (* "symbol" *)
 

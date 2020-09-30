@@ -1,3 +1,2 @@
 (executables (names incr_map_collate_bench)
- (libraries core incr_map_collate_experimental incr_map_test)
- (preprocess (pps ppx_jane)))
+ (libraries core incr_map_collate incr_map_test) (preprocess (pps ppx_jane)))

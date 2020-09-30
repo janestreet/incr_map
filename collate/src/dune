@@ -1,4 +1,4 @@
-(library (name incr_map_collate_experimental)
+(library (name incr_map_collate)
  (libraries core_kernel incr_map incr_memoize incremental diffable
   streamable)
  (preprocess
