@@ -94,6 +94,13 @@ module type S_gen = sig
     -> f:(key:'k -> [ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ] -> 'v3 option)
     -> ('k, 'v3, 'cmp) Map.t Incr.t
 
+  val unzip_mapi'
+    :  ?cutoff:'v Incr.Cutoff.t
+    -> ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, 'cmp) Map.t Incr.t
+    -> f:(key:'k -> data:'v Incr.t -> 'v1 Incr.t * 'v2 Incr.t)
+    -> ('k, 'v1, 'cmp) Map.t Incr.t * ('k, 'v2, 'cmp) Map.t Incr.t
+
   val merge'
     :  ?cutoff:[ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ] Incr.Cutoff.t
     -> ?data_equal_left:('v1 -> 'v1 -> bool)
@@ -361,6 +368,27 @@ module type Incr_map = sig
           -> ([ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ], 'w) Incremental.t
           -> ('v3 option, 'w) Incremental.t)
     -> (('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
+
+  (** This function is similar to [List.unzip], but for incremental maps.
+
+      The naive implementation (see below) produces worse Incremental graphs.
+
+      {[
+        let temp = Incr_map.mapi' input ~f:(fun ~key ~data -> f ~key ~data |> Tuple2.uncurry Incr.both) in
+        let left = Incr_map.map temp ~f:Tuple2.get1 in
+        let right = Incr_map.map temp ~f:Tuple2.get2 in
+        left, right
+      ]} *)
+  val unzip_mapi'
+    :  ?cutoff:'v Incremental.Cutoff.t
+    -> ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
+    -> f:
+         (key:'k
+          -> data:('v, 'w) Incremental.t
+          -> ('v1, 'w) Incremental.t * ('v2, 'w) Incremental.t)
+    -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
+       * (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
 
   (** This is the "easy" version of [join] *)
   val flatten

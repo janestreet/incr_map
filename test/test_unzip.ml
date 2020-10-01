@@ -1,0 +1,168 @@
+open Core
+open Import
+
+(** version of unzip_mapi' that tests the real implementation against a
+    simpler, less incremental one, and fails if the two implementations don't
+    match.*)
+let unzip_mapi' ~data_equal_left ~data_equal_right m ~f =
+  let a_left, a_right = Incr.Map.unzip_mapi' m ~f in
+  let b_left, b_right =
+    let paired =
+      Incr.Map.mapi' m ~f:(fun ~key ~data ->
+        let left, right = f ~key ~data in
+        Incr.both left right)
+    in
+    Incr.Map.map paired ~f:fst, Incr.Map.map paired ~f:snd
+  in
+  let%map a_left = a_left
+  and a_right = a_right
+  and b_left = b_left
+  and b_right = b_right in
+  require [%here] (Map.equal data_equal_left a_left b_left);
+  require [%here] (Map.equal data_equal_right a_right b_right);
+  a_left, a_right
+;;
+
+let%expect_test "simple unzip_mapi'" =
+  let m = String.Map.of_alist_exn [ "foo", 3; "bar", 10; "snoo", 5 ] |> Incr.Var.create in
+  let fm =
+    unzip_mapi'
+      ~data_equal_left:(Option.equal Int.equal)
+      ~data_equal_right:Int.equal
+      (Incr.Var.watch m)
+      ~f:(fun ~key:_ ~data:x ->
+        ( (let%map x = x in
+           let y = x * x in
+           if y > 10 then Some y else None)
+        , x ))
+    |> Incr.observe
+  in
+  let dump () =
+    Incr.stabilize ();
+    [%sexp_of: int String.Map.t * string * (int option String.Map.t * int String.Map.t)]
+      (Incr.Var.value m, "->", Incr.Observer.value_exn fm)
+    |> Sexp.to_string_hum
+    |> print_endline
+  in
+  let change f =
+    Incr.Var.set m (f (Incr.Var.value m));
+    dump ()
+  in
+  dump ();
+  [%expect
+    {|
+    (((bar 10) (foo 3) (snoo 5)) ->
+     (((bar (100)) (foo ()) (snoo (25))) ((bar 10) (foo 3) (snoo 5)))) |}];
+  change (fun m -> Map.set m ~key:"foo" ~data:9);
+  [%expect
+    {|
+    (((bar 10) (foo 9) (snoo 5)) ->
+     (((bar (100)) (foo (81)) (snoo (25))) ((bar 10) (foo 9) (snoo 5)))) |}];
+  change (fun m -> Map.set m ~key:"bar" ~data:1);
+  [%expect
+    {|
+    (((bar 1) (foo 9) (snoo 5)) ->
+     (((bar ()) (foo (81)) (snoo (25))) ((bar 1) (foo 9) (snoo 5)))) |}];
+  change (fun m -> Map.remove m "snoo");
+  [%expect {| (((bar 1) (foo 9)) -> (((bar ()) (foo (81))) ((bar 1) (foo 9)))) |}]
+;;
+
+let%test_unit "unzip_mapi' randomised fuzz test" =
+  Quickcheck.test
+    ~sexp_of:(List.sexp_of_t (Map_operations.sexp_of_t Int.sexp_of_t))
+    (Map_operations.quickcheck_generator Int.quickcheck_generator)
+    ~f:(fun operations ->
+      let m = Incr.Var.create Int.Map.empty in
+      let watch_m = Incr.Var.watch m
+      and f ~key ~data =
+        ( (let%map data = data in
+           let y = data * data in
+           Option.some_if (key + y > 33) y)
+        , data )
+      in
+      let incr_left, incr_right = Incr.Map.unzip_mapi' watch_m ~data_equal:Int.equal ~f
+      and slow_left, slow_right =
+        let paired =
+          Incr.Map.mapi' watch_m ~f:(fun ~key ~data ->
+            let left, right = f ~key ~data in
+            Incr.both left right)
+        in
+        Incr.Map.map paired ~f:fst, Incr.Map.map paired ~f:snd
+      in
+      let incr_left = Incr.observe incr_left
+      and incr_right = Incr.observe incr_right
+      and slow_left = Incr.observe slow_left
+      and slow_right = Incr.observe slow_right in
+      Map_operations.run_operations operations ~into:m ~after_stabilize:(fun () ->
+        [%test_result: int option Int.Map.t]
+          ~expect:(Incr.Observer.value_exn slow_left)
+          (Incr.Observer.value_exn incr_left);
+        [%test_result: int Int.Map.t]
+          ~expect:(Incr.Observer.value_exn slow_right)
+          (Incr.Observer.value_exn incr_right));
+      Incr.Observer.disallow_future_use incr_left;
+      Incr.Observer.disallow_future_use incr_right;
+      Incr.Observer.disallow_future_use slow_left;
+      Incr.Observer.disallow_future_use slow_right)
+;;
+
+let%bench_module "unzip_mapi'" =
+  (module struct
+    let test_data ~size ~operations =
+      (* It is important this is deterministic *)
+      Quickcheck.random_value
+        ~seed:
+          (`Deterministic
+             (sprintf "%i-%i-%i-hello world, do not forget your towel" 42 size operations))
+        (Map_operations.quickcheck_generator
+           Int.quickcheck_generator
+           ~keys_size:size
+           ~operations)
+    ;;
+
+    let benchmark_unzip_mapi' unzip_mapi' ~operations =
+      let var = Incr.Var.create Int.Map.empty
+      and f ~key ~data =
+        ( (let%map data = data in
+           let y = data * data in
+           Option.some_if (key + y > 33) y)
+        , let%map data = data in
+          data + 20 )
+      in
+      let left, right =
+        unzip_mapi' ?cutoff:None ?data_equal:(Some Int.equal) (Incr.Var.watch var) ~f
+      in
+      let left = Incr.observe left
+      and right = Incr.observe right in
+      Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
+        ignore (Incr.Observer.value_exn left);
+        ignore (Incr.Observer.value_exn right));
+      Incr.Observer.disallow_future_use left;
+      Incr.Observer.disallow_future_use right
+    ;;
+
+    let%bench_fun ("unzip_mapi' random-ops"[@indexed operations = [ 5000; 10000; 100000 ]])
+      =
+      let operations = test_data ~size:(operations / 100) ~operations in
+      fun () -> benchmark_unzip_mapi' Incr.Map.unzip_mapi' ~operations
+    ;;
+
+    let slow_unzip_mapi' ?cutoff ?data_equal input ~f =
+      let both =
+        Incr_map.mapi' ?cutoff ?data_equal input ~f:(fun ~key ~data ->
+          let a, b = f ~key ~data in
+          Incr.both a b)
+      in
+      let left = Incr_map.map both ~f:Tuple2.get1 in
+      let right = Incr_map.map both ~f:Tuple2.get2 in
+      left, right
+    ;;
+
+    let%bench_fun ("slow_unzip_mapi' random-ops"[@indexed
+                     operations = [ 5000; 10000; 100000 ]])
+      =
+      let operations = test_data ~size:(operations / 100) ~operations in
+      fun () -> benchmark_unzip_mapi' slow_unzip_mapi' ~operations
+    ;;
+  end)
+;;
