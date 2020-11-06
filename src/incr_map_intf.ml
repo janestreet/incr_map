@@ -173,6 +173,13 @@ module type S_gen = sig
          Map.t
          Incr.t
 
+  val expand
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('outer_key * 'inner_key, 'v, 'tuple_cmp) Map.t Incr.t
+    -> outer_comparator:('outer_key, 'outer_cmp) Map.comparator
+    -> inner_comparator:('inner_key, 'inner_cmp) Map.comparator
+    -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
+
   val counti
     :  ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
@@ -541,6 +548,19 @@ module type Incr_map = sig
          , 'v
          , ('outer_cmp, 'inner_cmp) Tuple2.comparator_witness )
            Map.t
+       , 'w )
+         Incremental.t
+
+  (** Convert a map with tuples for keys into a nested map. This operation is roughly the
+      inverse of [collapse], though if there are outer keys in the uncollapsed map that
+      correspond to empty inner maps, the outer keys will be dropped from the expanded
+      map. *)
+  val expand
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('outer_key * 'inner_key, 'v, 'tuple_cmp) Map.t, 'w) Incremental.t
+    -> outer_comparator:('outer_key, 'outer_cmp) Map.comparator
+    -> inner_comparator:('inner_key, 'inner_cmp) Map.comparator
+    -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
          Incremental.t
 

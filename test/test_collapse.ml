@@ -96,5 +96,24 @@ let%test_module _ =
           ~expect:(all_at_once map)
           (Incremental.Observer.value_exn observer))
     ;;
+
+    let%test_unit "collapse expand compose" =
+      let var = Incr.Var.create String.Map.empty in
+      let observer =
+        Incremental.observe
+          (Incr_map.expand
+             (Incr_map.collapse ~comparator:(module Int) (Incr.Var.watch var))
+             ~outer_comparator:(module String)
+             ~inner_comparator:(module Int))
+      in
+      Quickcheck.test quickcheck_generator ~f:(fun map ->
+        Incr.Var.set var map;
+        Incr.stabilize ();
+        [%test_result: string Int.Map.t String.Map.t]
+          (* NB: outer keys that map to an empty inner map will be dropped by this
+             operation. *)
+          ~expect:(Map.filter map ~f:(Fn.non Map.is_empty))
+          (Incremental.Observer.value_exn observer))
+    ;;
   end)
 ;;

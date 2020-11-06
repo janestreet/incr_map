@@ -427,13 +427,12 @@ module Generic = struct
 
   let unzip_mapi' ?cutoff ?data_equal map ~f =
     let pair =
-      Incremental.map
-        (Incremental.freeze (Incremental.map ~f:Map.comparator map))
-        ~f:(fun comparator ->
-          unzip_mapi_with_comparator' ?cutoff ?data_equal ~comparator map ~f)
+      with_comparator map (fun comparator ->
+        map
+        |> unzip_mapi_with_comparator' ?cutoff ?data_equal ~comparator ~f
+        |> Tuple2.uncurry Incremental.both)
     in
-    ( Incremental.join (Incremental.map ~f:fst pair)
-    , Incremental.join (Incremental.map ~f:snd pair) )
+    Incremental.map ~f:fst pair, Incremental.map ~f:snd pair
   ;;
 
   let keys map =
@@ -1078,6 +1077,27 @@ module Generic = struct
           Map.add_exn acc ~key:(outer_key, inner_key) ~data)
         ~remove:(fun ~outer_key ~inner_key ~data:_ acc ->
           Map.remove acc (outer_key, inner_key)))
+  ;;
+
+  let expand ?data_equal map_incr ~outer_comparator ~inner_comparator =
+    unordered_fold
+      ?data_equal
+      map_incr
+      ~init:(Map.empty outer_comparator)
+      ~update:(fun ~key:(outer_key, inner_key) ~old_data:_ ~new_data acc ->
+        Map.update acc outer_key ~f:(function
+          | None -> Map.singleton inner_comparator inner_key new_data
+          | Some map -> Map.set map ~key:inner_key ~data:new_data))
+      ~add:(fun ~key:(outer_key, inner_key) ~data acc ->
+        Map.update acc outer_key ~f:(function
+          | None -> Map.singleton inner_comparator inner_key data
+          | Some map -> Map.add_exn map ~key:inner_key ~data))
+      ~remove:(fun ~key:(outer_key, inner_key) ~data:_ acc ->
+        Map.change acc outer_key ~f:(function
+          | None -> None
+          | Some map ->
+            let map = Map.remove map inner_key in
+            Option.some_if (not (Map.is_empty map)) map))
   ;;
 
   let counti ?data_equal map_incr ~f =
