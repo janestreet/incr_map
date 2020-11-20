@@ -184,7 +184,7 @@ let%expect_test "quickcheck ops test" =
   Expect_test_helpers_core.quickcheck
     [%here]
     ~shrinker:Test_case.quickcheck_shrinker
-    ~sexp_of:Test_case.sexp_of_t
+    ~sexp_of:[%sexp_of: Test_case.t]
     Test_case.quickcheck_generator
     ~f:(fun { operations; initial_state; range } ->
       let data = Incr.Var.create (initial_state, range) in

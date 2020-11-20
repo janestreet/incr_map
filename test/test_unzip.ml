@@ -69,7 +69,7 @@ let%expect_test "simple unzip_mapi'" =
 
 let%test_unit "unzip_mapi' randomised fuzz test" =
   Quickcheck.test
-    ~sexp_of:(List.sexp_of_t (Map_operations.sexp_of_t Int.sexp_of_t))
+    ~sexp_of:[%sexp_of: int Map_operations.t list]
     (Map_operations.quickcheck_generator Int.quickcheck_generator)
     ~f:(fun operations ->
       let m = Incr.Var.create Int.Map.empty in

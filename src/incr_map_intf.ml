@@ -136,8 +136,16 @@ module type S_gen = sig
     -> (int Maybe_bound.As_lower_bound.t * int Maybe_bound.As_upper_bound.t) Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
 
+  val index_byi
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('inner_key, 'v, 'inner_cmp) Map.t Incr.t
+    -> comparator:('outer_key, 'outer_cmp) Map.comparator
+    -> index:(key:'inner_key -> data:'v -> 'outer_key option)
+    -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
+
   val index_by
-    :  ('inner_key, 'v, 'inner_cmp) Map.t Incr.t
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('inner_key, 'v, 'inner_cmp) Map.t Incr.t
     -> comparator:('outer_key, 'outer_cmp) Map.comparator
     -> index:('v -> 'outer_key option)
     -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
@@ -487,7 +495,7 @@ module type Incr_map = sig
          Incremental.t
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
 
-  (** [index_by map ~comparator ~index] constructs an incremental map-of-maps where each
+  (** [index_byi map ~comparator ~index] constructs an incremental map-of-maps where each
       key-data pair of the input map is present in one (or none) of the inner maps.
       [index] specifies the outer map key under which each original key-data pair is
       found.
@@ -497,18 +505,30 @@ module type Incr_map = sig
       An all-at-once version of [index_by] would look like:
 
       {[
-        let index_by map ~comparator ~index =
+        let index_byi map ~comparator ~index =
           Map.to_alist map
           |> List.filter_map ~f:(fun (key, data) ->
-            match index data with
+            match index ~key ~data with
             | None -> None
-            | Some index -> index, (key, data))
+            | Some index -> Some (index, (key, data)))
           |> Map.of_alist_multi comparator
           |> Map.map ~f:(Map.of_alist_exn (Map.comparator_s map))
         ;;
       ]} *)
+  val index_byi
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('inner_key, 'v, 'inner_cmp) Map.t, 'w) Incremental.t
+    -> comparator:('outer_key, 'outer_cmp) Map.comparator
+    -> index:(key:'inner_key -> data:'v -> 'outer_key option)
+    -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
+       , 'w )
+         Incremental.t
+
+  (** [index_by map ~comparator ~index] is like [index_by map ~comparator ~index], but the
+      [index] function does not take the inner map's [key]. *)
   val index_by
-    :  (('inner_key, 'v, 'inner_cmp) Map.t, 'w) Incremental.t
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('inner_key, 'v, 'inner_cmp) Map.t, 'w) Incremental.t
     -> comparator:('outer_key, 'outer_cmp) Map.comparator
     -> index:('v -> 'outer_key option)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
@@ -599,6 +619,18 @@ module type Incr_map = sig
     -> ((_, 'v, _) Map.t, 'w) Incremental.t
     -> f:('v -> bool)
     -> (bool, 'w) Incremental.t
+
+  (** Incrementally compute the sum of all of the values in the map.
+
+      Beware of float's negative infinities. They aren't commutative and will misbehave
+      here.
+  *)
+  val sum
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ((_, 'v, _) Map.t, 'w) Incremental.t
+    -> (module Abstract_algebra.Commutative_group.S with type t = 'u)
+    -> f:('v -> 'u)
+    -> ('u, 'w) Incremental.t
 
   (** [('k, 'v) Lookup.t] provides a way to lookup keys in a map which uses symmetric
       diffs to trigger updates of the lookups.

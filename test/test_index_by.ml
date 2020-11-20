@@ -94,3 +94,29 @@ let%expect_test "Simple usage example" =
         (e 1))))          (e 1)))) |}];
   ()
 ;;
+
+let%test_unit "[Incr_map.index_byi] quickcheck" =
+  let index ~key ~data:_ = Some (Odd_or_even.of_int key) in
+  let all_at_once map ~comparator ~index =
+    Map.to_alist map
+    |> List.filter_map ~f:(fun (key, data) ->
+      match index ~key ~data with
+      | None -> None
+      | Some index -> Some (index, (key, data)))
+    |> Map.of_alist_multi comparator
+    |> Map.map ~f:(Map.of_alist_exn (Map.comparator_s map))
+  in
+  let var = Incr.Var.create Int.Map.empty in
+  let observer =
+    Incr_map.index_byi (Incr.Var.watch var) ~comparator:(module Odd_or_even) ~index
+    |> Incr.observe
+  in
+  Quickcheck.test
+    (Int.Map.quickcheck_generator Int.quickcheck_generator String.quickcheck_generator)
+    ~f:(fun map ->
+      Incr.Var.set var map;
+      Incr.stabilize ();
+      [%test_result: string Int.Map.t Odd_or_even.Map.t]
+        ~expect:(Incr.Observer.value_exn observer)
+        (all_at_once map ~comparator:(module Odd_or_even) ~index))
+;;

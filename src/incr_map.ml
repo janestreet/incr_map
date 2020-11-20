@@ -736,13 +736,14 @@ module Generic = struct
                with_new_keys_now_in_range))))
   ;;
 
-  let index_by map_incr ~comparator:outer_comparator ~index =
+  let index_byi ?data_equal map_incr ~comparator:outer_comparator ~index =
     with_comparator map_incr (fun inner_comparator ->
       unordered_fold
+        ?data_equal
         map_incr
         ~init:(Map.empty outer_comparator)
         ~add:(fun ~key:inner_key ~data outer_map ->
-          match index data with
+          match index ~key:inner_key ~data with
           | None -> outer_map
           | Some outer_key ->
             Map.update outer_map outer_key ~f:(function
@@ -753,7 +754,7 @@ module Generic = struct
                   ~comparator:inner_comparator
               | Some inner_map -> Map.add_exn inner_map ~key:inner_key ~data))
         ~remove:(fun ~key:inner_key ~data outer_map ->
-          match index data with
+          match index ~key:inner_key ~data with
           | None -> outer_map
           | Some outer_key ->
             Map.change outer_map outer_key ~f:(function
@@ -762,6 +763,10 @@ module Generic = struct
               | Some inner_map ->
                 let inner_map = Map.remove inner_map inner_key in
                 if Map.is_empty inner_map then None else Some inner_map)))
+  ;;
+
+  let index_by ?data_equal map_incr ~comparator ~index =
+    index_byi ?data_equal map_incr ~comparator ~index:(fun ~key:_ ~data -> index data)
   ;;
 
 
@@ -1119,6 +1124,21 @@ module Generic = struct
 
   let exists ?data_equal map_incr ~f =
     existsi ?data_equal map_incr ~f:(fun ~key:_ ~data -> f data)
+  ;;
+
+  let sum
+        (type u)
+        ?data_equal
+        (map_incr : ((_, _, _) Map.t, _) Incremental.t)
+        (module Group : Abstract_algebra.Commutative_group.S with type t = u)
+        ~f
+    =
+    unordered_fold
+      ?data_equal
+      map_incr
+      ~init:Group.zero
+      ~add:(fun ~key:_ ~data:v acc -> Group.( + ) acc (f v))
+      ~remove:(fun ~key:_ ~data:v acc -> Group.( - ) acc (f v))
   ;;
 
   let for_alli ?data_equal map_incr ~f =
