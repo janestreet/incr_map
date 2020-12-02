@@ -1,5 +1,4 @@
 open Core
-open Poly
 open Import
 
 (** version of filter_mapi that tests the real implementation against a simple, all-at
@@ -47,7 +46,7 @@ let%expect_test "simple filter_mapi" =
 
 let%test_unit "filter_mapi randomised fuzz test" =
   Quickcheck.test
-    ~sexp_of:[%sexp_of: int Map_operations.t list]
+    ~sexp_of:[%sexp_of: (int, int) Map_operations.t list]
     (Map_operations.quickcheck_generator Int.quickcheck_generator)
     ~f:(fun operations ->
       let m = Incr.Var.create Int.Map.empty in
@@ -197,7 +196,9 @@ let%test_module "random tests on filter and non-filter mapping functions" =
 
     (* [f] is the argument given to the [Filter_mapping] functions:
        [Map.filter_mapi] and [Incr.Map.filter_mapi], [Incr.Map.filter_mapi'] *)
-    let f_opt key data = if key % 2 = 0 && data > 0.5 then None else Some (f key data)
+    let f_opt key data =
+      if key % 2 = 0 && Float.O.(data > 0.5) then None else Some (f key data)
+    ;;
 
     (* [incr_map_mapping_i], [incr_map_mapping_i'_with_map], and
        [incr_map_mapping_i'_with_bind] are different versions of the [Incr.Map] function

@@ -45,21 +45,17 @@ let%test_module _ =
     ;;
 
     let%test_unit "randomized map changes" =
-      let var = Incr.Var.create String.Map.empty in
+      let var = Incr.Var.create Int.Map.empty in
       let observer =
         Incremental.observe (Incr_map.partition_mapi (Incr.Var.watch var) ~f)
       in
       Quickcheck.test
-        (Map.quickcheck_generator
-           (module String)
-           [%quickcheck.generator: string]
-           [%quickcheck.generator: int])
-        ~f:(fun map ->
-          Incr.Var.set var map;
-          Incr.stabilize ();
-          [%test_result: string String.Map.t * int String.Map.t]
-            ~expect:(Map.partition_mapi map ~f)
-            (Incremental.Observer.value_exn observer))
+        (Map_operations.quickcheck_generator [%quickcheck.generator: int])
+        ~f:(fun operations ->
+          Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
+            [%test_result: string Int.Map.t * int Int.Map.t]
+              ~expect:(Map.partition_mapi (Incr.Var.latest_value var) ~f)
+              (Incremental.Observer.value_exn observer)))
     ;;
   end)
 ;;

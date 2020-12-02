@@ -1,4 +1,5 @@
 #+TITLE: Incr\_map
+#+UUID: bab875c2-8975-3e0e-8691-159ac34497fa
 
 A set of functions for operating incrementally and efficiently on map
 like data structures.  This leverages new functionality in Incremental

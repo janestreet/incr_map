@@ -2,22 +2,18 @@ open! Core
 open! Import
 
 let quickcheck_test ~incremental ~non_incremental =
-  let f ~key ~data = String.contains key 'a' && Int.is_positive data in
-  let var = Incr.Var.create String.Map.empty in
+  let f ~key ~data = String.contains data 'a' && key % 2 = 0 in
+  let var = Incr.Var.create Int.Map.empty in
   let observer =
     Incremental.observe (incremental ?data_equal:None (Incr.Var.watch var) ~f)
   in
   Quickcheck.test
-    (Map.quickcheck_generator
-       (module String)
-       [%quickcheck.generator: string]
-       [%quickcheck.generator: int])
-    ~f:(fun map ->
-      Incr.Var.set var map;
-      Incr.stabilize ();
-      [%test_result: bool]
-        ~expect:(non_incremental map ~f)
-        (Incremental.Observer.value_exn observer))
+    (Map_operations.quickcheck_generator [%quickcheck.generator: string])
+    ~f:(fun operations ->
+      Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
+        [%test_result: bool]
+          ~expect:(non_incremental (Incr.Var.latest_value var) ~f)
+          (Incremental.Observer.value_exn observer)))
 ;;
 
 let%test_unit "Incr_map.for_alli" =

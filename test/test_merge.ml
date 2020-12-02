@@ -1,5 +1,4 @@
 open Core
-open Poly
 open Import
 
 let%test_module "random tests" =
@@ -168,7 +167,7 @@ let%test_module "random tests" =
       let old_map1, old_map2 = ref map1, ref map2 in
       List.fold (List.range 0 steps) ~init:(map1, map2) ~f:(fun (map1, map2) i ->
         let map1, map2 =
-          if Rand_map_helper.rand () < 0.5
+          if Float.O.(Rand_map_helper.rand () < 0.5)
           then Rand_map_helper.rand_modify_map map1, map2
           else map1, Rand_map_helper.rand_modify_map map2
         in

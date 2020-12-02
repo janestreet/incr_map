@@ -112,11 +112,13 @@ let%test_unit "[Incr_map.index_byi] quickcheck" =
     |> Incr.observe
   in
   Quickcheck.test
-    (Int.Map.quickcheck_generator Int.quickcheck_generator String.quickcheck_generator)
-    ~f:(fun map ->
-      Incr.Var.set var map;
-      Incr.stabilize ();
-      [%test_result: string Int.Map.t Odd_or_even.Map.t]
-        ~expect:(Incr.Observer.value_exn observer)
-        (all_at_once map ~comparator:(module Odd_or_even) ~index))
+    (Map_operations.quickcheck_generator String.quickcheck_generator)
+    ~f:(fun operations ->
+      Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
+        [%test_result: string Int.Map.t Odd_or_even.Map.t]
+          ~expect:(Incr.Observer.value_exn observer)
+          (all_at_once
+             (Incr.Var.latest_value var)
+             ~comparator:(module Odd_or_even)
+             ~index)))
 ;;

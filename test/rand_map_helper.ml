@@ -1,5 +1,4 @@
 open Core
-open Poly
 open Import
 
 let rs = Random.State.make [| 0 |]
@@ -45,9 +44,9 @@ let rand_modify_map map =
   then rand_add_to_map map
   else (
     let rand = rand () in
-    if rand < 0.5
+    if Float.O.(rand < 0.5)
     then rand_add_to_map map
-    else if rand < 0.75
+    else if Float.O.(rand < 0.75)
     then rand_replace_in_map map
     else rand_remove_from_map map)
 ;;
@@ -75,13 +74,13 @@ let rand_modify_map_of_vars map =
   then rand_add_to_map_of_vars map
   else (
     let rand = rand () in
-    if rand < 0.4
+    if Float.O.(rand < 0.4)
     then rand_add_to_map_of_vars map
-    else if rand < 0.6
+    else if Float.O.(rand < 0.6)
     then (
       let () = rand_set_in_map_of_vars map in
       map)
-    else if rand < 0.8
+    else if Float.O.(rand < 0.8)
     then rand_replace_in_map_of_vars map
     else rand_remove_from_map map)
 ;;

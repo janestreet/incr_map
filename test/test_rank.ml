@@ -45,10 +45,9 @@ let%test_unit "add entries to map" =
 ;;
 
 let%test_unit "add and remove entries from map" =
-  let open Poly in
   test ~mutator:(fun map key ->
     let map =
-      if M.rand () < 0.5 then M.rand_add_to_map map else M.rand_add_to_map map
+      if Float.O.(M.rand () < 0.5) then M.rand_add_to_map map else M.rand_add_to_map map
     in
     map, key)
 ;;
@@ -105,10 +104,9 @@ let%test_unit "modify map and pick random keys, but with a 50% probabily of the 
                being in new map"
   =
   test ~mutator:(fun map _key ->
-    let open Poly in
     let map = M.rand_modify_map map in
     let key =
-      if M.rand () < 0.5
+      if Float.O.(M.rand () < 0.5)
       then M.get_rand_existing_key map
       else M.get_rand_nonexistent_key map
     in

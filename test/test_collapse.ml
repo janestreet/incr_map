@@ -3,8 +3,6 @@ open! Import
 
 let%test_module _ =
   (module struct
-    type t = string Int.Map.t Int.Map.t
-
     module Collapsed = struct
       module T = struct
         type t = (int, int) Tuple2.t [@@deriving sexp_of]
@@ -62,17 +60,7 @@ let%test_module _ =
          ((2 1) asdf)) |}]
     ;;
 
-    let quickcheck_generator : t Quickcheck.Generator.t =
-      Map.quickcheck_generator
-        (module Int)
-        [%quickcheck.generator: int]
-        (Map.quickcheck_generator
-           (module Int)
-           [%quickcheck.generator: int]
-           [%quickcheck.generator: string])
-    ;;
-
-    let all_at_once (t : t) =
+    let all_at_once t =
       Map.fold
         t
         ~init:
@@ -89,12 +77,17 @@ let%test_module _ =
         Incremental.observe
           (Incr_map.collapse (Incr.Var.watch var) ~comparator:(module Int))
       in
-      Quickcheck.test quickcheck_generator ~f:(fun map ->
-        Incr.Var.set var map;
-        Incr.stabilize ();
-        [%test_result: string Collapsed.Map.t]
-          ~expect:(all_at_once map)
-          (Incremental.Observer.value_exn observer))
+      Quickcheck.test
+        (Map_operations.nested_quickcheck_generator String.quickcheck_generator)
+        ~f:(fun operations ->
+          Map_operations.nested_run_operations
+            operations
+            ~inner_map_comparator:(module Int)
+            ~into:var
+            ~after_stabilize:(fun () ->
+              [%test_result: string Collapsed.Map.t]
+                ~expect:(all_at_once (Incr.Var.latest_value var))
+                (Incremental.Observer.value_exn observer)))
     ;;
 
     let%test_unit "collapse expand compose" =
@@ -106,14 +99,19 @@ let%test_module _ =
              ~outer_comparator:(module Int)
              ~inner_comparator:(module Int))
       in
-      Quickcheck.test quickcheck_generator ~f:(fun map ->
-        Incr.Var.set var map;
-        Incr.stabilize ();
-        [%test_result: string Int.Map.t Int.Map.t]
-          (* NB: outer keys that map to an empty inner map will be dropped by this
-             operation. *)
-          ~expect:(Map.filter map ~f:(Fn.non Map.is_empty))
-          (Incremental.Observer.value_exn observer))
+      Quickcheck.test
+        (Map_operations.nested_quickcheck_generator String.quickcheck_generator)
+        ~f:(fun operations ->
+          Map_operations.nested_run_operations
+            operations
+            ~inner_map_comparator:(module Int)
+            ~into:var
+            ~after_stabilize:(fun () ->
+              [%test_result: string Int.Map.t Int.Map.t]
+                (* NB: outer keys that map to an empty inner map will be dropped by this
+                   operation. *)
+                ~expect:(Map.filter (Incr.Var.latest_value var) ~f:(Fn.non Map.is_empty))
+                (Incremental.Observer.value_exn observer)))
     ;;
   end)
 ;;
