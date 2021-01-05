@@ -1,7 +1,4 @@
----
-title: "Incr_map_collate"
-uuid: bd8bbc5e-d1fb-3429-6133-3fd8d9a54f00
----
+# Incr_map_collate
 
 A library for filtering, sorting and paging a map using incr_map, as often done
 in web servers and web apps.
