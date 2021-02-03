@@ -1,4 +1,4 @@
 (library (name incr_map_test)
  (libraries core incremental incr_map expect_test_helpers_core
   expect_test_sexp_diff)
- (preprocess (pps ppx_jane -allow-unannotated-ignores)))
+ (preprocess (pps ppx_jane)))
