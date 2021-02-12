@@ -688,11 +688,12 @@ module Generic = struct
                  ~f:apply_diff_in_intersection
                |> snd
              in
-             if Tuple2.equal
-                  ~eq1:maybe_bound_equal
-                  ~eq2:maybe_bound_equal
-                  old_range
-                  range
+             if
+               Tuple2.equal
+                 ~eq1:maybe_bound_equal
+                 ~eq2:maybe_bound_equal
+                 old_range
+                 range
              then
                (* There are no keys to remove and everything in range is updated. *)
                with_updated_values_in_intersection

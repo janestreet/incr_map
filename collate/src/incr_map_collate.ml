@@ -32,6 +32,42 @@ module Make (Incr : Incremental.S) = struct
       end)
   end
 
+  module Range_memoize_bucket = struct
+    type key_bucket =
+      | All_rows
+      | Not_all_rows
+    [@@deriving sexp_of, equal, hash, compare]
+
+    type rank_bucket =
+      | All_rows
+      | From of int
+      | To of int
+      | Between of (int * int)
+    [@@deriving sexp_of, equal, hash, compare]
+
+    type t = key_bucket * rank_bucket [@@deriving sexp_of, equal, hash, compare]
+
+    let create
+          ~bucket_size
+          ~(key_range : _ Collate.Which_range.t)
+          ~(rank_range : int Collate.Which_range.t)
+      =
+      let key_bucket : key_bucket =
+        match key_range with
+        | All_rows -> All_rows
+        | From _ | To _ | Between _ -> Not_all_rows
+      in
+      let rank_bucket =
+        match rank_range with
+        | All_rows -> All_rows
+        | From i -> From (i / bucket_size)
+        | To i -> To (i / bucket_size)
+        | Between (i, j) -> Between (i / bucket_size, j / bucket_size)
+      in
+      key_bucket, rank_bucket
+    ;;
+  end
+
   module Incr_collated_map = struct
     type ('k, 'v, 'cmp, 'custom_cmp) t =
       | Original of (('k, 'v, 'cmp) Map.t Incr.t * ('k, 'cmp) Comparator.t)
@@ -324,6 +360,8 @@ module Make (Incr : Incremental.S) = struct
         ?(operation_order = `Sort_first)
         ?filter_memoize_params
         ?order_memoize_params
+        ?(range_memoize_bucket_size = 10000)
+        ?(range_memoize_cache_size = 5)
         ~filter_equal
         ~order_equal
         ~(filter_to_predicate : filter -> _)
@@ -354,6 +392,35 @@ module Make (Incr : Incremental.S) = struct
     in
     let orig_data = data in
     let with_filtered_and_sorted data ~num_filtered_rows =
+      (* Range operations are incremental with respect to the range, so we don't have
+         to bind to ranges.
+
+         However, incrementality does not necessarily mean they're fast - they run in
+         roughly O(|new ranks - old ranks|) or O(|new key position - old key position|).
+         So, if we request two very different ranges one after another, the computation
+         will be very expensive.
+
+         We alleviate this problem here by dividing possible ranges into buckets, and
+         only using incremental computation when old & new belong to the same bucket.
+
+         We also keep a cache of a few least recently used buckets.
+      *)
+      let range_memoize_bucket =
+        let%map key_range = key_range
+        and rank_range = rank_range in
+        Range_memoize_bucket.create
+          ~bucket_size:range_memoize_bucket_size
+          ~key_range
+          ~rank_range
+      in
+      let range_memoize_bucket =
+        Incr_memoize.with_params
+          range_memoize_bucket
+          (Incr_memoize.Store_params.hash_based__lru
+             (module Range_memoize_bucket)
+             ~max_size:range_memoize_cache_size)
+      in
+      let%bind.Incr_memoize _ = range_memoize_bucket in
       let data, count_before_key_rank =
         do_key_range_restrict data ~key_range ~orig_map:orig_data
       in

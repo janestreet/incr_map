@@ -41,6 +41,8 @@ module Make (Incr : Incremental.S) : sig
     (** default: an alist-based LRU with size 1 *)
     -> ?order_memoize_params:'order Incr_memoize.Store_params.t
     (** default: an alist-based LRU with size 10 *)
+    -> ?range_memoize_bucket_size:int (** default: 10000 *)
+    -> ?range_memoize_cache_size:int (** default: 5 *)
     -> filter_equal:('filter -> 'filter -> bool)
     -> order_equal:('order -> 'order -> bool)
     -> filter_to_predicate:('filter -> (key:'k -> data:'v -> bool) option)
