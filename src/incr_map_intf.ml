@@ -224,6 +224,13 @@ module type S_gen = sig
     -> f:('v -> bool)
     -> bool Incr.t
 
+  val sum
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (_, 'v, _) Map.t Incr.t
+    -> (module Abstract_algebra.Commutative_group.S with type t = 'u)
+    -> f:('v -> 'u)
+    -> 'u Incr.t
+
   module Lookup : sig
     type ('k, 'v, 'cmp) t
 

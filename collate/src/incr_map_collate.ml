@@ -414,6 +414,9 @@ module Make (Incr : Incremental.S) = struct
           ~rank_range
       in
       let range_memoize_bucket =
+        with_cutoff range_memoize_bucket ~equal:Range_memoize_bucket.equal
+      in
+      let range_memoize_bucket =
         Incr_memoize.with_params
           range_memoize_bucket
           (Incr_memoize.Store_params.hash_based__lru

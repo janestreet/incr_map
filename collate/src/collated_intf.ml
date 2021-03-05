@@ -84,6 +84,7 @@ module type Concrete = sig
   val last : t -> (Key.t * Value.t) option
   val length : t -> int
   val num_filtered_rows : t -> int
+  val num_unfiltered_rows : t -> int
   val key_range : t -> Key.t Which_range.t
   val rank_range : t -> int Which_range.t
 
