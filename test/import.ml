@@ -1,3 +1,4 @@
+module Time = Time_unix
 include Expect_test_helpers_core
 
 module Incr = struct

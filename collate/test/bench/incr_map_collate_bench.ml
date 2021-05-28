@@ -307,5 +307,5 @@ let () =
     ~summary:"Run incr_map_collate benchmarks"
     (let%map_open.Command verbose = flag "-verbose" no_arg ~doc:"More verbose output" in
      fun () -> all_benchmarks ~verbose)
-  |> Command.run
+  |> Command_unix.run
 ;;

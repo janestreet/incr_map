@@ -181,6 +181,13 @@ module type S_gen = sig
          Map.t
          Incr.t
 
+  val collapse_by
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
+    -> merge_keys:('outer_key -> 'inner_key -> 'combined_key)
+    -> comparator:('combined_key, 'combined_cmp) Map.comparator
+    -> ('combined_key, 'v, 'combined_cmp) Map.t Incr.t
+
   val expand
     :  ?data_equal:('v -> 'v -> bool)
     -> ('outer_key * 'inner_key, 'v, 'tuple_cmp) Map.t Incr.t
@@ -577,6 +584,22 @@ module type Incr_map = sig
            Map.t
        , 'w )
          Incremental.t
+
+  (** [collapse_by] is similar to [collapse], but it allows the user to 
+      choose how to combine the two keys from the outer and inner maps.
+      This does mean that it's the responsibility of the implementor of the 
+      [merge_keys] function to uphold this invariant: 
+      > a merged-key being equal to another merged-key implies that the 
+      > outer-keys and inner-keys which were used to build the merged keys also
+      > compare to be equal to one another *)
+  val collapse_by
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
+       , 'w )
+         Incremental.t
+    -> merge_keys:('outer_key -> 'inner_key -> 'combined_key)
+    -> comparator:('combined_key, 'combined_cmp) Map.comparator
+    -> (('combined_key, 'v, 'combined_cmp) Map.t, 'w) Incremental.t
 
   (** Convert a map with tuples for keys into a nested map. This operation is roughly the
       inverse of [collapse], though if there are outer keys in the uncollapsed map that

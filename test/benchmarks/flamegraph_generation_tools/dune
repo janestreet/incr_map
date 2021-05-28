@@ -1,2 +1,3 @@
-(executables (names html_table) (libraries incr_map_benchmarks)
+(executables (names html_table)
+ (libraries core.command_unix incr_map_benchmarks)
  (preprocess (pps ppx_jane)))

@@ -1059,6 +1059,26 @@ module Generic = struct
         unordered_fold m ~init:(Map.empty k2_comparator) ~update ~add ~remove)
   ;;
 
+  let collapse_by
+        (type outer_key outer_cmp inner_key inner_cmp combined_key combined_cmp)
+        ?data_equal
+        (map_incr :
+           ((outer_key, (inner_key, _, inner_cmp) Map.t, outer_cmp) Map.t, _) Incremental.t)
+        ~(merge_keys : outer_key -> inner_key -> combined_key)
+        ~(comparator : (combined_key, combined_cmp) Map.comparator)
+    =
+    unordered_fold_nested_maps
+      ?data_equal
+      map_incr
+      ~init:(Map.empty comparator)
+      ~update:(fun ~outer_key ~inner_key ~old_data:_ ~new_data acc ->
+        Map.set acc ~key:(merge_keys outer_key inner_key) ~data:new_data)
+      ~add:(fun ~outer_key ~inner_key ~data acc ->
+        Map.add_exn acc ~key:(merge_keys outer_key inner_key) ~data)
+      ~remove:(fun ~outer_key ~inner_key ~data:_ acc ->
+        Map.remove acc (merge_keys outer_key inner_key))
+  ;;
+
   let collapse
         (type outer_key outer_cmp inner_key inner_cmp)
         ?data_equal
@@ -1067,22 +1087,24 @@ module Generic = struct
         ~comparator:(inner_comparator : (inner_key, inner_cmp) Map.comparator)
     =
     with_comparator map_incr (fun outer_comparator ->
-      let comparator =
-        Tuple2.comparator
-          outer_comparator
-          (let module M = (val inner_comparator) in
-           M.comparator)
+      let module Cmp = struct
+        type t = outer_key * inner_key
+        type comparator_witness = (outer_cmp, inner_cmp) Tuple2.comparator_witness
+
+        let comparator =
+          let inner_comparator =
+            let module M = (val inner_comparator) in
+            M.comparator
+          in
+          Tuple2.comparator outer_comparator inner_comparator
+        ;;
+      end
       in
-      unordered_fold_nested_maps
+      collapse_by
         ?data_equal
         map_incr
-        ~init:(Map.Using_comparator.empty ~comparator)
-        ~update:(fun ~outer_key ~inner_key ~old_data:_ ~new_data acc ->
-          Map.set acc ~key:(outer_key, inner_key) ~data:new_data)
-        ~add:(fun ~outer_key ~inner_key ~data acc ->
-          Map.add_exn acc ~key:(outer_key, inner_key) ~data)
-        ~remove:(fun ~outer_key ~inner_key ~data:_ acc ->
-          Map.remove acc (outer_key, inner_key)))
+        ~merge_keys:Tuple2.create
+        ~comparator:(module Cmp))
   ;;
 
   let expand ?data_equal map_incr ~outer_comparator ~inner_comparator =
