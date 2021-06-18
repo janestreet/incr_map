@@ -1,3 +1,4 @@
 (executables (names incr_map_collate_bench)
- (libraries core.command_unix core incr_map_collate incr_map_test)
+ (libraries core.command_unix core_kernel.core incr_map_collate
+  incr_map_test)
  (preprocess (pps ppx_jane)))

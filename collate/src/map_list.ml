@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 
 type 'a t = 'a Int63.Map.t [@@deriving sexp, equal, compare, bin_io]
 

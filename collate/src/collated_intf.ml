@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 module Which_range = Collate.Which_range
 
 module type Parametrized = sig

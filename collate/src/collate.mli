@@ -1,4 +1,4 @@
-open! Core_kernel
+open! Core
 
 module Which_range : sig
   (** Bounds are inclusive at both ends. *)

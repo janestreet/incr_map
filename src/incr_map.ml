@@ -1,4 +1,4 @@
-open! Core_kernel
+open! Core
 include Incr_map_intf
 
 (** This type lets us capture the kind of map function being performed, so we can with
@@ -1153,7 +1153,7 @@ module Generic = struct
         (type u)
         ?data_equal
         (map_incr : ((_, _, _) Map.t, _) Incremental.t)
-        (module Group : Abstract_algebra.Commutative_group.S with type t = u)
+        (module Group : Abstract_algebra.Commutative_group.Without_sexp with type t = u)
         ~f
     =
     unordered_fold

@@ -1,4 +1,4 @@
-open! Core_kernel
+open! Core
 
 (** [S_gen] is the type of the module returned by [Incr_map.Make].  It is a specialization
     of the interface of [Incr_map], with:
@@ -234,7 +234,7 @@ module type S_gen = sig
   val sum
     :  ?data_equal:('v -> 'v -> bool)
     -> (_, 'v, _) Map.t Incr.t
-    -> (module Abstract_algebra.Commutative_group.S with type t = 'u)
+    -> (module Abstract_algebra.Commutative_group.Without_sexp with type t = 'u)
     -> f:('v -> 'u)
     -> 'u Incr.t
 
@@ -278,8 +278,8 @@ module type Incr_map = sig
       input map are typically computed using [Map.symmetric_diff].
 
       Unless stated otherwise, the non-incremental semantics of these functions (i.e..,
-      ignoring performance) is the same as the corresponding function in Core_kernel's
-      [Map] module.  *)
+      ignoring performance) is the same as the corresponding function in Core's [Map]
+      module.  *)
 
   val of_set
     :  (('k, 'cmp) Set.t, 'w) Incremental.t
@@ -585,11 +585,11 @@ module type Incr_map = sig
        , 'w )
          Incremental.t
 
-  (** [collapse_by] is similar to [collapse], but it allows the user to 
+  (** [collapse_by] is similar to [collapse], but it allows the user to
       choose how to combine the two keys from the outer and inner maps.
-      This does mean that it's the responsibility of the implementor of the 
-      [merge_keys] function to uphold this invariant: 
-      > a merged-key being equal to another merged-key implies that the 
+      This does mean that it's the responsibility of the implementor of the
+      [merge_keys] function to uphold this invariant:
+      > a merged-key being equal to another merged-key implies that the
       > outer-keys and inner-keys which were used to build the merged keys also
       > compare to be equal to one another *)
   val collapse_by
@@ -658,7 +658,7 @@ module type Incr_map = sig
   val sum
     :  ?data_equal:('v -> 'v -> bool)
     -> ((_, 'v, _) Map.t, 'w) Incremental.t
-    -> (module Abstract_algebra.Commutative_group.S with type t = 'u)
+    -> (module Abstract_algebra.Commutative_group.Without_sexp with type t = 'u)
     -> f:('v -> 'u)
     -> ('u, 'w) Incremental.t
 

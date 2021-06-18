@@ -108,7 +108,7 @@ let%bench_module "inline_benchmarks" =
     ;;
 
     let map =
-      Core_kernel.Int.Map.of_increasing_sequence
+      Core.Int.Map.of_increasing_sequence
         (Sequence.range 0 1_000_000 |> Sequence.map ~f:(fun x -> x, ()))
       |> Or_error.ok_exn
     ;;

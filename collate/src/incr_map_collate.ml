@@ -1,4 +1,4 @@
-open! Core_kernel
+open! Core
 module Collate = Collate
 module Collated = Collated
 module Map_list = Map_list
