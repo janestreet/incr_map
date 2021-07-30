@@ -342,34 +342,139 @@ module Generic = struct
     |> filter_mapi' ?cutoff ~f:(fun ~key ~data:diff -> f ~key diff)
   ;;
 
+  let unzip_mapi_with_comparator
+        (type v v1 v2 state_witness)
+        (input : (('key, v, 'cmp) Map.t, state_witness) Incremental.t)
+        ?(data_equal : v -> v -> bool = phys_equal)
+        ?(left_result_equal : v1 -> v1 -> bool = phys_equal)
+        ?(right_result_equal : v2 -> v2 -> bool = phys_equal)
+        ~(comparator : ('key, 'cmp) Comparator.t)
+        ~(f : key:'key -> data:v -> v1 * v2)
+    : (('key, v1, 'cmp) Map.t, state_witness) Incremental.t
+      * (('key, v2, 'cmp) Map.t, state_witness) Incremental.t
+    =
+    let module E = Incremental.Expert in
+    let incremental_state = Incremental.state input in
+    let empty_map = Map.Using_comparator.empty ~comparator in
+    let left_acc : ('key, v1, 'cmp) Map.t ref = ref empty_map in
+    let left_result = E.Node.create incremental_state (fun () -> !left_acc) in
+    let right_acc : ('key, v2, 'cmp) Map.t ref = ref empty_map in
+    let right_result = E.Node.create incremental_state (fun () -> !right_acc) in
+    let prev_map = ref empty_map in
+    let input_change =
+      Incremental.map input ~f:(fun map ->
+        let left, right =
+          match Map.is_empty !prev_map, Map.is_empty map with
+          | true, true | false, true -> empty_map, empty_map
+          | true, false ->
+            (* Mapping on a map is way faster than symmetric diffing and then
+               building the maps up piece by piece, so we do this whenever we
+               transition from "empty" to "something", which will almost always
+               happen on the first stabilization. *)
+            let left =
+              Map.mapi map ~f:(fun ~key ~data ->
+                let l, _ = f ~key ~data in
+                l)
+            in
+            let right =
+              Map.mapi map ~f:(fun ~key ~data ->
+                let _, r = f ~key ~data in
+                r)
+            in
+            left, right
+          | false, false ->
+            Map.fold_symmetric_diff
+              ~data_equal
+              !prev_map
+              map
+              ~init:(!left_acc, !right_acc)
+              ~f:(fun (left, right) (key, changed) ->
+                match changed with
+                | `Unequal (prev, new_) ->
+                  let prev_a, prev_b = f ~key ~data:prev in
+                  let new_a, new_b = f ~key ~data:new_ in
+                  let left =
+                    if left_result_equal prev_a new_a
+                    then left
+                    else Map.set left ~key ~data:new_a
+                  in
+                  let right =
+                    if right_result_equal prev_b new_b
+                    then right
+                    else Map.set right ~key ~data:new_b
+                  in
+                  left, right
+                | `Left _ -> Map.remove left key, Map.remove right key
+                | `Right element ->
+                  let a, b = f ~key ~data:element in
+                  Map.set left ~key ~data:a, Map.set right ~key ~data:b)
+        in
+        if not (phys_equal !left_acc left) then E.Node.make_stale left_result;
+        if not (phys_equal !right_acc right) then E.Node.make_stale right_result;
+        left_acc := left;
+        right_acc := right;
+        prev_map := map)
+    in
+    E.Node.add_dependency left_result (E.Dependency.create input_change);
+    E.Node.add_dependency right_result (E.Dependency.create input_change);
+    E.Node.watch left_result, E.Node.watch right_result
+  ;;
+
+  let unzip_mapi ?data_equal ?left_result_equal ?right_result_equal input ~f =
+    let pair =
+      with_comparator input (fun comparator ->
+        input
+        |> unzip_mapi_with_comparator
+             ?data_equal
+             ?left_result_equal
+             ?right_result_equal
+             ~comparator
+             ~f
+        |> Tuple2.uncurry Incremental.both)
+    in
+    Incremental.map ~f:fst pair, Incremental.map ~f:snd pair
+  ;;
+
+  let unzip ?left_result_equal ?right_result_equal input =
+    let data_equal =
+      Option.map2 left_result_equal right_result_equal ~f:(fun l r ->
+        Tuple2.equal ~eq1:l ~eq2:r)
+    in
+    unzip_mapi
+      ?data_equal
+      ?left_result_equal
+      ?right_result_equal
+      input
+      ~f:(fun ~key:_ ~data -> data)
+  ;;
+
   let unzip_mapi_with_comparator'
-        (type input_data left_output right_output state_witness)
+        (type v v1 v2 state_witness)
         ?cutoff
         ?(data_equal = phys_equal)
-        (lhs : (('key, input_data, 'cmp) Map.t, state_witness) Incremental.t)
+        (input : (('key, v, 'cmp) Map.t, state_witness) Incremental.t)
         ~(comparator : ('key, 'cmp) Comparator.t)
         ~(f :
             key:'key
-          -> data:(input_data, state_witness) Incremental.t
-          -> (left_output, state_witness) Incremental.t
-             * (right_output, state_witness) Incremental.t)
-    : (('key, left_output, 'cmp) Map.t, state_witness) Incremental.t
-      * (('key, right_output, 'cmp) Map.t, state_witness) Incremental.t
+          -> data:(v, state_witness) Incremental.t
+          -> (v1, state_witness) Incremental.t * (v2, state_witness) Incremental.t)
+    : (('key, v1, 'cmp) Map.t, state_witness) Incremental.t
+      * (('key, v2, 'cmp) Map.t, state_witness) Incremental.t
     =
     let module E = Incremental.Expert in
-    let incremental_state = Incremental.state lhs in
+    let incremental_state = Incremental.state input in
     let empty_map = Map.Using_comparator.empty ~comparator in
     let prev_map = ref empty_map in
     let prev_nodes = ref empty_map in
-    let left_acc : ('key, left_output, 'cmp) Map.t ref = ref empty_map in
+    let left_acc : ('key, v1, 'cmp) Map.t ref = ref empty_map in
     let left_result = E.Node.create incremental_state (fun () -> !left_acc) in
-    let right_acc : ('key, right_output, 'cmp) Map.t ref = ref empty_map in
+    let right_acc : ('key, v2, 'cmp) Map.t ref = ref empty_map in
     let right_result = E.Node.create incremental_state (fun () -> !right_acc) in
     let left_on_inner_change ~key data = left_acc := Map.set !left_acc ~key ~data in
     let right_on_inner_change ~key data = right_acc := Map.set !right_acc ~key ~data in
-    let rec lhs_change =
+    let rec input_change =
       lazy
-        (Incremental.map lhs ~f:(fun map ->
+        (Incremental.map input ~f:(fun map ->
            let new_nodes =
              Map.fold_symmetric_diff
                ~data_equal
@@ -398,7 +503,7 @@ module Generic = struct
                    in
                    Option.iter cutoff ~f:(fun c ->
                      Incremental.set_cutoff (E.Node.watch node) c);
-                   E.Node.add_dependency node (E.Dependency.create (force lhs_change));
+                   E.Node.add_dependency node (E.Dependency.create (force input_change));
                    let left_incr, right_incr = f ~key ~data:(E.Node.watch node) in
                    let left_user_function_dep =
                      E.Dependency.create
@@ -420,8 +525,8 @@ module Generic = struct
            prev_nodes := new_nodes;
            prev_map := map))
     in
-    E.Node.add_dependency left_result (E.Dependency.create (force lhs_change));
-    E.Node.add_dependency right_result (E.Dependency.create (force lhs_change));
+    E.Node.add_dependency left_result (E.Dependency.create (force input_change));
+    E.Node.add_dependency right_result (E.Dependency.create (force input_change));
     E.Node.watch left_result, E.Node.watch right_result
   ;;
 
@@ -735,6 +840,21 @@ module Generic = struct
                    (map_append_exn without_keys_out_of_range upper_part)
                in
                with_new_keys_now_in_range))))
+  ;;
+
+  let rekey ?data_equal map_incr ~comparator:outer_comparator ~f =
+    unordered_fold
+      map_incr
+      ?data_equal
+      ~init:(Map.empty outer_comparator)
+      ~add:(fun ~key ~data output -> Map.add_exn output ~key:(f ~key ~data) ~data)
+      ~remove:(fun ~key ~data output -> Map.remove output (f ~key ~data))
+      ~update:(fun ~key ~old_data ~new_data output ->
+        let prev_key = f ~key ~data:old_data in
+        let new_key = f ~key ~data:new_data in
+        if (Map.comparator output).compare prev_key new_key = 0
+        then Map.set output ~key:new_key ~data:new_data
+        else Map.remove output prev_key |> Map.add_exn ~key:new_key ~data:new_data)
   ;;
 
   let index_byi ?data_equal map_incr ~comparator:outer_comparator ~index =

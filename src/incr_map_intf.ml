@@ -94,6 +94,20 @@ module type S_gen = sig
     -> f:(key:'k -> [ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ] -> 'v3 option)
     -> ('k, 'v3, 'cmp) Map.t Incr.t
 
+  val unzip
+    :  ?left_result_equal:('v1 -> 'v1 -> bool)
+    -> ?right_result_equal:('v2 -> 'v2 -> bool)
+    -> ('k, 'v1 * 'v2, 'cmp) Map.t Incr.t
+    -> ('k, 'v1, 'cmp) Map.t Incr.t * ('k, 'v2, 'cmp) Map.t Incr.t
+
+  val unzip_mapi
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ?left_result_equal:('v1 -> 'v1 -> bool)
+    -> ?right_result_equal:('v2 -> 'v2 -> bool)
+    -> ('k, 'v, 'cmp) Map.t Incr.t
+    -> f:(key:'k -> data:'v -> 'v1 * 'v2)
+    -> ('k, 'v1, 'cmp) Map.t Incr.t * ('k, 'v2, 'cmp) Map.t Incr.t
+
   val unzip_mapi'
     :  ?cutoff:'v Incr.Cutoff.t
     -> ?data_equal:('v -> 'v -> bool)
@@ -135,6 +149,13 @@ module type S_gen = sig
     -> ('k, 'v, 'cmp) Map.t Incr.t
     -> (int Maybe_bound.As_lower_bound.t * int Maybe_bound.As_upper_bound.t) Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
+
+  val rekey
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k1, 'v, 'cmp1) Map.t Incr.t
+    -> comparator:('k2, 'cmp2) Map.comparator
+    -> f:(key:'k1 -> data:'v -> 'k2)
+    -> ('k2, 'v, 'cmp2) Map.t Incr.t
 
   val index_byi
     :  ?data_equal:('v -> 'v -> bool)
@@ -398,12 +419,33 @@ module type Incr_map = sig
           -> ('v3 option, 'w) Incremental.t)
     -> (('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
 
-  (** This function is similar to [List.unzip], but for incremental maps.
+  val unzip
+    :  ?left_result_equal:('a -> 'a -> bool)
+    -> ?right_result_equal:('b -> 'b -> bool)
+    -> (('k, 'a * 'b, 'cmp) Map.t, 'w) Incremental.t
+    -> (('k, 'a, 'cmp) Map.t, 'w) Incremental.t * (('k, 'b, 'cmp) Map.t, 'w) Incremental.t
+
+  (** [unzip_mapi] is similar to [List.unzip], but for incremental maps. Note that [f] may
+      be called multiple times on a single element. *)
+  val unzip_mapi
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ?left_result_equal:('v1 -> 'v1 -> bool)
+    -> ?right_result_equal:('v2 -> 'v2 -> bool)
+    -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
+    -> f:(key:'k -> data:'v -> 'v1 * 'v2)
+    -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
+       * (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
+
+  (** [unzip_mapi'] is like [unzip_mapi], but allows you to define the mapping from the
+      input map's elements to the output maps' elements incrementally.
 
       The naive implementation (see below) produces worse Incremental graphs.
 
       {[
-        let temp = Incr_map.mapi' input ~f:(fun ~key ~data -> f ~key ~data |> Tuple2.uncurry Incr.both) in
+        let temp =
+          Incr_map.mapi' input ~f:(fun ~key ~data ->
+            f ~key ~data |> Tuple2.uncurry Incr.both)
+        in
         let left = Incr_map.map temp ~f:Tuple2.get1 in
         let right = Incr_map.map temp ~f:Tuple2.get2 in
         left, right
@@ -509,6 +551,20 @@ module type Incr_map = sig
          Incremental.t
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
 
+  (** [rekey] transforms a map by modifying the type of the key.  The user is
+      responsible for ensuring that [f] doesn't return the same output key for
+      multiple input keys.
+
+      This function assumes [f] is cheap to compute and accordingly may call
+      it multiple times.
+  *)
+  val rekey
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k1, 'v, 'cmp1) Map.t, 'w) Incremental.t
+    -> comparator:('k2, 'cmp2) Map.comparator
+    -> f:(key:'k1 -> data:'v -> 'k2)
+    -> (('k2, 'v, 'cmp2) Map.t, 'w) Incremental.t
+
   (** [index_byi map ~comparator ~index] constructs an incremental map-of-maps where each
       key-data pair of the input map is present in one (or none) of the inner maps.
       [index] specifies the outer map key under which each original key-data pair is
@@ -566,6 +622,9 @@ module type Incr_map = sig
     -> remove:(outer_key:'outer_key -> inner_key:'inner_key -> data:'v -> 'acc -> 'acc)
     -> ('acc, 'w) Incremental.t
 
+  (** [transpose] flips the order of a doubly nested incremental map.
+
+      All inner map instances will have at least one element. *)
   val transpose
     :  ?data_equal:('v -> 'v -> bool)
     -> ('k2, 'k2_cmp) Map.comparator

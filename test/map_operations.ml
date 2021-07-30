@@ -59,8 +59,11 @@ let quickcheck_generator_with_stabilize ~key_gen ?operations data_gen =
   | Some len -> List.gen_with_length len elt_gen
 ;;
 
-let quickcheck_generator ?keys_size =
-  quickcheck_generator_with_stabilize ~key_gen:(int_key_gen ~keys_size)
+let quickcheck_generator ?keys_size ?operations data_gen =
+  quickcheck_generator_with_stabilize
+    ~key_gen:(int_key_gen ~keys_size)
+    ?operations
+    data_gen
 ;;
 
 let tuple_key_quickcheck_generator ?(keys_size = 12) ?operations data_gen =
