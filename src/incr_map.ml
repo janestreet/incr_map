@@ -344,10 +344,10 @@ module Generic = struct
 
   let unzip_mapi_with_comparator
         (type v v1 v2 state_witness)
-        (input : (('key, v, 'cmp) Map.t, state_witness) Incremental.t)
         ?(data_equal : v -> v -> bool = phys_equal)
         ?(left_result_equal : v1 -> v1 -> bool = phys_equal)
         ?(right_result_equal : v2 -> v2 -> bool = phys_equal)
+        (input : (('key, v, 'cmp) Map.t, state_witness) Incremental.t)
         ~(comparator : ('key, 'cmp) Comparator.t)
         ~(f : key:'key -> data:v -> v1 * v2)
     : (('key, v1, 'cmp) Map.t, state_witness) Incremental.t
