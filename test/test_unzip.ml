@@ -143,7 +143,7 @@ module Make_test (S : S) = struct
         Incr.Observer.disallow_future_use right
       ;;
 
-      let%bench_fun ("unzip_mapi' random-ops"[@indexed
+      let%bench_fun ("unzip_mapi' random-ops" [@indexed
                        operations = [ 5000; 10000; 100000 ]])
         =
         let operations = test_data ~size:(operations / 100) ~operations in
@@ -161,7 +161,7 @@ module Make_test (S : S) = struct
         left, right
       ;;
 
-      let%bench_fun ("slow_unzip_mapi' random-ops"[@indexed
+      let%bench_fun ("slow_unzip_mapi' random-ops" [@indexed
                        operations = [ 5000; 10000; 100000 ]])
         =
         let operations = test_data ~size:(operations / 100) ~operations in

@@ -348,14 +348,14 @@ let%bench_module "merge" =
     let key_range = 0, 25000
     let initial_size = 15000
 
-    let%bench_fun ("cheap merging function"[@indexed length = [ 1000; 3000; 5000 ]]) =
+    let%bench_fun ("cheap merging function" [@indexed length = [ 1000; 3000; 5000 ]]) =
       generate_fun ~length ~key_range ~initial_size ~merge_f:(fun ~key:_ v ->
         match v with
         | `Left v | `Right v | `Both (v, _) -> Some v)
       |> Staged.unstage
     ;;
 
-    let%bench_fun ("merging function with expensive `Both case"[@indexed
+    let%bench_fun ("merging function with expensive `Both case" [@indexed
                      length
                      = [ 1000; 2000; 4000 ]])
       =

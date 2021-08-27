@@ -19,10 +19,10 @@ struct
   let name = S.name
   let f = S.f
 
-  let%bench_module (""[@name_suffix name]) =
+  let%bench_module ("" [@name_suffix name]) =
     (module struct
       (* Build a map from scratch, one [Map.set] per element, stabilizing along the way. *)
-      let%bench_fun ("make"[@indexed size = [ 1000; 100_000 ]]) =
+      let%bench_fun ("make" [@indexed size = [ 1000; 100_000 ]]) =
         fun () ->
           let open Infix in
           let input = Incr.Var.create Int.Map.empty in

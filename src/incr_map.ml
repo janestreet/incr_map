@@ -793,12 +793,11 @@ module Generic = struct
                  ~f:apply_diff_in_intersection
                |> snd
              in
-             if
-               Tuple2.equal
-                 ~eq1:maybe_bound_equal
-                 ~eq2:maybe_bound_equal
-                 old_range
-                 range
+             if Tuple2.equal
+                  ~eq1:maybe_bound_equal
+                  ~eq2:maybe_bound_equal
+                  old_range
+                  range
              then
                (* There are no keys to remove and everything in range is updated. *)
                with_updated_values_in_intersection
@@ -1413,8 +1412,8 @@ module Generic = struct
         [%sexp
           { saved_value : value option
           ; node_info = (Incremental.user_info node : (Info.t option[@sexp.option]))
-          ; node_is_const = (Option.some_if (Incremental.is_const node) () : (unit option
-                                                                              [@sexp.option]))
+          ; node_is_const =
+              (Option.some_if (Incremental.is_const node) () : (unit option[@sexp.option]))
           ; node_is_invalid =
               (Option.some_if (not (Incremental.is_valid node)) () : (unit option
                                                                       [@sexp.option]))

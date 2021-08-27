@@ -78,7 +78,7 @@ struct
       ignore (Obs.value_exn sum : float)
   ;;
 
-  let%bench_module (""[@name_suffix suffix]) =
+  let%bench_module ("" [@name_suffix suffix]) =
     (module struct
       let%bench_fun "incr" = nested_sum_raw ()
 
