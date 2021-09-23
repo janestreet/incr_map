@@ -91,7 +91,7 @@ module type S_gen = sig
     -> ?data_equal_right:('v2 -> 'v2 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> ('k, 'v2, 'cmp) Map.t Incr.t
-    -> f:(key:'k -> [ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ] -> 'v3 option)
+    -> f:(key:'k -> ('v1, 'v2) Map.Merge_element.t -> 'v3 option)
     -> ('k, 'v3, 'cmp) Map.t Incr.t
 
   val unzip
@@ -116,15 +116,12 @@ module type S_gen = sig
     -> ('k, 'v1, 'cmp) Map.t Incr.t * ('k, 'v2, 'cmp) Map.t Incr.t
 
   val merge'
-    :  ?cutoff:[ `Both of 'v1 * 'v2 | `Left of 'v1 | `Right of 'v2 ] Incr.Cutoff.t
+    :  ?cutoff:('v1, 'v2) Map.Merge_element.t Incr.Cutoff.t
     -> ?data_equal_left:('v1 -> 'v1 -> bool)
     -> ?data_equal_right:('v2 -> 'v2 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> ('k, 'v2, 'cmp) Map.t Incr.t
-    -> f:
-         (key:'k
-          -> [ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ] Incr.t
-          -> 'v3 option Incr.t)
+    -> f:(key:'k -> ('v1, 'v2) Map.Merge_element.t Incr.t -> 'v3 option Incr.t)
     -> ('k, 'v3, 'cmp) Map.t Incr.t
 
   val flatten : ('k, 'v Incr.t, 'cmp) Map.t -> ('k, 'v, 'cmp) Map.t Incr.t
@@ -402,20 +399,20 @@ module type Incr_map = sig
     -> ?data_equal_right:('v2 -> 'v2 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
-    -> f:(key:'k -> [ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ] -> 'v3 option)
+    -> f:(key:'k -> ('v1, 'v2) Map.Merge_element.t -> 'v3 option)
     -> (('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
 
   (** Like [merge], but operating using incremental nodes. This is a good use case for
       [ppx_pattern_bind]. *)
   val merge'
-    :  ?cutoff:[ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ] Incremental.Cutoff.t
+    :  ?cutoff:('v1, 'v2) Map.Merge_element.t Incremental.Cutoff.t
     -> ?data_equal_left:('v1 -> 'v1 -> bool)
     -> ?data_equal_right:('v2 -> 'v2 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
     -> f:
          (key:'k
-          -> ([ `Left of 'v1 | `Right of 'v2 | `Both of 'v1 * 'v2 ], 'w) Incremental.t
+          -> (('v1, 'v2) Map.Merge_element.t, 'w) Incremental.t
           -> ('v3 option, 'w) Incremental.t)
     -> (('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
 

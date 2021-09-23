@@ -265,7 +265,7 @@ module Generic = struct
           let old = !acc in
           acc
           := (match opt with
-            | None -> if Map.mem old key then Map.remove old key else old
+            | None -> Map.remove old key
             | Some data -> Map.set old ~key ~data)
     in
     let rec lhs_change =
