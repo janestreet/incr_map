@@ -114,7 +114,7 @@ struct
   ;;
 end
 
-module M1 = M (struct
+module _ = M (struct
     let outer = 10000
     let inner = 10
   end)
@@ -124,12 +124,12 @@ module M2 = M (struct
     let inner = 100
   end)
 
-module M3 = M (struct
+module _ = M (struct
     let outer = 100
     let inner = 1000
   end)
 
-module M4 = M (struct
+module _ = M (struct
     let outer = 10
     let inner = 10000
   end)

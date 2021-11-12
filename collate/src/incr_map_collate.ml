@@ -16,7 +16,6 @@ end
 
 module Make (Incr : Incremental.S) = struct
   module Incr_map = Incr_map.Make (Incr)
-  module Incr_memoize = Incr_memoize.Make (Incr)
   module Collate = Collate
   module Collated = Collated
   module Compare = Compare
@@ -391,18 +390,11 @@ module Make (Incr : Incremental.S) = struct
       ~num_unfiltered_rows
   ;;
 
-  (* Incrementally compute all of our transformations. *)
   let collate
         (type k v cmp filter order)
         ?(operation_order = `Sort_first)
         ~filter_equal
         ~order_equal
-        ?(filter_memoize_params =
-          Store_params.alist_based__lru ~equal:filter_equal ~max_size:1)
-        ?(order_memoize_params =
-          Store_params.alist_based__lru ~equal:order_equal ~max_size:10)
-        ?(range_memoize_bucket_size = 10000)
-        ?(range_memoize_cache_size = 5)
         ~(filter_to_predicate : filter -> _)
         ~(order_to_compare : order -> _)
         (data : (k, v, cmp) Map.t Incr.t)
@@ -413,77 +405,48 @@ module Make (Incr : Incremental.S) = struct
     let%pattern_bind { key_range; rank_range; filter; order } = collate in
     let filter = with_cutoff filter ~equal:filter_equal in
     let order = with_cutoff order ~equal:order_equal in
-    let filter = Incr_memoize.with_params filter filter_memoize_params in
-    let order = Incr_memoize.with_params order order_memoize_params in
-    let range_memoize_bucket =
-      (* Range operations are incremental with respect to the range, so we don't have
-         to bind to ranges.
-
-         However, incrementality does not necessarily mean they're fast - they run in
-         roughly O(|new ranks - old ranks|) or O(|new key position - old key position|).
-         So, if we request two very different ranges one after another, the computation
-         will be very expensive.
-
-         We alleviate this problem here by dividing possible ranges into buckets, and
-         only using incremental computation when old & new belong to the same bucket.
-
-         We also keep a cache of a few least recently used buckets.
-      *)
-      let%map key_range = key_range
-      and rank_range = rank_range in
-      Range_memoize_bucket.create
-        ~bucket_size:range_memoize_bucket_size
-        ~key_range
-        ~rank_range
-    in
-    let range_memoize_bucket =
-      with_cutoff range_memoize_bucket ~equal:Range_memoize_bucket.equal
-    in
-    let range_memoize_bucket =
-      Incr_memoize.with_params
-        range_memoize_bucket
-        (Store_params.hash_based__lru
-           (module Range_memoize_bucket)
-           ~max_size:range_memoize_cache_size)
-    in
     let orig_data = data in
     match operation_order with
     | `Filter_first ->
-      let%bind.Incr_memoize filter = filter in
+      let%bind filter = filter in
       let predicate = filter_to_predicate filter in
       let data = do_filter data ~predicate in
-      let%bind.Incr_memoize order = order in
+      let%bind order = order in
       let compare = order_to_compare order in
       let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
       let data = do_sort data ~map_comparator ~custom_comparator in
-      let%bind.Incr_memoize _ = range_memoize_bucket in
       do_range_restrict orig_data data ~key_range ~rank_range
     | `Sort_first ->
-      let%bind.Incr_memoize order = order in
+      let%bind order = order in
       let compare = order_to_compare order in
       let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
       let data = do_sort data ~map_comparator ~custom_comparator in
-      let%bind.Incr_memoize filter = filter in
+      let%bind filter = filter in
       let predicate = filter_to_predicate filter in
       let data = do_filter_sorted data ~predicate in
-      let%bind.Incr_memoize _ = range_memoize_bucket in
       do_range_restrict orig_data data ~key_range ~rank_range
   ;;
 
-  module New_api = struct
+  module With_caching = struct
     module Range_memoize_bucket = Range_memoize_bucket
 
     let collate__sort_first
           (type k v cmp filter order)
-          ~equal_filter
-          ~equal_order
+          ~filter_equal
+          ~order_equal
           ?(order_cache_params =
-            Store_params.alist_based__lru ~equal:equal_order ~max_size:10)
+            Store_params.alist_based__lru ~equal:order_equal ~max_size:10)
           ?(order_filter_cache_params =
-            Store_params.alist_based__lru ~equal:[%equal: order * filter] ~max_size:30)
+            Store_params.alist_based__lru
+              ~equal:(Tuple2.equal ~eq1:order_equal ~eq2:filter_equal)
+              ~max_size:30)
           ?(order_filter_range_cache_params =
             Store_params.alist_based__lru
-              ~equal:[%equal: order * filter * Range_memoize_bucket.t]
+              ~equal:
+                (Tuple3.equal
+                   ~eq1:order_equal
+                   ~eq2:filter_equal
+                   ~eq3:Range_memoize_bucket.equal)
               ~max_size:50)
           ?(range_memoize_bucket_size = 10000)
           ~(filter_to_predicate : filter -> _)
@@ -498,6 +461,19 @@ module Make (Incr : Incremental.S) = struct
       let%bind map_comparator = Incr.freeze (data >>| Map.comparator) in
       let%pattern_bind { key_range; rank_range; filter; order } = collate in
       let range_bucket =
+        (* Range operations are incremental with respect to the range, so we don't have
+           to bind to ranges.
+
+           However, incrementality does not necessarily mean they're fast - they run in
+           roughly O(|new ranks - old ranks|) or O(|new key position - old key position|).
+           So, if we request two very different ranges one after another, the computation
+           will be very expensive.
+
+           We alleviate this problem here by dividing possible ranges into buckets, and
+           only using incremental computation when old & new belong to the same bucket.
+
+           We also keep a cache of a few least recently used buckets.
+        *)
         let%map key_range = key_range
         and rank_range = rank_range in
         Range_memoize_bucket.create

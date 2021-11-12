@@ -21,57 +21,53 @@ module Make (Incr : Incremental.S) : sig
   module Collate = Collate
   module Collated = Collated
 
-  (** Perform the filtering, sorting and restricting to ranges.
+  (** Perform filtering, sorting and restricting to ranges.
 
-      [Collate.t] contains the parameters for filtering and sorting, and ranges. It can
-      be updated incrementally, but note that filtering & sorting isn't really incremental
-      on filter & order, we [bind] to these inside.
+      The [Collate.t Incr.t] contains the parameters for filtering and sorting, and
+      ranges. It can be updated incrementally, but note that filtering & sorting isn't
+      really incremental on filter & order since we [bind] to these.
 
-      For sorting & filtering, all this function really need is a predicate (i.e. [_ ->
-      bool] function) and compare function. However, the interface is slightly different:
-      we require user to provide ['filter] and ['order] opaque types in [Collate.t], and
+      For sorting & filtering, technically all this function should need is a compare
+      function and a filtering predicate. However, the interface is slightly different: we
+      require users to provide ['filter] and ['order] opaque types in [Collate.t], and
       ways to convert them to predicate & compare here.
 
       It is done this way for better interaction with [Incr]. We belive that most users
       would have such types, being simple algebraic data types, anyways. You can always
       set e.g. [filter_to_predicate=Fn.id], and just pass the functions directly, but be
-      prepared to explore the fascinating world of functions' physical equality.
-  *)
+      prepared to explore the fascinating world of functions' physical equality. *)
   val collate
     :  ?operation_order:[ `Filter_first | `Sort_first ] (** default: `Sort_first *)
     -> filter_equal:('filter -> 'filter -> bool)
     -> order_equal:('order -> 'order -> bool)
-    -> ?filter_memoize_params:'filter Store_params.t
-    (** default: an alist-based LRU with size 1 *)
-    -> ?order_memoize_params:'order Store_params.t
-    (** default: an alist-based LRU with size 10 *)
-    -> ?range_memoize_bucket_size:int (** default: 10000 *)
-    -> ?range_memoize_cache_size:int (** default: 5 *)
     -> filter_to_predicate:('filter -> (key:'k -> data:'v -> bool) option)
     -> order_to_compare:('order -> ('k, 'v, 'cmp) Compare.t)
     -> ('k, 'v, 'cmp) Map.t Incr.t
     -> ('k, 'filter, 'order) Collate.t Incr.t
     -> ('k, 'v) Collated.t Incr.t
 
-  module New_api : sig
-    (** Experimental new API with improved caching semantics.
+  module With_caching : sig
+    (** A version of [collate] with caching.
 
-        In particular, we keep a single cache for each level rather than a separate cache
-        for each value on the previous cache. This means the size limits passed to the
-        store params are true global limits. Previously, the size limits were separate per
-        key used for the previous cache (which means you could potentially have a number
-        of cached Incr nodes equal to the product of the cache sizes).
+        We use [Incr_memoize] to cache incremental nodes for the result of a particular:
 
-        Note - a value from deeper level can only be used if its partial computations fit
-        in their caches too. E.g. if order cache is LRU with size 2,
-        and order_filter_range is LRU with size 10, you could get 10 cached final values
-        if they share two orderings, but if they were to each have different ordering,
-        only two will be cached.
+        - [order],
+        - [(order, filter)], and
+        - [(order, filter, range_bucket)]
 
-        For this reason, you might want to configure deeper layers to be equal in size to
-        the earlier ones if you expect little branching in your queries (e.g. for given
-        filter you mostly get queries with one fixed range)
-    *)
+        so that even if the [Collate.t Incr.t] changes, as long as it changes back before
+        the result is evicted from the cache, we can resume a cached incremental
+        computation instead of discarding it and computing it from scratch.
+
+        Note that if an earlier incremental node is evicted from its cache, its children
+        in subsequent caches are no longer used. This is to ensure we don't duplicate
+        computations from building later nodes on top of semantically identical but
+        physically distinct earlier nodes.
+
+        For example, if the [order] cache is LRU with size 2, and [order_filter_range] is
+        LRU with size 10, you could get 10 cached final values if they only use two
+        distinct orderings, but if they were to each have a distinct ordering, only two
+        will be usable. *)
 
     module Range_memoize_bucket : sig
       type t [@@deriving sexp_of, equal, hash, compare]
@@ -80,12 +76,14 @@ module Make (Incr : Incremental.S) : sig
     end
 
     val collate__sort_first
-      :  equal_filter:('filter -> 'filter -> bool)
-      -> equal_order:('order -> 'order -> bool)
-      -> ?order_cache_params:'order Store_params.t
+      :  filter_equal:('filter -> 'filter -> bool)
+      -> order_equal:('order -> 'order -> bool)
+      -> ?order_cache_params:'order Store_params.t (** default: alist of size 10 *)
       -> ?order_filter_cache_params:('order * 'filter) Store_params.t
+      (** default: alist of size 30 *)
       -> ?order_filter_range_cache_params:
            ('order * 'filter * Range_memoize_bucket.t) Store_params.t
+      (** default: alist of size 50 *)
       -> ?range_memoize_bucket_size:int
       -> filter_to_predicate:('filter -> (key:'k -> data:'v -> bool) option)
       -> order_to_compare:('order -> ('k, 'v, 'cmp) Compare.t)

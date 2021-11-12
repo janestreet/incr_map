@@ -3,7 +3,6 @@ module Incr = Incremental.Make ()
 module Collate = Incr_map_collate.Collate
 module Collated = Incr_map_collate.Collated
 module Incr_map_collate = Incr_map_collate.Make (Incr)
-module Key = String
 module Incr_map_helpers = Incr_map_test.Subrange_quickcheck_helper
 
 module Filter = struct

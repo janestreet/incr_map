@@ -721,7 +721,7 @@ let%expect_test "duplicates in diff" =
 
 let%test_module "new API" =
   (module struct
-    module Range = Incr_map_collate.New_api.Range_memoize_bucket
+    module Range = Incr_map_collate.With_caching.Range_memoize_bucket
 
     module Order_filter = struct
       type t = Order.t * Filter.t [@@deriving equal, compare, sexp_of]
@@ -779,11 +779,11 @@ let%test_module "new API" =
              ~equal:Order_filter_range.equal
              ~max_size:order_filter_range_cache_size)
       in
-      Incr_map_collate.New_api.collate__sort_first
+      Incr_map_collate.With_caching.collate__sort_first
         ~filter_to_predicate:Filter.to_predicate
         ~order_to_compare:Order.to_compare
-        ~equal_filter:Filter.equal
-        ~equal_order:Order.equal
+        ~filter_equal:Filter.equal
+        ~order_equal:Order.equal
         ~range_memoize_bucket_size:1
         ~order_cache_params
         ~order_filter_cache_params

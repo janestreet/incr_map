@@ -73,17 +73,17 @@ struct
   ;;
 end
 
-module M1 = M (struct
+module _ = M (struct
     let name = "trivial"
     let f map = map >>| Map.length
   end)
 
-module M2 = M (struct
+module _ = M (struct
     let name = "mapi"
     let f map = Incr_map.mapi map ~f:(fun ~key ~data -> key + data) >>| Map.length
   end)
 
-module M3 = M (struct
+module _ = M (struct
     let name = "mapi'"
 
     let f map =
