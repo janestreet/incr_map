@@ -80,6 +80,7 @@ module type S_gen = sig
     :  ?data_equal:('v -> 'v -> bool)
     -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
     -> ?specialized_initial:(init:'acc -> ('k, 'v, 'cmp) Map.t -> 'acc)
+    -> ?revert_to_init_when_empty:bool
     -> ('k, 'v, 'cmp) Map.t Incr.t
     -> init:'acc
     -> add:(key:'k -> data:'v -> 'acc -> 'acc)
@@ -170,6 +171,7 @@ module type S_gen = sig
 
   val unordered_fold_nested_maps
     :  ?data_equal:('v -> 'v -> bool)
+    -> ?revert_to_init_when_empty:bool
     -> ?update:
          (outer_key:'outer_key
           -> inner_key:'inner_key
@@ -380,11 +382,17 @@ module type Incr_map = sig
       For the initial computation, by default [add] is called on all the elements in the
       map. As this can be inefficient, [specialized_initial] can be provided to perform
       the computation in a more effective way.
-  *)
+
+      If [revert_to_init_when_empty] is true, then if the input map transitions from
+      being full to empty, then instead of calling [remove] on every kv-pair, it will
+      instead just set the output to whatever you've passed as [init].
+      The default value of [revert_to_init_when_empty] is [false], so this optimization
+      does not apply automatically. *)
   val unordered_fold
     :  ?data_equal:('v -> 'v -> bool)
     -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
     -> ?specialized_initial:(init:'acc -> ('k, 'v, 'cmp) Map.t -> 'acc)
+    -> ?revert_to_init_when_empty:bool
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> init:'acc
     -> add:(key:'k -> data:'v -> 'acc -> 'acc)
@@ -553,8 +561,7 @@ module type Incr_map = sig
       multiple input keys.
 
       This function assumes [f] is cheap to compute and accordingly may call
-      it multiple times.
-  *)
+      it multiple times. *)
   val rekey
     :  ?data_equal:('v -> 'v -> bool)
     -> (('k1, 'v, 'cmp1) Map.t, 'w) Incremental.t
@@ -604,6 +611,7 @@ module type Incr_map = sig
 
   val unordered_fold_nested_maps
     :  ?data_equal:('v -> 'v -> bool)
+    -> ?revert_to_init_when_empty:bool
     -> ?update:
          (outer_key:'outer_key
           -> inner_key:'inner_key
@@ -790,4 +798,3 @@ module type Incr_map = sig
   module Make (Incr : Incremental.S) :
     S with type state_witness := Incr.state_witness and module Incr := Incr
 end
-

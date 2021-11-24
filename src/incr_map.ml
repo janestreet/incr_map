@@ -30,6 +30,7 @@ module Generic = struct
         ?(data_equal = phys_equal)
         ?update
         ?specialized_initial
+        ?(revert_to_init_when_empty = false)
         map
         ~init
         ~add
@@ -48,20 +49,24 @@ module Generic = struct
          | None -> Map.fold ~init ~f:add new_in
          | Some initial -> initial ~init new_in)
       | Some (old_in, old_out) ->
-        Map.fold_symmetric_diff
-          ~init:old_out
-          old_in
-          new_in
-          ~data_equal
-          ~f:(fun acc (key, change) ->
-            match change with
-            | `Left old -> remove ~key ~data:old acc
-            | `Right new_ -> add ~key ~data:new_ acc
-            | `Unequal (old, new_) -> update ~key ~old_data:old ~new_data:new_ acc))
+        if revert_to_init_when_empty && Map.length new_in = 0
+        then init
+        else
+          Map.fold_symmetric_diff
+            ~init:old_out
+            old_in
+            new_in
+            ~data_equal
+            ~f:(fun acc (key, change) ->
+              match change with
+              | `Left old -> remove ~key ~data:old acc
+              | `Right new_ -> add ~key ~data:new_ acc
+              | `Unequal (old, new_) -> update ~key ~old_data:old ~new_data:new_ acc))
   ;;
 
   let unordered_fold_nested_maps
         ?(data_equal = phys_equal)
+        ?revert_to_init_when_empty
         ?update
         incr_map
         ~init
@@ -81,6 +86,7 @@ module Generic = struct
     in
     unordered_fold
       incr_map
+      ?revert_to_init_when_empty
       ~init
       ~update:(fun ~key:outer_key ~old_data:old_inner_map ~new_data:new_inner_map acc ->
         (Map.fold_symmetric_diff old_inner_map new_inner_map ~data_equal)
@@ -135,12 +141,12 @@ module Generic = struct
         ~(f : key:'key -> data:input_data -> f_output)
     =
     with_old map ~f:(fun ~old input ->
-      match old with
-      | None ->
+      match old, Map.length input with
+      | _, 0 | None, _ ->
         (match witness with
          | Map_type.Map -> (Map.mapi input ~f : ('key, output_data, 'cmp) Map.t)
          | Map_type.Filter_map -> Map.filter_mapi input ~f)
-      | Some (old_input, old_output) ->
+      | Some (old_input, old_output), _ ->
         Map.fold_symmetric_diff
           old_input
           input
@@ -548,6 +554,7 @@ module Generic = struct
       unordered_fold
         map
         ~init:(Set.Using_comparator.empty ~comparator)
+        ~revert_to_init_when_empty:true
         ~data_equal
         ~add
         ~remove)
@@ -560,6 +567,7 @@ module Generic = struct
         ?data_equal
         map
         ~init:(empty, empty)
+        ~revert_to_init_when_empty:true
         ~update:(fun ~key ~old_data:_ ~new_data:data (first, second) ->
           match f ~key ~data with
           | First data -> Map.set first ~key ~data, Map.remove second key
@@ -846,6 +854,7 @@ module Generic = struct
       map_incr
       ?data_equal
       ~init:(Map.empty outer_comparator)
+      ~revert_to_init_when_empty:true
       ~add:(fun ~key ~data output -> Map.add_exn output ~key:(f ~key ~data) ~data)
       ~remove:(fun ~key ~data output -> Map.remove output (f ~key ~data))
       ~update:(fun ~key ~old_data ~new_data output ->
@@ -862,6 +871,7 @@ module Generic = struct
         ?data_equal
         map_incr
         ~init:(Map.empty outer_comparator)
+        ~revert_to_init_when_empty:true
         ~add:(fun ~key:inner_key ~data outer_map ->
           match index ~key:inner_key ~data with
           | None -> outer_map
@@ -1175,7 +1185,13 @@ module Generic = struct
         let remove ~key ~data =
           update ~key ~old_data:data ~new_data:(Map.empty k2_comparator)
         in
-        unordered_fold m ~init:(Map.empty k2_comparator) ~update ~add ~remove)
+        unordered_fold
+          m
+          ~init:(Map.empty k2_comparator)
+          ~revert_to_init_when_empty:true
+          ~update
+          ~add
+          ~remove)
   ;;
 
   let collapse_by
@@ -1190,6 +1206,7 @@ module Generic = struct
       ?data_equal
       map_incr
       ~init:(Map.empty comparator)
+      ~revert_to_init_when_empty:true
       ~update:(fun ~outer_key ~inner_key ~old_data:_ ~new_data acc ->
         Map.set acc ~key:(merge_keys outer_key inner_key) ~data:new_data)
       ~add:(fun ~outer_key ~inner_key ~data acc ->
@@ -1231,6 +1248,7 @@ module Generic = struct
       ?data_equal
       map_incr
       ~init:(Map.empty outer_comparator)
+      ~revert_to_init_when_empty:true
       ~update:(fun ~key:(outer_key, inner_key) ~old_data:_ ~new_data acc ->
         Map.update acc outer_key ~f:(function
           | None -> Map.singleton inner_comparator inner_key new_data
@@ -1252,6 +1270,7 @@ module Generic = struct
       ?data_equal
       map_incr
       ~init:0
+      ~revert_to_init_when_empty:true
       ~add:(fun ~key ~data count -> if f ~key ~data then count + 1 else count)
       ~remove:(fun ~key ~data count -> if f ~key ~data then count - 1 else count)
   ;;
@@ -1279,6 +1298,7 @@ module Generic = struct
       ?data_equal
       map_incr
       ~init:Group.zero
+      ~revert_to_init_when_empty:true
       ~add:(fun ~key:_ ~data:v acc -> Group.( + ) acc (f v))
       ~remove:(fun ~key:_ ~data:v acc -> Group.( - ) acc (f v))
   ;;
