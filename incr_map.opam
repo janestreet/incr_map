@@ -12,7 +12,7 @@ build: [
 depends: [
   "ocaml" {>= "4.08.0"}
   "abstract_algebra"
-  "core_kernel"
+  "core"
   "incremental"
   "ppx_jane"
   "ppx_pattern_bind"
