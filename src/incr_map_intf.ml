@@ -653,9 +653,15 @@ module type Incr_map = sig
       choose how to combine the two keys from the outer and inner maps.
       This does mean that it's the responsibility of the implementor of the
       [merge_keys] function to uphold this invariant:
+
       > a merged-key being equal to another merged-key implies that the
       > outer-keys and inner-keys which were used to build the merged keys also
-      > compare to be equal to one another *)
+      > compare to be equal to one another
+
+      The [~comparator] argument the first-class module of the output key, it
+      usually looks like this:
+      [ ~comparator:(module Combined_key) ]
+      but make sure that the module implements the [Comparator.S] signature. *)
   val collapse_by
     :  ?data_equal:('v -> 'v -> bool)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
