@@ -181,6 +181,99 @@ module Generic = struct
       b)
   ;;
 
+  let mapi_count
+        (type a cmp)
+        ?(data_equal = phys_equal)
+        input
+        ~(comparator :
+            (module Comparator.S with type t = a and type comparator_witness = cmp))
+        ~f
+    =
+    let module M = (val comparator) in
+    let add new_key acc =
+      Map.update acc new_key ~f:(function
+        | None -> 1
+        | Some n -> n + 1)
+    in
+    let remove new_key acc =
+      Map.change acc new_key ~f:(function
+        | None -> None
+        | Some 1 -> None
+        | Some n -> Some (n - 1))
+    in
+    unordered_fold
+      ~data_equal
+      input
+      ~init:(Map.empty (module M))
+      ~add:(fun ~key ~data acc -> add (f ~key ~data) acc)
+      ~remove:(fun ~key ~data acc -> remove (f ~key ~data) acc)
+      ~update:(fun ~key ~old_data ~new_data acc ->
+        let prev_key = f ~key ~data:old_data in
+        let new_key = f ~key ~data:new_data in
+        if M.comparator.compare prev_key new_key = 0
+        then acc
+        else acc |> remove prev_key |> add new_key)
+  ;;
+
+  let map_count ?data_equal input ~comparator ~f =
+    mapi_count ?data_equal input ~comparator ~f:(fun ~key:_ ~data -> f data)
+  ;;
+
+  let min_helper map =
+    match Map.min_elt map with
+    | None -> None
+    | Some (min, _) -> Some min
+  ;;
+
+  let max_helper map =
+    match Map.max_elt map with
+    | None -> None
+    | Some (max, _) -> Some max
+  ;;
+
+  let bounds_helper map =
+    match Map.min_elt map, Map.max_elt map with
+    | None, None -> None
+    | Some (min, _), Some (max, _) -> Some (min, max)
+    | _ -> assert false
+  ;;
+
+  let mapi_min ?data_equal input ~comparator ~f =
+    Incremental.map ~f:min_helper (mapi_count ?data_equal input ~comparator ~f)
+  ;;
+
+  let mapi_max ?data_equal input ~comparator ~f =
+    Incremental.map ~f:max_helper (mapi_count ?data_equal input ~comparator ~f)
+  ;;
+
+  let mapi_bounds ?data_equal input ~comparator ~f =
+    Incremental.map ~f:bounds_helper (mapi_count ?data_equal input ~comparator ~f)
+  ;;
+
+  let mapi_mn ?data_equal input ~comparator ~f =
+    mapi_min ?data_equal input ~comparator ~f:(fun ~key:_ ~data -> f data)
+  ;;
+
+  let map_max ?data_equal input ~comparator ~f =
+    mapi_max ?data_equal input ~comparator ~f:(fun ~key:_ ~data -> f data)
+  ;;
+
+  let min_value ?data_equal input ~comparator =
+    mapi_mn ?data_equal input ~comparator ~f:Fn.id
+  ;;
+
+  let max_value ?data_equal input ~comparator =
+    map_max ?data_equal input ~comparator ~f:Fn.id
+  ;;
+
+  let map_bounds ?data_equal input ~comparator ~f =
+    mapi_bounds ?data_equal input ~comparator ~f:(fun ~key:_ ~data -> f data)
+  ;;
+
+  let value_bounds ?data_equal input ~comparator =
+    map_bounds ?data_equal input ~comparator ~f:Fn.id
+  ;;
+
   let merge
         ?(data_equal_left = phys_equal)
         ?(data_equal_right = phys_equal)

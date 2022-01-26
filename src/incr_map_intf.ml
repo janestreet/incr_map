@@ -87,6 +87,80 @@ module type S_gen = sig
     -> remove:(key:'k -> data:'v -> 'acc -> 'acc)
     -> 'acc Incr.t
 
+  val mapi_count
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k1, 'v, 'cmp1) Map.t Incr.t
+    -> comparator:('k2, 'cmp2) Map.comparator
+    -> f:(key:'k1 -> data:'v -> 'k2)
+    -> ('k2, int, 'cmp2) Map.t Incr.t
+
+  val map_count
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k1, 'v, 'cmp1) Map.t Incr.t
+    -> comparator:('k2, 'cmp2) Map.comparator
+    -> f:('v -> 'k2)
+    -> ('k2, int, 'cmp2) Map.t Incr.t
+
+  val mapi_min
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, _) Map.t Incr.t
+    -> comparator:('r, _) Map.comparator
+    -> f:(key:'k -> data:'v -> 'r)
+    -> 'r option Incr.t
+
+  val mapi_max
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, _) Map.t Incr.t
+    -> comparator:('r, _) Map.comparator
+    -> f:(key:'k -> data:'v -> 'r)
+    -> 'r option Incr.t
+
+  val mapi_mn
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, _) Map.t Incr.t
+    -> comparator:('r, _) Map.comparator
+    -> f:('v -> 'r)
+    -> 'r option Incr.t
+
+  val map_max
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, _) Map.t Incr.t
+    -> comparator:('r, _) Map.comparator
+    -> f:('v -> 'r)
+    -> 'r option Incr.t
+
+  val min_value
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, _) Map.t Incr.t
+    -> comparator:('v, _) Map.comparator
+    -> 'v option Incr.t
+
+  val max_value
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, _) Map.t Incr.t
+    -> comparator:('v, _) Map.comparator
+    -> 'v option Incr.t
+
+  val mapi_bounds
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, _) Map.t Incr.t
+    -> comparator:('r, _) Map.comparator
+    -> f:(key:'k -> data:'v -> 'r)
+    -> ('r * 'r) option Incr.t
+
+  val map_bounds
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, _) Map.t Incr.t
+    -> comparator:('r, _) Map.comparator
+    -> f:('v -> 'r)
+    -> ('r * 'r) option Incr.t
+
+  val value_bounds
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, _) Map.t Incr.t
+    -> comparator:('v, _) Map.comparator
+    -> ('v * 'v) option Incr.t
+
   val merge
     :  ?data_equal_left:('v1 -> 'v1 -> bool)
     -> ?data_equal_right:('v2 -> 'v2 -> bool)
@@ -399,6 +473,109 @@ module type Incr_map = sig
     -> remove:(key:'k -> data:'v -> 'acc -> 'acc)
     -> ('acc, 'w) Incremental.t
 
+  (** Given an input map and a function mapping a kv-pair to a new
+      value, [mapi_count] will compute a multi-set keyed on that
+      new value.
+
+      Any value that would otherwise have a count of "0" is instead
+      removed from the map.
+
+      It is assumed that [f] is quite fast as the function will be
+      called more often than strictly necessary, but it does this
+      in order to avoid allocating an extra map.  If [f] is very slow
+      and you don't mind the extra allocations, use
+      [Incr_map.index_byi] composed with [Incr_map.map ~f:Map.length] *)
+  val mapi_count
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k1, 'v, 'cmp1) Map.t, 'w) Incremental.t
+    -> comparator:('k2, 'cmp2) Map.comparator
+    -> f:(key:'k1 -> data:'v -> 'k2)
+    -> (('k2, int, 'cmp2) Map.t, 'w) Incremental.t
+
+  (** The same as [mapi_count] but the [f] function only gets to see the
+      data instead of both the key and the data. *)
+  val map_count
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k1, 'v, 'cmp1) Map.t, 'w) Incremental.t
+    -> comparator:('k2, 'cmp2) Map.comparator
+    -> f:('v -> 'k2)
+    -> (('k2, int, 'cmp2) Map.t, 'w) Incremental.t
+
+  (** Computes the smallest [r] where [r] is computed for each kv-pair in the
+      input map. *)
+  val mapi_min
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, _) Map.t, 'w) Incremental.t
+    -> comparator:('r, _) Map.comparator
+    -> f:(key:'k -> data:'v -> 'r)
+    -> ('r option, 'w) Incremental.t
+
+  (** Computes the largest [r] where [r] is computed for each kv-pair in the
+      input map. *)
+  val mapi_max
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, _) Map.t, 'w) Incremental.t
+    -> comparator:('r, _) Map.comparator
+    -> f:(key:'k -> data:'v -> 'r)
+    -> ('r option, 'w) Incremental.t
+
+  (** Computes the smallest [r] where [r] is computed for each kv-pair in the
+      input map. *)
+  val mapi_mn
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, _) Map.t, 'w) Incremental.t
+    -> comparator:('r, _) Map.comparator
+    -> f:('v -> 'r)
+    -> ('r option, 'w) Incremental.t
+
+  (** Computes the largest [r] where [r] is computed for each kv-pair in the
+      input map. *)
+  val map_max
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, _) Map.t, 'w) Incremental.t
+    -> comparator:('r, _) Map.comparator
+    -> f:('v -> 'r)
+    -> ('r option, 'w) Incremental.t
+
+  (** Computes the smallest data value from the input map. *)
+  val min_value
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, _) Map.t, 'w) Incremental.t
+    -> comparator:('v, _) Map.comparator
+    -> ('v option, 'w) Incremental.t
+
+  (** Computes the largest data value from the input map. *)
+  val max_value
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, _) Map.t, 'w) Incremental.t
+    -> comparator:('v, _) Map.comparator
+    -> ('v option, 'w) Incremental.t
+
+  (** Computes [min * max] where the value is computed for each kv-pair
+      in the input map *)
+  val mapi_bounds
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, _) Map.t, 'w) Incremental.t
+    -> comparator:('r, _) Map.comparator
+    -> f:(key:'k -> data:'v -> 'r)
+    -> (('r * 'r) option, 'w) Incremental.t
+
+  (** Computes [min * max] where the value is computed for each kv-pair
+      in the input map *)
+  val map_bounds
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, _) Map.t, 'w) Incremental.t
+    -> comparator:('r, _) Map.comparator
+    -> f:('v -> 'r)
+    -> (('r * 'r) option, 'w) Incremental.t
+
+  (** Computes the smallest and largest data value from the input map. *)
+  val value_bounds
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, _) Map.t, 'w) Incremental.t
+    -> comparator:('v, _) Map.comparator
+    -> (('v * 'v) option, 'w) Incremental.t
+
 
   (** Like [merge] in [Base.Map.merge]. Note that [f] is called at most once per key in
       any given stabilization. *)
@@ -574,7 +751,9 @@ module type Incr_map = sig
       [index] specifies the outer map key under which each original key-data pair is
       found.
 
-      All of the resulting inner maps are guaranteed to be non-empty.
+      All of the resulting inner maps are guaranteed to be non-empty; if the inner map
+      would otherwise be empty, then the key for that map is instead removed from the
+      outer map.
 
       An all-at-once version of [index_by] would look like:
 
