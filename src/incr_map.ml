@@ -30,6 +30,7 @@ module Generic = struct
         ?(data_equal = phys_equal)
         ?update
         ?specialized_initial
+        ?(finalize = Fn.id)
         ?(revert_to_init_when_empty = false)
         map
         ~init
@@ -43,25 +44,28 @@ module Generic = struct
       Option.value update ~default
     in
     with_old map ~f:(fun ~old new_in ->
-      match old with
-      | None ->
-        (match specialized_initial with
-         | None -> Map.fold ~init ~f:add new_in
-         | Some initial -> initial ~init new_in)
-      | Some (old_in, old_out) ->
-        if revert_to_init_when_empty && Map.length new_in = 0
-        then init
-        else
-          Map.fold_symmetric_diff
-            ~init:old_out
-            old_in
-            new_in
-            ~data_equal
-            ~f:(fun acc (key, change) ->
-              match change with
-              | `Left old -> remove ~key ~data:old acc
-              | `Right new_ -> add ~key ~data:new_ acc
-              | `Unequal (old, new_) -> update ~key ~old_data:old ~new_data:new_ acc))
+      let acc =
+        match old with
+        | None ->
+          (match specialized_initial with
+           | None -> Map.fold ~init ~f:add new_in
+           | Some initial -> initial ~init new_in)
+        | Some (old_in, old_out) ->
+          if revert_to_init_when_empty && Map.length new_in = 0
+          then init
+          else
+            Map.fold_symmetric_diff
+              ~init:old_out
+              old_in
+              new_in
+              ~data_equal
+              ~f:(fun acc (key, change) ->
+                match change with
+                | `Left old -> remove ~key ~data:old acc
+                | `Right new_ -> add ~key ~data:new_ acc
+                | `Unequal (old, new_) -> update ~key ~old_data:old ~new_data:new_ acc)
+      in
+      finalize acc)
   ;;
 
   let unordered_fold_nested_maps
@@ -250,7 +254,7 @@ module Generic = struct
     Incremental.map ~f:bounds_helper (mapi_count ?data_equal input ~comparator ~f)
   ;;
 
-  let mapi_mn ?data_equal input ~comparator ~f =
+  let map_min ?data_equal input ~comparator ~f =
     mapi_min ?data_equal input ~comparator ~f:(fun ~key:_ ~data -> f data)
   ;;
 
@@ -259,7 +263,7 @@ module Generic = struct
   ;;
 
   let min_value ?data_equal input ~comparator =
-    mapi_mn ?data_equal input ~comparator ~f:Fn.id
+    map_min ?data_equal input ~comparator ~f:Fn.id
   ;;
 
   let max_value ?data_equal input ~comparator =
@@ -1230,7 +1234,10 @@ module Generic = struct
         and ub = ub in
         (match key_range with
          | Some (key, _) -> Some (Unbounded, key >>> ub)
-         | None -> None)
+         (* In this case, the upper bound was larger than the number of elements in the
+            map, so the upper bound for the key range is [Unbounded].
+            This behavior is demonstrated in a test in [../test/test_subrange.ml]. *)
+         | None -> Some (Unbounded, Unbounded))
     in
     subrange ?data_equal map key_range
   ;;

@@ -80,6 +80,7 @@ module type S_gen = sig
     :  ?data_equal:('v -> 'v -> bool)
     -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
     -> ?specialized_initial:(init:'acc -> ('k, 'v, 'cmp) Map.t -> 'acc)
+    -> ?finalize:('acc -> 'acc)
     -> ?revert_to_init_when_empty:bool
     -> ('k, 'v, 'cmp) Map.t Incr.t
     -> init:'acc
@@ -115,7 +116,7 @@ module type S_gen = sig
     -> f:(key:'k -> data:'v -> 'r)
     -> 'r option Incr.t
 
-  val mapi_mn
+  val map_min
     :  ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
     -> comparator:('r, _) Map.comparator
@@ -461,11 +462,16 @@ module type Incr_map = sig
       being full to empty, then instead of calling [remove] on every kv-pair, it will
       instead just set the output to whatever you've passed as [init].
       The default value of [revert_to_init_when_empty] is [false], so this optimization
-      does not apply automatically. *)
+      does not apply automatically.
+
+      [finalize] defaults to [Fn.id] is called immediately before the accumulator value
+      is stored and returned during stabilization.  You can use it to e.g. process the
+      fold operations in a different order. *)
   val unordered_fold
     :  ?data_equal:('v -> 'v -> bool)
     -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
     -> ?specialized_initial:(init:'acc -> ('k, 'v, 'cmp) Map.t -> 'acc)
+    -> ?finalize:('acc -> 'acc)
     -> ?revert_to_init_when_empty:bool
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> init:'acc
@@ -521,7 +527,7 @@ module type Incr_map = sig
 
   (** Computes the smallest [r] where [r] is computed for each kv-pair in the
       input map. *)
-  val mapi_mn
+  val map_min
     :  ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
     -> comparator:('r, _) Map.comparator
@@ -777,8 +783,8 @@ module type Incr_map = sig
        , 'w )
          Incremental.t
 
-  (** [index_by map ~comparator ~index] is like [index_by map ~comparator ~index], but the
-      [index] function does not take the inner map's [key]. *)
+  (** [index_by map ~comparator ~index] is like [index_byi map ~comparator ~index], but
+      the [index] function does not take the inner map's [key]. *)
   val index_by
     :  ?data_equal:('v -> 'v -> bool)
     -> (('inner_key, 'v, 'inner_cmp) Map.t, 'w) Incremental.t

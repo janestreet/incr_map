@@ -498,6 +498,29 @@ let%expect_test "subrange_by_rank" =
         Next range ((Incl 1), (Incl 4)): ((d ()) (f ()) (h ()) (j ()))|}]
 ;;
 
+let%expect_test "subrange_by_rank is consistent between lower bounds" =
+  (* [Incl 0] and [Unbounded] have the same behavior when used as a lower bound *)
+  subrange_by_rank_test ~initial_range:(Incl 0, Incl 100) ~ops:[] ();
+  [%expect
+    {|
+    Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range ((Incl 0), (Incl 100)): ((b ()) (d ()) (f ()) (h ()) (j ()) (l ())) |}];
+  subrange_by_rank_test ~initial_range:(Unbounded, Incl 100) ~ops:[] ();
+  [%expect
+    {|
+    Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range (Unbounded, (Incl 100)): ((b ()) (d ()) (f ()) (h ()) (j ()) (l ())) |}];
+  (* [Map] and [Incr_map] have the same behavior with [Unbounded] lower bound *)
+  Int.Map.of_alist_exn [ 1, (); 2, (); 3, () ]
+  |> Map.subrange ~lower_bound:Unbounded ~upper_bound:(Incl 30)
+  |> Int.Map.sexp_of_t sexp_of_unit
+  |> print_s;
+  [%expect {|
+    ((1 ())
+     (2 ())
+     (3 ())) |}]
+;;
+
 (* Naively collect elements between [from] and [to_], inclusive.
 
    This is purposedly not using Map.nth + Incr_map.subrange to be more different from

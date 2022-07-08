@@ -522,7 +522,7 @@ let%expect_test "update values so that they compare equal" =
      (num_unfiltered_rows 5)) |}]
 ;;
 
-let%expect_test "trigger rebalance" =
+let%expect_test "don't trigger rebalance" =
   let t = init_test ~data:[ "A", (0, 0.); "B", (0, 100.) ] () in
   print_res ~full_sexp:true t;
   [%expect
@@ -567,16 +567,16 @@ let%expect_test "trigger rebalance" =
   [%expect
     {|
     ((data (
-       (0   (A         (0 0)))
-       (100 (AA        (0 50)))
-       (200 (AAA       (0 75)))
-       (300 (AAAA      (0 87)))
-       (400 (AAAAA     (0 93)))
-       (500 (AAAAAA    (0 96)))
-       (600 (AAAAAAA   (0 98)))
-       (700 (AAAAAAAA  (0 99)))
-       (800 (AAAAAAAAA (0 0)))
-       (900 (B         (0 100)))))
+       (0    (A         (0 0)))
+       (50   (AA        (0 50)))
+       (75   (AAA       (0 75)))
+       (87   (AAAA      (0 87)))
+       (93   (AAAAA     (0 93)))
+       (96   (AAAAAA    (0 96)))
+       (98   (AAAAAAA   (0 98)))
+       (99   (AAAAAAAA  (0 99)))
+       (99.5 (AAAAAAAAA (0 0)))
+       (100  (B         (0 100)))))
      (num_filtered_rows   10)
      (key_range           All_rows)
      (rank_range          All_rows)

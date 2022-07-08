@@ -1,7 +1,7 @@
 open! Core
 module Collate = Collate
 module Collated = Collated
-module Map_list = Map_list
+module Map_list = Incr_map_erase_key
 module Store = Incr_memoize.Store
 module Store_params = Incr_memoize.Store_params
 
@@ -359,9 +359,9 @@ module Make (Incr : Incremental.S) = struct
         (data : (k, v, cmp, custom_cmp) Incr_collated_map.t)
     =
     match data with
-    | Original (data, _cmp) -> Map_list.of_map data ~get:(fun ~key ~data -> key, data)
+    | Original (data, _cmp) -> Map_list.erase data ~get:(fun ~key ~data -> key, data)
     | Sorted (data, _cmp) ->
-      Map_list.of_map data ~get:(fun ~key:(k, _v1) ~data:v2 -> k, v2)
+      Map_list.erase data ~get:(fun ~key:(k, _v1) ~data:v2 -> k, v2)
   ;;
 
   let do_range_restrict orig_data data ~key_range ~rank_range =

@@ -187,10 +187,10 @@ let for_perf =
         ~cell_update_batch_size
     in
     let actions = Quickcheck.random_sequence ~seed action_generator in
-    let duration = Time.Span.of_string duration_string in
-    let started_at = Time.now () in
+    let duration = Time_float.Span.of_string duration_string in
+    let started_at = Time_float.now () in
     Sequence.delayed_fold actions ~init:() ~finish:Fn.id ~f:(fun () action ~k ->
-      if Time.Span.( > ) (Time.diff (Time.now ()) started_at) duration
+      if Time_float.Span.( > ) (Time_float.diff (Time_float.now ()) started_at) duration
       then ()
       else (
         let (_ : string Int.Map.t) = handle_action t action in

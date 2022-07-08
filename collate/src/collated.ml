@@ -1,5 +1,6 @@
 open Core
 module Which_range = Collate.Which_range
+module Map_list = Incr_map_erase_key
 
 module Parametrized = struct
   type ('k, 'v) t =
@@ -13,7 +14,7 @@ module Parametrized = struct
   [@@deriving sexp, compare, fields, equal, bin_io]
 
   let empty =
-    { data = Int63.Map.empty
+    { data = Map_list.Key.Map.empty
     ; num_filtered_rows = 0
     ; key_range = All_rows
     ; rank_range = All_rows
@@ -48,9 +49,7 @@ module Parametrized = struct
           ~num_unfiltered_rows
           data
       =
-      { data =
-          List.mapi data ~f:(fun i x -> 100 * i |> Int63.of_int, x)
-          |> Int63.Map.of_alist_exn
+      { data = Map_list.For_testing.of_list data
       ; num_filtered_rows
       ; rank_range
       ; key_range
@@ -86,7 +85,7 @@ struct
         type t = Key.t * Value.t [@@deriving sexp, bin_io, compare, equal]
       end
 
-      module Map = Diffable.Map.Make (Int63) (Map_data)
+      module Map = Diffable.Map.Make (Map_list.Key) (Map_data)
 
       module Diff = struct
         type t =

@@ -1,5 +1,6 @@
 open Core
 module Which_range = Collate.Which_range
+module Map_list = Incr_map_erase_key
 
 module type Parametrized = sig
   (** The result of collation - a filtered, sorted and restricted-to-a-range list of keys
@@ -41,7 +42,7 @@ module type Parametrized = sig
 
   module Private : sig
     val create
-      :  data:('k * 'v) Int63.Map.t
+      :  data:('k * 'v) Map_list.t
       -> num_filtered_rows:int
       -> key_range:'k Which_range.t
       -> rank_range:int Which_range.t
