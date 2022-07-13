@@ -76,6 +76,13 @@ module type S_gen = sig
     -> f:(key:'k -> data:'v1 -> ('v2, 'v3) Either.t)
     -> (('k, 'v2, 'cmp) Map.t * ('k, 'v3, 'cmp) Map.t) Incr.t
 
+  val partition_mapi'
+    :  ?cutoff:'v1 Incr.Cutoff.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
+    -> ('k, 'v1, 'cmp) Map.t Incr.t
+    -> f:(key:'k -> data:'v1 Incr.t -> ('v2, 'v3) Either.t Incr.t)
+    -> (('k, 'v2, 'cmp) Map.t * ('k, 'v3, 'cmp) Map.t) Incr.t
+
   val unordered_fold
     :  ?data_equal:('v -> 'v -> bool)
     -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
@@ -436,6 +443,16 @@ module type Incr_map = sig
     :  ?data_equal:('v1 -> 'v1 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:(key:'k -> data:'v1 -> ('v2, 'v3) Either.t)
+    -> (('k, 'v2, 'cmp) Map.t * ('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
+
+  val partition_mapi'
+    :  ?cutoff:'v1 Incremental.Cutoff.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
+    -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
+    -> f:
+         (key:'k
+          -> data:('v1, 'w) Incremental.t
+          -> (('v2, 'v3) Either.t, 'w) Incremental.t)
     -> (('k, 'v2, 'cmp) Map.t * ('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
 
   (** [unordered_fold i ~init ~add ~remove] constructs a more incremental version of:

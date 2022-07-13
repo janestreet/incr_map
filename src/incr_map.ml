@@ -677,6 +677,10 @@ module Generic = struct
           Map.remove first key, Map.remove second key))
   ;;
 
+  let partition_mapi' ?cutoff ?data_equal map ~f =
+    mapi' ?cutoff ?data_equal map ~f |> partition_mapi ~f:(fun ~key:_ ~data -> data)
+  ;;
+
   let flatten state map =
     let module E = Incremental.Expert in
     let result = ref (Map.Using_comparator.empty ~comparator:(Map.comparator map)) in
