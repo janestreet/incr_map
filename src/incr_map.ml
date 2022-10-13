@@ -1,6 +1,8 @@
 open! Core
 include Incr_map_intf
 
+let no_instrumentation = { Instrumentation.f = (fun f -> f ()) }
+
 (** This type lets us capture the kind of map function being performed, so we can with
     one implementation perform map and filter-map operations.
 
@@ -17,16 +19,18 @@ module Map_type = struct
 end
 
 module Generic = struct
-  let with_old i ~f =
+  let with_old ~instrumentation i ~f =
     let open Incremental.Let_syntax in
     let old = ref None in
     let%map a = i in
-    let b = f ~old:!old a in
-    old := Some (a, b);
-    b
+    instrumentation.Instrumentation.f (fun () ->
+      let b = f ~old:!old a in
+      old := Some (a, b);
+      b)
   ;;
 
   let unordered_fold
+        ~instrumentation
         ?(data_equal = phys_equal)
         ?update
         ?specialized_initial
@@ -43,7 +47,7 @@ module Generic = struct
       in
       Option.value update ~default
     in
-    with_old map ~f:(fun ~old new_in ->
+    with_old ~instrumentation map ~f:(fun ~old new_in ->
       let acc =
         match old with
         | None ->
@@ -69,6 +73,7 @@ module Generic = struct
   ;;
 
   let unordered_fold_nested_maps
+        ~instrumentation
         ?(data_equal = phys_equal)
         ?revert_to_init_when_empty
         ?update
@@ -90,6 +95,7 @@ module Generic = struct
     in
     unordered_fold
       incr_map
+      ~instrumentation
       ?revert_to_init_when_empty
       ~init
       ~update:(fun ~key:outer_key ~old_data:old_inner_map ~new_data:new_inner_map acc ->
@@ -119,32 +125,34 @@ module Generic = struct
       collected *)
   let with_comparator map f = with_comparator' Map.comparator map f
 
-  let of_set set =
+  let of_set ?(instrumentation = no_instrumentation) set =
     with_comparator' Set.comparator set (fun comparator ->
       let old_input = ref (Set.Using_comparator.empty ~comparator) in
       let old_output = ref (Map.Using_comparator.empty ~comparator) in
       Incremental.map set ~f:(fun new_input ->
-        let new_output =
-          Sequence.fold
-            (Set.symmetric_diff !old_input new_input)
-            ~init:!old_output
-            ~f:(fun output -> function
-              | First k -> Map.remove output k
-              | Second k -> Map.add_exn output ~key:k ~data:())
-        in
-        old_input := new_input;
-        old_output := new_output;
-        new_output))
+        instrumentation.Instrumentation.f (fun () ->
+          let new_output =
+            Sequence.fold
+              (Set.symmetric_diff !old_input new_input)
+              ~init:!old_output
+              ~f:(fun output -> function
+                | First k -> Map.remove output k
+                | Second k -> Map.add_exn output ~key:k ~data:())
+          in
+          old_input := new_input;
+          old_output := new_output;
+          new_output)))
   ;;
 
   let generic_mapi
         (type input_data output_data f_output state_witness)
         (witness : (input_data, output_data, f_output) Map_type.t)
+        ~instrumentation
         ?(data_equal = phys_equal)
         (map : (('key, input_data, 'cmp) Map.t, state_witness) Incremental.t)
         ~(f : key:'key -> data:input_data -> f_output)
     =
-    with_old map ~f:(fun ~old input ->
+    with_old ~instrumentation map ~f:(fun ~old input ->
       match old, Map.length input with
       | _, 0 | None, _ ->
         (match witness with
@@ -169,24 +177,34 @@ module Generic = struct
                   | Some output_data -> Map.set output ~key ~data:output_data))))
   ;;
 
-  let mapi ?data_equal map ~f = generic_mapi Map ?data_equal map ~f
-  let filter_mapi ?data_equal map ~f = generic_mapi Filter_map ?data_equal map ~f
-  let map ?data_equal map ~f = mapi ?data_equal map ~f:(fun ~key:_ ~data -> f data)
-
-  let filter_map ?data_equal map ~f =
-    filter_mapi ?data_equal map ~f:(fun ~key:_ ~data -> f data)
+  let mapi ?(instrumentation = no_instrumentation) ?data_equal map ~f =
+    generic_mapi Map ~instrumentation ?data_equal map ~f
   ;;
 
-  let with_old2 i1 i2 ~f =
+  let filter_mapi ?(instrumentation = no_instrumentation) ?data_equal map ~f =
+    generic_mapi Filter_map ~instrumentation ?data_equal map ~f
+  ;;
+
+  let map ?instrumentation ?data_equal map ~f =
+    mapi ?instrumentation ?data_equal map ~f:(fun ~key:_ ~data -> f data)
+  ;;
+
+  let filter_map ?instrumentation ?data_equal map ~f =
+    filter_mapi ?instrumentation ?data_equal map ~f:(fun ~key:_ ~data -> f data)
+  ;;
+
+  let with_old2 ~instrumentation i1 i2 ~f =
     let old = ref None in
     Incremental.map2 i1 i2 ~f:(fun a1 a2 ->
-      let b = f ~old:!old a1 a2 in
-      old := Some (a1, a2, b);
-      b)
+      instrumentation.Instrumentation.f (fun () ->
+        let b = f ~old:!old a1 a2 in
+        old := Some (a1, a2, b);
+        b))
   ;;
 
   let mapi_count
         (type a cmp)
+        ?(instrumentation = no_instrumentation)
         ?(data_equal = phys_equal)
         input
         ~(comparator :
@@ -206,6 +224,7 @@ module Generic = struct
         | Some n -> Some (n - 1))
     in
     unordered_fold
+      ~instrumentation
       ~data_equal
       input
       ~init:(Map.empty (module M))
@@ -219,8 +238,9 @@ module Generic = struct
         else acc |> remove prev_key |> add new_key)
   ;;
 
-  let map_count ?data_equal input ~comparator ~f =
-    mapi_count ?data_equal input ~comparator ~f:(fun ~key:_ ~data -> f data)
+  let map_count ?instrumentation ?data_equal input ~comparator ~f =
+    mapi_count ?instrumentation ?data_equal input ~comparator ~f:(fun ~key:_ ~data ->
+      f data)
   ;;
 
   let min_helper map =
@@ -242,107 +262,206 @@ module Generic = struct
     | _ -> assert false
   ;;
 
-  let mapi_min ?data_equal input ~comparator ~f =
-    Incremental.map ~f:min_helper (mapi_count ?data_equal input ~comparator ~f)
+  let mapi_min ?instrumentation ?data_equal input ~comparator ~f =
+    Incremental.map
+      ~f:min_helper
+      (mapi_count ?instrumentation ?data_equal input ~comparator ~f)
   ;;
 
-  let mapi_max ?data_equal input ~comparator ~f =
-    Incremental.map ~f:max_helper (mapi_count ?data_equal input ~comparator ~f)
+  let mapi_max ?instrumentation ?data_equal input ~comparator ~f =
+    Incremental.map
+      ~f:max_helper
+      (mapi_count ?instrumentation ?data_equal input ~comparator ~f)
   ;;
 
-  let mapi_bounds ?data_equal input ~comparator ~f =
-    Incremental.map ~f:bounds_helper (mapi_count ?data_equal input ~comparator ~f)
+  let mapi_bounds ?instrumentation ?data_equal input ~comparator ~f =
+    Incremental.map
+      ~f:bounds_helper
+      (mapi_count ?instrumentation ?data_equal input ~comparator ~f)
   ;;
 
-  let map_min ?data_equal input ~comparator ~f =
-    mapi_min ?data_equal input ~comparator ~f:(fun ~key:_ ~data -> f data)
+  let map_min ?instrumentation ?data_equal input ~comparator ~f =
+    mapi_min ?instrumentation ?data_equal input ~comparator ~f:(fun ~key:_ ~data ->
+      f data)
   ;;
 
-  let map_max ?data_equal input ~comparator ~f =
-    mapi_max ?data_equal input ~comparator ~f:(fun ~key:_ ~data -> f data)
+  let map_max ?instrumentation ?data_equal input ~comparator ~f =
+    mapi_max ?instrumentation ?data_equal input ~comparator ~f:(fun ~key:_ ~data ->
+      f data)
   ;;
 
-  let min_value ?data_equal input ~comparator =
-    map_min ?data_equal input ~comparator ~f:Fn.id
+  let min_value ?instrumentation ?data_equal input ~comparator =
+    map_min ?instrumentation ?data_equal input ~comparator ~f:Fn.id
   ;;
 
-  let max_value ?data_equal input ~comparator =
-    map_max ?data_equal input ~comparator ~f:Fn.id
+  let max_value ?instrumentation ?data_equal input ~comparator =
+    map_max ?instrumentation ?data_equal input ~comparator ~f:Fn.id
   ;;
 
-  let map_bounds ?data_equal input ~comparator ~f =
-    mapi_bounds ?data_equal input ~comparator ~f:(fun ~key:_ ~data -> f data)
+  let map_bounds ?instrumentation ?data_equal input ~comparator ~f =
+    mapi_bounds ?instrumentation ?data_equal input ~comparator ~f:(fun ~key:_ ~data ->
+      f data)
   ;;
 
-  let value_bounds ?data_equal input ~comparator =
-    map_bounds ?data_equal input ~comparator ~f:Fn.id
+  let value_bounds ?instrumentation ?data_equal input ~comparator =
+    map_bounds ?instrumentation ?data_equal input ~comparator ~f:Fn.id
+  ;;
+
+  let merge_shared_impl
+        ~old
+        ~new_left_map
+        ~new_right_map
+        ~data_equal_left
+        ~data_equal_right
+        ~f
+    =
+    let comparator = Map.comparator new_left_map in
+    let old_left_map, old_right_map, old_output =
+      match old with
+      | None ->
+        let empty = Map.Using_comparator.empty ~comparator in
+        empty, empty, empty
+      | Some x -> x
+    in
+    let left_diff =
+      Map.symmetric_diff old_left_map new_left_map ~data_equal:data_equal_left
+    in
+    let right_diff =
+      Map.symmetric_diff old_right_map new_right_map ~data_equal:data_equal_right
+    in
+    (* We merge the two sides of the diffs together so we can make sure to handle each
+       key exactly once. This relies on symmetric diff giving sorted output. *)
+    Sequence.merge_with_duplicates
+      left_diff
+      right_diff
+      ~compare:(fun (left_key, _) (right_key, _) -> comparator.compare left_key right_key)
+    |> Sequence.fold ~init:old_output ~f:(fun output diff_element ->
+      let key =
+        match diff_element with
+        | Left (key, _) | Right (key, _) -> key
+        | Both ((left_key, _), (_right_key, _)) ->
+          (* comparison functions can be expensive! *)
+          (* assert (comparator.compare left_key right_key = 0); *)
+          left_key
+      in
+      f ~old_output ~key ~output ~diff_element)
+  ;;
+
+  let new_data_from_diff_element = function
+    | `Left _ -> None
+    | `Right x | `Unequal (_, x) -> Some x
   ;;
 
   let merge
+        ?(instrumentation = no_instrumentation)
         ?(data_equal_left = phys_equal)
         ?(data_equal_right = phys_equal)
         left_map
         right_map
         ~f
     =
-    with_old2 left_map right_map ~f:(fun ~old new_left_map new_right_map ->
-      let comparator = Map.comparator new_left_map in
-      let old_left_map, old_right_map, old_output =
-        match old with
-        | None ->
-          let empty = Map.Using_comparator.empty ~comparator in
-          empty, empty, empty
-        | Some x -> x
-      in
-      let left_diff =
-        Map.symmetric_diff old_left_map new_left_map ~data_equal:data_equal_left
-      in
-      let right_diff =
-        Map.symmetric_diff old_right_map new_right_map ~data_equal:data_equal_right
-      in
-      (* We merge the two sides of the diffs together so we can make sure to handle each
-         key exactly once. This relies on symmetric diff giving sorted output. *)
-      Sequence.merge_with_duplicates
-        left_diff
-        right_diff
-        ~compare:(fun (left_key, _) (right_key, _) ->
-          comparator.compare left_key right_key)
-      |> Sequence.fold ~init:old_output ~f:(fun output diff_element ->
-        let key =
-          match diff_element with
-          | Left (key, _) | Right (key, _) -> key
-          | Both ((left_key, _), (right_key, _)) ->
-            assert (comparator.compare left_key right_key = 0);
-            left_key
-        in
-        (* These values represent whether there is data for the given key in the new
-           input in the left and right map. *)
-        let left_data_opt, right_data_opt =
-          let new_data = function
-            | `Left _ -> None
-            | `Right x | `Unequal (_, x) -> Some x
-          in
-          match diff_element with
-          | Both ((_, left_diff), (_, right_diff)) ->
-            new_data left_diff, new_data right_diff
-          | Left (_, left_diff) -> new_data left_diff, Map.find new_right_map key
-          | Right (_, right_diff) -> Map.find new_left_map key, new_data right_diff
-        in
-        let output_data_opt =
-          match left_data_opt, right_data_opt with
-          | None, None -> None
-          | Some x, None -> f ~key (`Left x)
-          | None, Some y -> f ~key (`Right y)
-          | Some x, Some y -> f ~key (`Both (x, y))
-        in
-        match output_data_opt with
-        | None -> Map.remove output key
-        | Some data -> Map.set output ~key ~data))
+    with_old2
+      left_map
+      right_map
+      ~instrumentation
+      ~f:(fun ~old new_left_map new_right_map ->
+        merge_shared_impl
+          ~old
+          ~new_left_map
+          ~new_right_map
+          ~data_equal_left
+          ~data_equal_right
+          ~f:(fun ~old_output:_ ~key ~output ~diff_element ->
+            (* These values represent whether there is data for the given key in the new
+               input in the left and right map. *)
+            let left_data_opt, right_data_opt =
+              match diff_element with
+              | Both ((_, left_diff), (_, right_diff)) ->
+                ( new_data_from_diff_element left_diff
+                , new_data_from_diff_element right_diff )
+              | Left (_, left_diff) ->
+                new_data_from_diff_element left_diff, Map.find new_right_map key
+              | Right (_, right_diff) ->
+                Map.find new_left_map key, new_data_from_diff_element right_diff
+            in
+            let output_data_opt =
+              match left_data_opt, right_data_opt with
+              | None, None -> None
+              | Some x, None -> f ~key (`Left x)
+              | None, Some y -> f ~key (`Right y)
+              | Some x, Some y -> f ~key (`Both (x, y))
+            in
+            match output_data_opt with
+            | None -> Map.remove output key
+            | Some data -> Map.set output ~key ~data))
+  ;;
+
+  let merge_both_some
+        ?(instrumentation = no_instrumentation)
+        ?(data_equal_left = phys_equal)
+        ?(data_equal_right = phys_equal)
+        ?(out_equal = phys_equal)
+        left_map
+        right_map
+        ~f
+    =
+    with_old2
+      left_map
+      right_map
+      ~instrumentation
+      ~f:(fun ~old new_left_map new_right_map ->
+        let comparator = Map.comparator new_left_map in
+        let empty = Map.Using_comparator.empty ~comparator in
+        match Map.length new_left_map, Map.length new_right_map with
+        (* Because we only care about keys that are in both maps, if either map is
+           empty, bail early. *)
+        | 0, _ | _, 0 -> empty
+        | _ ->
+          merge_shared_impl
+            ~old
+            ~new_left_map
+            ~new_right_map
+            ~data_equal_left
+            ~data_equal_right
+            ~f:(fun ~old_output ~key ~output ~diff_element ->
+              let left_and_right_data_opt =
+                let open Option.Let_syntax in
+                match diff_element with
+                | Both ((_, left_diff), (_, right_diff)) ->
+                  let%bind left_data = new_data_from_diff_element left_diff in
+                  let%map right_data = new_data_from_diff_element right_diff in
+                  left_data, right_data
+                | Left (_, left_diff) ->
+                  let%bind left_data = new_data_from_diff_element left_diff in
+                  let%map right_data = Map.find new_right_map key in
+                  left_data, right_data
+                | Right (_, right_diff) ->
+                  (* This match arm binds [right_data] first because the map lookup
+                     is slower than calling [new_data_from_diff_element]. *)
+                  let%bind right_data = new_data_from_diff_element right_diff in
+                  let%map left_data = Map.find new_left_map key in
+                  left_data, right_data
+              in
+              (* look for the previously computed value to see if we actually need to
+                 add or remove the key. *)
+              let prev_out = Map.find old_output key in
+              match left_and_right_data_opt with
+              | Some (x, y) ->
+                let data = f ~key x y in
+                (match prev_out with
+                 (* if the new result is the same as the old, don't change the map *)
+                 | Some prev_out when out_equal data prev_out -> output
+                 | None | Some _ -> Map.set output ~key ~data)
+              | None ->
+                (match prev_out with
+                 | None -> output
+                 | Some _ -> Map.remove output key)))
   ;;
 
   let generic_mapi_with_comparator'
         (type input_data output_data f_output state_witness)
         (witness : (input_data, output_data, f_output) Map_type.t)
+        ~instrumentation
         ?cutoff
         ?(data_equal = phys_equal)
         (lhs : (('key, input_data, 'cmp) Map.t, state_witness) Incremental.t)
@@ -374,52 +493,56 @@ module Generic = struct
     let rec lhs_change =
       lazy
         (Incremental.map lhs ~f:(fun map ->
-           let new_nodes =
-             Map.fold_symmetric_diff
-               ~data_equal
-               !prev_map
-               map
-               ~init:!prev_nodes
-               ~f:(fun nodes (key, changed) ->
-                 match changed with
-                 | `Unequal _ ->
-                   let node, _dep = Map.find_exn nodes key in
-                   E.Node.make_stale node;
-                   nodes
-                 | `Left _ ->
-                   let node, dep = Map.find_exn nodes key in
-                   let nodes = Map.remove nodes key in
-                   E.Node.remove_dependency result dep;
-                   acc := Map.remove !acc key;
-                   E.Node.invalidate node;
-                   nodes
-                 | `Right _ ->
-                   let node =
-                     E.Node.create incremental_state (fun () ->
-                       Map.find_exn !prev_map key)
-                   in
-                   Option.iter cutoff ~f:(fun c ->
-                     Incremental.set_cutoff (E.Node.watch node) c);
-                   E.Node.add_dependency node (E.Dependency.create (force lhs_change));
-                   let user_function_dep =
-                     E.Dependency.create
-                       (f ~key ~data:(E.Node.watch node))
-                       ~on_change:(on_inner_change ~key)
-                   in
-                   E.Node.add_dependency result user_function_dep;
-                   Map.set nodes ~key ~data:(node, user_function_dep))
-           in
-           prev_nodes := new_nodes;
-           prev_map := map))
+           instrumentation.Instrumentation.f (fun () ->
+             let new_nodes =
+               Map.fold_symmetric_diff
+                 ~data_equal
+                 !prev_map
+                 map
+                 ~init:!prev_nodes
+                 ~f:(fun nodes (key, changed) ->
+                   match changed with
+                   | `Unequal _ ->
+                     let node, _dep = Map.find_exn nodes key in
+                     E.Node.make_stale node;
+                     nodes
+                   | `Left _ ->
+                     let node, dep = Map.find_exn nodes key in
+                     let nodes = Map.remove nodes key in
+                     E.Node.remove_dependency result dep;
+                     acc := Map.remove !acc key;
+                     E.Node.invalidate node;
+                     nodes
+                   | `Right _ ->
+                     let node =
+                       E.Node.create incremental_state (fun () ->
+                         Map.find_exn !prev_map key)
+                     in
+                     Option.iter cutoff ~f:(fun c ->
+                       Incremental.set_cutoff (E.Node.watch node) c);
+                     E.Node.add_dependency
+                       node
+                       (E.Dependency.create (force lhs_change));
+                     let user_function_dep =
+                       E.Dependency.create
+                         (f ~key ~data:(E.Node.watch node))
+                         ~on_change:(on_inner_change ~key)
+                     in
+                     E.Node.add_dependency result user_function_dep;
+                     Map.set nodes ~key ~data:(node, user_function_dep))
+             in
+             prev_nodes := new_nodes;
+             prev_map := map)))
     in
     E.Node.add_dependency result (E.Dependency.create (force lhs_change));
     E.Node.watch result
   ;;
 
-  let filter_mapi' ?cutoff ?data_equal map ~f =
+  let filter_mapi' ?(instrumentation = no_instrumentation) ?cutoff ?data_equal map ~f =
     with_comparator map (fun comparator ->
       generic_mapi_with_comparator'
         Map_type.Filter_map
+        ~instrumentation
         ?cutoff
         ?data_equal
         map
@@ -427,26 +550,40 @@ module Generic = struct
         ~comparator)
   ;;
 
-  let mapi' ?cutoff ?data_equal map ~f =
+  let mapi' ?(instrumentation = no_instrumentation) ?cutoff ?data_equal map ~f =
     with_comparator map (fun comparator ->
-      generic_mapi_with_comparator' Map_type.Map ?cutoff ?data_equal map ~f ~comparator)
+      generic_mapi_with_comparator'
+        Map_type.Map
+        ~instrumentation
+        ?cutoff
+        ?data_equal
+        map
+        ~f
+        ~comparator)
   ;;
 
-  let map' ?cutoff ?data_equal map ~f =
-    mapi' ?cutoff ?data_equal map ~f:(fun ~key:_ ~data -> f data)
+  let map' ?instrumentation ?cutoff ?data_equal map ~f =
+    mapi' ?instrumentation ?cutoff ?data_equal map ~f:(fun ~key:_ ~data -> f data)
   ;;
 
-  let filter_map' ?cutoff ?data_equal map ~f =
-    filter_mapi' ?cutoff ?data_equal map ~f:(fun ~key:_ ~data -> f data)
+  let filter_map' ?instrumentation ?cutoff ?data_equal map ~f =
+    filter_mapi' ?instrumentation ?cutoff ?data_equal map ~f:(fun ~key:_ ~data -> f data)
   ;;
 
-  let merge' ?cutoff ?data_equal_left ?data_equal_right map1 map2 ~f =
-    merge ?data_equal_left ?data_equal_right map1 map2 ~f:(fun ~key:_ diff -> Some diff)
-    |> filter_mapi' ?cutoff ~f:(fun ~key ~data:diff -> f ~key diff)
+  let merge' ?instrumentation ?cutoff ?data_equal_left ?data_equal_right map1 map2 ~f =
+    merge
+      ?instrumentation
+      ?data_equal_left
+      ?data_equal_right
+      map1
+      map2
+      ~f:(fun ~key:_ diff -> Some diff)
+    |> filter_mapi' ?instrumentation ?cutoff ~f:(fun ~key ~data:diff -> f ~key diff)
   ;;
 
   let unzip_mapi_with_comparator
         (type v v1 v2 state_witness)
+        ~instrumentation
         ?(data_equal : v -> v -> bool = phys_equal)
         ?(left_result_equal : v1 -> v1 -> bool = phys_equal)
         ?(right_result_equal : v2 -> v2 -> bool = phys_equal)
@@ -466,68 +603,77 @@ module Generic = struct
     let prev_map = ref empty_map in
     let input_change =
       Incremental.map input ~f:(fun map ->
-        let left, right =
-          match Map.is_empty !prev_map, Map.is_empty map with
-          | true, true | false, true -> empty_map, empty_map
-          | true, false ->
-            (* Mapping on a map is way faster than symmetric diffing and then
-               building the maps up piece by piece, so we do this whenever we
-               transition from "empty" to "something", which will almost always
-               happen on the first stabilization. *)
-            let left =
-              Map.mapi map ~f:(fun ~key ~data ->
-                let l, _ = f ~key ~data in
-                l)
-            in
-            let right =
-              Map.mapi map ~f:(fun ~key ~data ->
-                let _, r = f ~key ~data in
-                r)
-            in
-            left, right
-          | false, false ->
-            Map.fold_symmetric_diff
-              ~data_equal
-              !prev_map
-              map
-              ~init:(!left_acc, !right_acc)
-              ~f:(fun (left, right) (key, changed) ->
-                match changed with
-                | `Unequal (prev, new_) ->
-                  let prev_a, prev_b = f ~key ~data:prev in
-                  let new_a, new_b = f ~key ~data:new_ in
-                  let left =
-                    if left_result_equal prev_a new_a
-                    then left
-                    else Map.set left ~key ~data:new_a
-                  in
-                  let right =
-                    if right_result_equal prev_b new_b
-                    then right
-                    else Map.set right ~key ~data:new_b
-                  in
-                  left, right
-                | `Left _ -> Map.remove left key, Map.remove right key
-                | `Right element ->
-                  let a, b = f ~key ~data:element in
-                  Map.set left ~key ~data:a, Map.set right ~key ~data:b)
-        in
-        if not (phys_equal !left_acc left) then E.Node.make_stale left_result;
-        if not (phys_equal !right_acc right) then E.Node.make_stale right_result;
-        left_acc := left;
-        right_acc := right;
-        prev_map := map)
+        instrumentation.Instrumentation.f (fun () ->
+          let left, right =
+            match Map.is_empty !prev_map, Map.is_empty map with
+            | true, true | false, true -> empty_map, empty_map
+            | true, false ->
+              (* Mapping on a map is way faster than symmetric diffing and then
+                 building the maps up piece by piece, so we do this whenever we
+                 transition from "empty" to "something", which will almost always
+                 happen on the first stabilization. *)
+              let left =
+                Map.mapi map ~f:(fun ~key ~data ->
+                  let l, _ = f ~key ~data in
+                  l)
+              in
+              let right =
+                Map.mapi map ~f:(fun ~key ~data ->
+                  let _, r = f ~key ~data in
+                  r)
+              in
+              left, right
+            | false, false ->
+              Map.fold_symmetric_diff
+                ~data_equal
+                !prev_map
+                map
+                ~init:(!left_acc, !right_acc)
+                ~f:(fun (left, right) (key, changed) ->
+                  match changed with
+                  | `Unequal (prev, new_) ->
+                    let prev_a, prev_b = f ~key ~data:prev in
+                    let new_a, new_b = f ~key ~data:new_ in
+                    let left =
+                      if left_result_equal prev_a new_a
+                      then left
+                      else Map.set left ~key ~data:new_a
+                    in
+                    let right =
+                      if right_result_equal prev_b new_b
+                      then right
+                      else Map.set right ~key ~data:new_b
+                    in
+                    left, right
+                  | `Left _ -> Map.remove left key, Map.remove right key
+                  | `Right element ->
+                    let a, b = f ~key ~data:element in
+                    Map.set left ~key ~data:a, Map.set right ~key ~data:b)
+          in
+          if not (phys_equal !left_acc left) then E.Node.make_stale left_result;
+          if not (phys_equal !right_acc right) then E.Node.make_stale right_result;
+          left_acc := left;
+          right_acc := right;
+          prev_map := map))
     in
     E.Node.add_dependency left_result (E.Dependency.create input_change);
     E.Node.add_dependency right_result (E.Dependency.create input_change);
     E.Node.watch left_result, E.Node.watch right_result
   ;;
 
-  let unzip_mapi ?data_equal ?left_result_equal ?right_result_equal input ~f =
+  let unzip_mapi
+        ?(instrumentation = no_instrumentation)
+        ?data_equal
+        ?left_result_equal
+        ?right_result_equal
+        input
+        ~f
+    =
     let pair =
       with_comparator input (fun comparator ->
         input
         |> unzip_mapi_with_comparator
+             ~instrumentation
              ?data_equal
              ?left_result_equal
              ?right_result_equal
@@ -538,12 +684,13 @@ module Generic = struct
     Incremental.map ~f:fst pair, Incremental.map ~f:snd pair
   ;;
 
-  let unzip ?left_result_equal ?right_result_equal input =
+  let unzip ?instrumentation ?left_result_equal ?right_result_equal input =
     let data_equal =
       Option.map2 left_result_equal right_result_equal ~f:(fun l r ->
         Tuple2.equal ~eq1:l ~eq2:r)
     in
     unzip_mapi
+      ?instrumentation
       ?data_equal
       ?left_result_equal
       ?right_result_equal
@@ -553,6 +700,7 @@ module Generic = struct
 
   let unzip_mapi_with_comparator'
         (type v v1 v2 state_witness)
+        ~instrumentation
         ?cutoff
         ?(data_equal = phys_equal)
         (input : (('key, v, 'cmp) Map.t, state_witness) Incremental.t)
@@ -578,78 +726,87 @@ module Generic = struct
     let rec input_change =
       lazy
         (Incremental.map input ~f:(fun map ->
-           let new_nodes =
-             Map.fold_symmetric_diff
-               ~data_equal
-               !prev_map
-               map
-               ~init:!prev_nodes
-               ~f:(fun nodes (key, changed) ->
-                 match changed with
-                 | `Unequal _ ->
-                   let node, _left_dep, _right_dep = Map.find_exn nodes key in
-                   E.Node.make_stale node;
-                   nodes
-                 | `Left _ ->
-                   let node, left_dep, right_dep = Map.find_exn nodes key in
-                   let nodes = Map.remove nodes key in
-                   E.Node.remove_dependency left_result left_dep;
-                   E.Node.remove_dependency right_result right_dep;
-                   left_acc := Map.remove !left_acc key;
-                   right_acc := Map.remove !right_acc key;
-                   E.Node.invalidate node;
-                   nodes
-                 | `Right _ ->
-                   let node =
-                     E.Node.create incremental_state (fun () ->
-                       Map.find_exn !prev_map key)
-                   in
-                   Option.iter cutoff ~f:(fun c ->
-                     Incremental.set_cutoff (E.Node.watch node) c);
-                   E.Node.add_dependency node (E.Dependency.create (force input_change));
-                   let left_incr, right_incr = f ~key ~data:(E.Node.watch node) in
-                   let left_user_function_dep =
-                     E.Dependency.create
-                       left_incr
-                       ~on_change:(left_on_inner_change ~key)
-                   in
-                   let right_user_function_dep =
-                     E.Dependency.create
-                       right_incr
-                       ~on_change:(right_on_inner_change ~key)
-                   in
-                   E.Node.add_dependency left_result left_user_function_dep;
-                   E.Node.add_dependency right_result right_user_function_dep;
-                   Map.set
+           instrumentation.Instrumentation.f (fun () ->
+             let new_nodes =
+               Map.fold_symmetric_diff
+                 ~data_equal
+                 !prev_map
+                 map
+                 ~init:!prev_nodes
+                 ~f:(fun nodes (key, changed) ->
+                   match changed with
+                   | `Unequal _ ->
+                     let node, _left_dep, _right_dep = Map.find_exn nodes key in
+                     E.Node.make_stale node;
                      nodes
-                     ~key
-                     ~data:(node, left_user_function_dep, right_user_function_dep))
-           in
-           prev_nodes := new_nodes;
-           prev_map := map))
+                   | `Left _ ->
+                     let node, left_dep, right_dep = Map.find_exn nodes key in
+                     let nodes = Map.remove nodes key in
+                     E.Node.remove_dependency left_result left_dep;
+                     E.Node.remove_dependency right_result right_dep;
+                     left_acc := Map.remove !left_acc key;
+                     right_acc := Map.remove !right_acc key;
+                     E.Node.invalidate node;
+                     nodes
+                   | `Right _ ->
+                     let node =
+                       E.Node.create incremental_state (fun () ->
+                         Map.find_exn !prev_map key)
+                     in
+                     Option.iter cutoff ~f:(fun c ->
+                       Incremental.set_cutoff (E.Node.watch node) c);
+                     E.Node.add_dependency
+                       node
+                       (E.Dependency.create (force input_change));
+                     let left_incr, right_incr = f ~key ~data:(E.Node.watch node) in
+                     let left_user_function_dep =
+                       E.Dependency.create
+                         left_incr
+                         ~on_change:(left_on_inner_change ~key)
+                     in
+                     let right_user_function_dep =
+                       E.Dependency.create
+                         right_incr
+                         ~on_change:(right_on_inner_change ~key)
+                     in
+                     E.Node.add_dependency left_result left_user_function_dep;
+                     E.Node.add_dependency right_result right_user_function_dep;
+                     Map.set
+                       nodes
+                       ~key
+                       ~data:(node, left_user_function_dep, right_user_function_dep))
+             in
+             prev_nodes := new_nodes;
+             prev_map := map)))
     in
     E.Node.add_dependency left_result (E.Dependency.create (force input_change));
     E.Node.add_dependency right_result (E.Dependency.create (force input_change));
     E.Node.watch left_result, E.Node.watch right_result
   ;;
 
-  let unzip_mapi' ?cutoff ?data_equal map ~f =
+  let unzip_mapi' ?(instrumentation = no_instrumentation) ?cutoff ?data_equal map ~f =
     let pair =
       with_comparator map (fun comparator ->
         map
-        |> unzip_mapi_with_comparator' ?cutoff ?data_equal ~comparator ~f
+        |> unzip_mapi_with_comparator'
+             ~instrumentation
+             ?cutoff
+             ?data_equal
+             ~comparator
+             ~f
         |> Tuple2.uncurry Incremental.both)
     in
     Incremental.map ~f:fst pair, Incremental.map ~f:snd pair
   ;;
 
-  let keys map =
+  let keys ?(instrumentation = no_instrumentation) map =
     with_comparator map (fun comparator ->
       let add ~key ~data:_ acc = Set.add acc key in
       let remove ~key ~data:_ acc = Set.remove acc key in
       let data_equal _ _ = true in
       unordered_fold
         map
+        ~instrumentation
         ~init:(Set.Using_comparator.empty ~comparator)
         ~revert_to_init_when_empty:true
         ~data_equal
@@ -657,12 +814,13 @@ module Generic = struct
         ~remove)
   ;;
 
-  let partition_mapi ?data_equal map ~f =
+  let partition_mapi ?(instrumentation = no_instrumentation) ?data_equal map ~f =
     with_comparator map (fun comparator ->
       let empty = Map.Using_comparator.empty ~comparator in
       unordered_fold
         ?data_equal
         map
+        ~instrumentation
         ~init:(empty, empty)
         ~revert_to_init_when_empty:true
         ~update:(fun ~key ~old_data:_ ~new_data:data (first, second) ->
@@ -677,8 +835,9 @@ module Generic = struct
           Map.remove first key, Map.remove second key))
   ;;
 
-  let partition_mapi' ?cutoff ?data_equal map ~f =
-    mapi' ?cutoff ?data_equal map ~f |> partition_mapi ~f:(fun ~key:_ ~data -> data)
+  let partition_mapi' ?instrumentation ?cutoff ?data_equal map ~f =
+    mapi' ?instrumentation ?cutoff ?data_equal map ~f
+    |> partition_mapi ?instrumentation ~f:(fun ~key:_ ~data -> data)
   ;;
 
   let flatten state map =
@@ -693,7 +852,7 @@ module Generic = struct
     E.Node.watch node
   ;;
 
-  let join_with_comparator map_incr ~comparator =
+  let join_with_comparator ~instrumentation map_incr ~comparator =
     let module E = Incremental.Expert in
     let incremental_state = Incremental.state map_incr in
     let empty_map = Map.Using_comparator.empty ~comparator in
@@ -717,28 +876,31 @@ module Generic = struct
     in
     let lhs_change =
       Incremental.map map_incr ~f:(fun map_of_incrs ->
-        let new_dependency_map =
-          Map.fold_symmetric_diff
-            ~data_equal:phys_equal
-            !old_map_of_incrs
-            map_of_incrs
-            ~init:!current_dependencies
-            ~f:(fun current_dependencies (key, diff) ->
-              match diff with
-              | `Left _ -> remove_subnode current_dependencies ~key
-              | `Right data_node -> add_subnode current_dependencies ~key ~data_node
-              | `Unequal (_, data_node) ->
-                remove_subnode current_dependencies ~key |> add_subnode ~key ~data_node)
-        in
-        current_dependencies := new_dependency_map;
-        old_map_of_incrs := map_of_incrs)
+        instrumentation.Instrumentation.f (fun () ->
+          let new_dependency_map =
+            Map.fold_symmetric_diff
+              ~data_equal:phys_equal
+              !old_map_of_incrs
+              map_of_incrs
+              ~init:!current_dependencies
+              ~f:(fun current_dependencies (key, diff) ->
+                match diff with
+                | `Left _ -> remove_subnode current_dependencies ~key
+                | `Right data_node -> add_subnode current_dependencies ~key ~data_node
+                | `Unequal (_, data_node) ->
+                  remove_subnode current_dependencies ~key
+                  |> add_subnode ~key ~data_node)
+          in
+          current_dependencies := new_dependency_map;
+          old_map_of_incrs := map_of_incrs))
     in
     E.Node.add_dependency result (E.Dependency.create lhs_change);
     E.Node.watch result
   ;;
 
-  let join map =
-    with_comparator map (fun comparator -> join_with_comparator map ~comparator)
+  let join ?(instrumentation = no_instrumentation) map =
+    with_comparator map (fun comparator ->
+      join_with_comparator ~instrumentation map ~comparator)
   ;;
 
   module Separate_state = struct
@@ -758,7 +920,7 @@ module Generic = struct
     ;;
   end
 
-  let separate input_map ~data_equal =
+  let separate ?(instrumentation = no_instrumentation) input_map ~data_equal =
     let incremental_state = Incremental.state input_map in
     with_comparator input_map (fun comparator ->
       let state = Separate_state.create comparator in
@@ -780,39 +942,43 @@ module Generic = struct
       let rec input_map_changed =
         lazy
           (Incremental.map input_map ~f:(fun input_map ->
-             let prev_input_map = state.input_map in
-             let expert_nodes, output_map =
-               Map.fold_symmetric_diff
-                 prev_input_map
-                 input_map
-                 ~data_equal
-                 ~init:(state.expert_nodes, state.output_map)
-                 ~f:(fun (expert_nodes, output_map) (key, change) ->
-                   match change with
-                   | `Left _old_value ->
-                     let old_node = Map.find_exn expert_nodes key in
-                     Incremental.Expert.Node.invalidate old_node;
-                     Incremental.Expert.Node.make_stale output_map_node;
-                     Map.remove expert_nodes key, Map.remove output_map key
-                   | `Right _new_value ->
-                     let node =
-                       Separate_state.create_lookup_node incremental_state state key
-                     in
-                     make_node_depend_on_input_map_changed node ~input_map_changed;
-                     Incremental.Expert.Node.make_stale output_map_node;
-                     ( Map.add_exn expert_nodes ~key ~data:node
-                     , Map.add_exn
-                         output_map
-                         ~key
-                         ~data:(Incremental.Expert.Node.watch node) )
-                   | `Unequal (_old_value, _new_value) ->
-                     Incremental.Expert.Node.make_stale
-                       (Map.find_exn expert_nodes key);
-                     expert_nodes, output_map)
-             in
-             state.input_map <- input_map;
-             state.expert_nodes <- expert_nodes;
-             state.output_map <- output_map))
+             instrumentation.Instrumentation.f (fun () ->
+               let prev_input_map = state.input_map in
+               let expert_nodes, output_map =
+                 Map.fold_symmetric_diff
+                   prev_input_map
+                   input_map
+                   ~data_equal
+                   ~init:(state.expert_nodes, state.output_map)
+                   ~f:(fun (expert_nodes, output_map) (key, change) ->
+                     match change with
+                     | `Left _old_value ->
+                       let old_node = Map.find_exn expert_nodes key in
+                       Incremental.Expert.Node.invalidate old_node;
+                       Incremental.Expert.Node.make_stale output_map_node;
+                       Map.remove expert_nodes key, Map.remove output_map key
+                     | `Right _new_value ->
+                       let node =
+                         Separate_state.create_lookup_node
+                           incremental_state
+                           state
+                           key
+                       in
+                       make_node_depend_on_input_map_changed node ~input_map_changed;
+                       Incremental.Expert.Node.make_stale output_map_node;
+                       ( Map.add_exn expert_nodes ~key ~data:node
+                       , Map.add_exn
+                           output_map
+                           ~key
+                           ~data:(Incremental.Expert.Node.watch node) )
+                     | `Unequal (_old_value, _new_value) ->
+                       Incremental.Expert.Node.make_stale
+                         (Map.find_exn expert_nodes key);
+                       expert_nodes, output_map)
+               in
+               state.input_map <- input_map;
+               state.expert_nodes <- expert_nodes;
+               state.output_map <- output_map)))
       in
       make_node_depend_on_input_map_changed output_map_node ~input_map_changed;
       Incremental.Expert.Node.watch output_map_node)
@@ -827,11 +993,12 @@ module Generic = struct
 
   let subrange
         (type k v cmp state_witness)
+        ?(instrumentation = no_instrumentation)
         ?(data_equal = phys_equal)
         (map_incr : ((k, v, cmp) Map.t, state_witness) Incremental.t)
         range
     =
-    with_old2 map_incr range ~f:(fun ~old map range ->
+    with_old2 ~instrumentation map_incr range ~f:(fun ~old map range ->
       let compare = (Map.comparator map).compare in
       let equal l r = compare l r = 0 in
       let ( > ) a b = compare a b > 0
@@ -950,10 +1117,17 @@ module Generic = struct
                with_new_keys_now_in_range))))
   ;;
 
-  let rekey ?data_equal map_incr ~comparator:outer_comparator ~f =
+  let rekey
+        ?(instrumentation = no_instrumentation)
+        ?data_equal
+        map_incr
+        ~comparator:outer_comparator
+        ~f
+    =
     unordered_fold
       map_incr
       ?data_equal
+      ~instrumentation
       ~init:(Map.empty outer_comparator)
       ~revert_to_init_when_empty:true
       ~add:(fun ~key ~data output -> Map.add_exn output ~key:(f ~key ~data) ~data)
@@ -966,10 +1140,17 @@ module Generic = struct
         else Map.remove output prev_key |> Map.add_exn ~key:new_key ~data:new_data)
   ;;
 
-  let index_byi ?data_equal map_incr ~comparator:outer_comparator ~index =
+  let index_byi
+        ?(instrumentation = no_instrumentation)
+        ?data_equal
+        map_incr
+        ~comparator:outer_comparator
+        ~index
+    =
     with_comparator map_incr (fun inner_comparator ->
       unordered_fold
         ?data_equal
+        ~instrumentation
         map_incr
         ~init:(Map.empty outer_comparator)
         ~revert_to_init_when_empty:true
@@ -996,8 +1177,13 @@ module Generic = struct
                 if Map.is_empty inner_map then None else Some inner_map)))
   ;;
 
-  let index_by ?data_equal map_incr ~comparator ~index =
-    index_byi ?data_equal map_incr ~comparator ~index:(fun ~key:_ ~data -> index data)
+  let index_by ?instrumentation ?data_equal map_incr ~comparator ~index =
+    index_byi
+      ?instrumentation
+      ?data_equal
+      map_incr
+      ~comparator
+      ~index:(fun ~key:_ ~data -> index data)
   ;;
 
 
@@ -1083,6 +1269,7 @@ module Generic = struct
 
   let rank
         (type k v cmp state_witness)
+        ?(instrumentation = no_instrumentation)
         (map : ((k, v, cmp) Map.t, state_witness) Incremental.t)
         (key : (k, state_witness) Incremental.t)
     =
@@ -1146,12 +1333,13 @@ module Generic = struct
              compute the rank from scratch *)
           | Some (_, _, None) | None -> Map.rank new_map new_key)
       in
-      with_old2 map key ~f:process)
+      with_old2 ~instrumentation map key ~f:process)
   ;;
 
   (** Range map by indices *)
   let subrange_by_rank
         (type k state_witness)
+        ?(instrumentation = no_instrumentation)
         ?data_equal
         (map : ((k, _, _) Map.t, state_witness) Incremental.t)
         (range : (int Maybe_bound.t * int Maybe_bound.t, state_witness) Incremental.t)
@@ -1159,7 +1347,7 @@ module Generic = struct
     let find_key_range (range : (int * int, state_witness) Incremental.t)
       : ((k * k option) option, state_witness) Incremental.t
       =
-      with_old2 map range ~f:(fun ~old map (from, to_) ->
+      with_old2 map range ~instrumentation ~f:(fun ~old map (from, to_) ->
         (* This function returns no keys, only begin key, or begin and end keys.
            These are the keys at [from] and [to_] positions in the map, or None if the
            indices are too big. As always [0 <= from && from <= to_], there is no
@@ -1248,12 +1436,13 @@ module Generic = struct
 
   let transpose
     : type k1 k2 v k1_cmp k2_cmp state_witness.
-      ?data_equal:(v -> v -> bool)
-      -> (k2, k2_cmp) Map.comparator
+      ?instrumentation:Instrumentation.t
+      -> ?data_equal:(v -> v -> bool)
+      -> (k2, k2_cmp) Comparator.Module.t
       -> ((k1, (k2, v, k2_cmp) Map.t, k1_cmp) Map.t, state_witness) Incremental.t
       -> ((k2, (k1, v, k1_cmp) Map.t, k2_cmp) Map.t, state_witness) Incremental.t
     =
-    fun ?(data_equal = phys_equal) k2_comparator m ->
+    fun ?(instrumentation = no_instrumentation) ?(data_equal = phys_equal) k2_comparator m ->
       with_comparator m (fun k1_comparator ->
         let update
           :  key:k1 -> old_data:(k2, v, k2_cmp) Map.t -> new_data:(k2, v, k2_cmp) Map.t
@@ -1291,6 +1480,7 @@ module Generic = struct
         in
         unordered_fold
           m
+          ~instrumentation
           ~init:(Map.empty k2_comparator)
           ~revert_to_init_when_empty:true
           ~update
@@ -1300,13 +1490,15 @@ module Generic = struct
 
   let collapse_by
         (type outer_key outer_cmp inner_key inner_cmp combined_key combined_cmp)
+        ?(instrumentation = no_instrumentation)
         ?data_equal
         (map_incr :
            ((outer_key, (inner_key, _, inner_cmp) Map.t, outer_cmp) Map.t, _) Incremental.t)
         ~(merge_keys : outer_key -> inner_key -> combined_key)
-        ~(comparator : (combined_key, combined_cmp) Map.comparator)
+        ~(comparator : (combined_key, combined_cmp) Comparator.Module.t)
     =
     unordered_fold_nested_maps
+      ~instrumentation
       ?data_equal
       map_incr
       ~init:(Map.empty comparator)
@@ -1321,10 +1513,11 @@ module Generic = struct
 
   let collapse
         (type outer_key outer_cmp inner_key inner_cmp)
+        ?instrumentation
         ?data_equal
         (map_incr :
            ((outer_key, (inner_key, _, inner_cmp) Map.t, outer_cmp) Map.t, _) Incremental.t)
-        ~comparator:(inner_comparator : (inner_key, inner_cmp) Map.comparator)
+        ~comparator:(inner_comparator : (inner_key, inner_cmp) Comparator.Module.t)
     =
     with_comparator map_incr (fun outer_comparator ->
       let module Cmp = struct
@@ -1341,14 +1534,22 @@ module Generic = struct
       end
       in
       collapse_by
+        ?instrumentation
         ?data_equal
         map_incr
         ~merge_keys:Tuple2.create
         ~comparator:(module Cmp))
   ;;
 
-  let expand ?data_equal map_incr ~outer_comparator ~inner_comparator =
+  let expand
+        ?(instrumentation = no_instrumentation)
+        ?data_equal
+        map_incr
+        ~outer_comparator
+        ~inner_comparator
+    =
     unordered_fold
+      ~instrumentation
       ?data_equal
       map_incr
       ~init:(Map.empty outer_comparator)
@@ -1369,8 +1570,9 @@ module Generic = struct
             Option.some_if (not (Map.is_empty map)) map))
   ;;
 
-  let counti ?data_equal map_incr ~f =
+  let counti ?(instrumentation = no_instrumentation) ?data_equal map_incr ~f =
     unordered_fold
+      ~instrumentation
       ?data_equal
       map_incr
       ~init:0
@@ -1379,26 +1581,29 @@ module Generic = struct
       ~remove:(fun ~key ~data count -> if f ~key ~data then count - 1 else count)
   ;;
 
-  let count ?data_equal map_incr ~f =
-    counti ?data_equal map_incr ~f:(fun ~key:_ ~data -> f data)
+  let count ?instrumentation ?data_equal map_incr ~f =
+    counti ?instrumentation ?data_equal map_incr ~f:(fun ~key:_ ~data -> f data)
   ;;
 
-  let existsi ?data_equal map_incr ~f =
-    Incremental.map (counti ?data_equal map_incr ~f) ~f:(fun count -> count <> 0)
+  let existsi ?instrumentation ?data_equal map_incr ~f =
+    Incremental.map (counti ?instrumentation ?data_equal map_incr ~f) ~f:(fun count ->
+      count <> 0)
   ;;
 
-  let exists ?data_equal map_incr ~f =
-    existsi ?data_equal map_incr ~f:(fun ~key:_ ~data -> f data)
+  let exists ?instrumentation ?data_equal map_incr ~f =
+    existsi ?instrumentation ?data_equal map_incr ~f:(fun ~key:_ ~data -> f data)
   ;;
 
   let sum
         (type u)
+        ?(instrumentation = no_instrumentation)
         ?data_equal
         (map_incr : ((_, _, _) Map.t, _) Incremental.t)
         (module Group : Abstract_algebra.Commutative_group.Without_sexp with type t = u)
         ~f
     =
     unordered_fold
+      ~instrumentation
       ?data_equal
       map_incr
       ~init:Group.zero
@@ -1407,14 +1612,61 @@ module Generic = struct
       ~remove:(fun ~key:_ ~data:v acc -> Group.( - ) acc (f v))
   ;;
 
-  let for_alli ?data_equal map_incr ~f =
+  let for_alli ?instrumentation ?data_equal map_incr ~f =
     Incremental.map
-      (counti ?data_equal map_incr ~f:(fun ~key ~data -> not (f ~key ~data)))
+      (counti ?instrumentation ?data_equal map_incr ~f:(fun ~key ~data ->
+         not (f ~key ~data)))
       ~f:(fun count -> count = 0)
   ;;
 
-  let for_all ?data_equal map_incr ~f =
-    for_alli ?data_equal map_incr ~f:(fun ~key:_ ~data -> f data)
+  let for_all ?instrumentation ?data_equal map_incr ~f =
+    for_alli ?instrumentation ?data_equal map_incr ~f:(fun ~key:_ ~data -> f data)
+  ;;
+
+  let unordered_fold
+        ?(instrumentation = no_instrumentation)
+        ?data_equal
+        ?update
+        ?specialized_initial
+        ?finalize
+        ?revert_to_init_when_empty
+        map
+        ~init
+        ~add
+        ~remove
+    =
+    unordered_fold
+      ~instrumentation
+      ?data_equal
+      ?update
+      ?specialized_initial
+      ?finalize
+      ?revert_to_init_when_empty
+      map
+      ~init
+      ~add
+      ~remove
+  ;;
+
+  let unordered_fold_nested_maps
+        ?(instrumentation = no_instrumentation)
+        ?data_equal
+        ?revert_to_init_when_empty
+        ?update
+        map
+        ~init
+        ~add
+        ~remove
+    =
+    unordered_fold_nested_maps
+      ~instrumentation
+      ?data_equal
+      ?revert_to_init_when_empty
+      ?update
+      map
+      ~init
+      ~add
+      ~remove
   ;;
 
   module For_testing = struct
@@ -1444,27 +1696,33 @@ module Generic = struct
       type nonrec ('v, 'w) t = (K.t, 'v, K.comparator_witness, 'w) t
     end
 
-    let create ?(data_equal = phys_equal) input_map ~comparator =
+    let create
+          ?(instrumentation = no_instrumentation)
+          ?(data_equal = phys_equal)
+          input_map
+          ~comparator
+      =
       let rec self =
         lazy
           (let updater_node =
              Incremental.map input_map ~f:(fun input_map ->
-               let (lazy self) = self in
-               Map.fold_symmetric_diff
-                 self.saved_map
-                 input_map
-                 ~data_equal
-                 ~init:()
-                 ~f:(fun () (key, changed_value) ->
-                   let entries = Map.find_multi self.lookup_entries key in
-                   List.iter entries ~f:(fun entry ->
-                     entry.saved_value
-                     <- (match changed_value with
-                       | `Left _ -> None
-                       | `Right new_value | `Unequal (_, new_value) ->
-                         Some new_value);
-                     Incremental.Expert.Node.make_stale entry.node));
-               self.saved_map <- input_map)
+               instrumentation.Instrumentation.f (fun () ->
+                 let (lazy self) = self in
+                 Map.fold_symmetric_diff
+                   self.saved_map
+                   input_map
+                   ~data_equal
+                   ~init:()
+                   ~f:(fun () (key, changed_value) ->
+                     let entries = Map.find_multi self.lookup_entries key in
+                     List.iter entries ~f:(fun entry ->
+                       entry.saved_value
+                       <- (match changed_value with
+                         | `Left _ -> None
+                         | `Right new_value | `Unequal (_, new_value) ->
+                           Some new_value);
+                       Incremental.Expert.Node.make_stale entry.node));
+                 self.saved_map <- input_map))
            in
            let empty_map = Map.Using_comparator.empty ~comparator in
            { saved_map = empty_map
@@ -1581,6 +1839,7 @@ end
 
 module Make (Incr : Incremental.S) = struct
   include Generic
+  module Instrumentation = Instrumentation
 
   let flatten x = flatten Incr.State.t x
 

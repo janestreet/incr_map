@@ -12,10 +12,13 @@ build: [
 depends: [
   "ocaml" {>= "4.08.0"}
   "abstract_algebra"
+  "bignum"
   "core"
+  "diffable"
   "incremental"
   "ppx_jane"
   "ppx_pattern_bind"
+  "streamable"
   "dune"             {>= "2.0.0"}
 ]
 synopsis: "Helpers for incremental operations on map like data structures"

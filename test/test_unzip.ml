@@ -147,7 +147,8 @@ module Make_test (S : S) = struct
                        operations = [ 5000; 10000; 100000 ]])
         =
         let operations = test_data ~size:(operations / 100) ~operations in
-        fun () -> benchmark_unzip_mapi' Incr.Map.unzip_mapi' ~operations
+        fun () ->
+          benchmark_unzip_mapi' (Incr.Map.unzip_mapi' ?instrumentation:None) ~operations
       ;;
 
       let slow_unzip_mapi' ?cutoff ?data_equal input ~f =

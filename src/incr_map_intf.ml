@@ -1,5 +1,36 @@
 open! Core
 
+module Instrumentation = struct
+  (** All [Incr_map] functions take an optional [instrumentation] parameter that has type
+      [Instrumentation.t].  A value of this type is a record containing a function which
+      is polymorphic over a universally-quantified type ['a]. This function is passed
+      a [unit -> 'a] function, which must be immediately executed, and the result of
+      which must be returned.
+
+      The function passed to the instrumentor will be doing the bulk of the work for the
+      [Incr_map] function in question (usually a [Map.fold_symmetric_diff]).
+
+      You may want to use the Instrumentation API to assist in performance profiling like
+      so:
+
+      {[
+        let profile name =
+          { Incr_map.Instrumentation.f = fun f ->
+              let before = Time.now () in
+              let r = f () in
+              let after = Time.now () in
+              let delta = Time.sub after before in
+              printf "%s took %s" name (Time.Span.to_string_hum delta);
+              r
+          }
+        ;;
+
+        Incr_map.map ~instrumentation:(profile "foo") ~f:map_foo
+      ]} *)
+
+  type t = { f : 'a. (unit -> 'a) -> 'a } [@@unboxed]
+end
+
 (** [S_gen] is the type of the module returned by [Incr_map.Make].  It is a specialization
     of the interface of [Incr_map], with:
 
@@ -16,75 +47,91 @@ module type S_gen = sig
     end
   end
 
-  val of_set : ('k, 'cmp) Set.t Incr.t -> ('k, unit, 'cmp) Map.t Incr.t
+  module Instrumentation = Instrumentation
+
+  val of_set
+    :  ?instrumentation:Instrumentation.t
+    -> ('k, 'cmp) Set.t Incr.t
+    -> ('k, unit, 'cmp) Map.t Incr.t
 
   val filter_mapi
-    :  ?data_equal:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> f:(key:'k -> data:'v1 -> 'v2 option)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
   val mapi
-    :  ?data_equal:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> f:(key:'k -> data:'v1 -> 'v2)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
   val filter_map
-    :  ?data_equal:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> f:('v1 -> 'v2 option)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
   val map
-    :  ?data_equal:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> f:('v1 -> 'v2)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
   val filter_mapi'
-    :  ?cutoff:'v1 Incr.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:'v1 Incr.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> f:(key:'k -> data:'v1 Incr.t -> 'v2 option Incr.t)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
   val mapi'
-    :  ?cutoff:'v1 Incr.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:'v1 Incr.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> f:(key:'k -> data:'v1 Incr.t -> 'v2 Incr.t)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
   val filter_map'
-    :  ?cutoff:'v1 Incr.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:'v1 Incr.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> f:('v1 Incr.t -> 'v2 option Incr.t)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
   val map'
-    :  ?cutoff:'v1 Incr.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:'v1 Incr.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> f:('v1 Incr.t -> 'v2 Incr.t)
     -> ('k, 'v2, 'cmp) Map.t Incr.t
 
   val partition_mapi
-    :  ?data_equal:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> f:(key:'k -> data:'v1 -> ('v2, 'v3) Either.t)
     -> (('k, 'v2, 'cmp) Map.t * ('k, 'v3, 'cmp) Map.t) Incr.t
 
   val partition_mapi'
-    :  ?cutoff:'v1 Incr.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:'v1 Incr.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> f:(key:'k -> data:'v1 Incr.t -> ('v2, 'v3) Either.t Incr.t)
     -> (('k, 'v2, 'cmp) Map.t * ('k, 'v3, 'cmp) Map.t) Incr.t
 
   val unordered_fold
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
     -> ?specialized_initial:(init:'acc -> ('k, 'v, 'cmp) Map.t -> 'acc)
     -> ?finalize:('acc -> 'acc)
@@ -96,95 +143,119 @@ module type S_gen = sig
     -> 'acc Incr.t
 
   val mapi_count
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k1, 'v, 'cmp1) Map.t Incr.t
-    -> comparator:('k2, 'cmp2) Map.comparator
+    -> comparator:('k2, 'cmp2) Comparator.Module.t
     -> f:(key:'k1 -> data:'v -> 'k2)
     -> ('k2, int, 'cmp2) Map.t Incr.t
 
   val map_count
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k1, 'v, 'cmp1) Map.t Incr.t
-    -> comparator:('k2, 'cmp2) Map.comparator
+    -> comparator:('k2, 'cmp2) Comparator.Module.t
     -> f:('v -> 'k2)
     -> ('k2, int, 'cmp2) Map.t Incr.t
 
   val mapi_min
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
-    -> comparator:('r, _) Map.comparator
+    -> comparator:('r, _) Comparator.Module.t
     -> f:(key:'k -> data:'v -> 'r)
     -> 'r option Incr.t
 
   val mapi_max
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
-    -> comparator:('r, _) Map.comparator
+    -> comparator:('r, _) Comparator.Module.t
     -> f:(key:'k -> data:'v -> 'r)
     -> 'r option Incr.t
 
   val map_min
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
-    -> comparator:('r, _) Map.comparator
+    -> comparator:('r, _) Comparator.Module.t
     -> f:('v -> 'r)
     -> 'r option Incr.t
 
   val map_max
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
-    -> comparator:('r, _) Map.comparator
+    -> comparator:('r, _) Comparator.Module.t
     -> f:('v -> 'r)
     -> 'r option Incr.t
 
   val min_value
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
-    -> comparator:('v, _) Map.comparator
+    -> comparator:('v, _) Comparator.Module.t
     -> 'v option Incr.t
 
   val max_value
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
-    -> comparator:('v, _) Map.comparator
+    -> comparator:('v, _) Comparator.Module.t
     -> 'v option Incr.t
 
   val mapi_bounds
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
-    -> comparator:('r, _) Map.comparator
+    -> comparator:('r, _) Comparator.Module.t
     -> f:(key:'k -> data:'v -> 'r)
     -> ('r * 'r) option Incr.t
 
   val map_bounds
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
-    -> comparator:('r, _) Map.comparator
+    -> comparator:('r, _) Comparator.Module.t
     -> f:('v -> 'r)
     -> ('r * 'r) option Incr.t
 
   val value_bounds
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
-    -> comparator:('v, _) Map.comparator
+    -> comparator:('v, _) Comparator.Module.t
     -> ('v * 'v) option Incr.t
 
   val merge
-    :  ?data_equal_left:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal_left:('v1 -> 'v1 -> bool)
     -> ?data_equal_right:('v2 -> 'v2 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
     -> ('k, 'v2, 'cmp) Map.t Incr.t
     -> f:(key:'k -> ('v1, 'v2) Map.Merge_element.t -> 'v3 option)
     -> ('k, 'v3, 'cmp) Map.t Incr.t
 
+  val merge_both_some
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal_left:('v1 -> 'v1 -> bool)
+    -> ?data_equal_right:('v2 -> 'v2 -> bool)
+    -> ?out_equal:('v3 -> 'v3 -> bool)
+    -> ('k, 'v1, 'cmp) Map.t Incr.t
+    -> ('k, 'v2, 'cmp) Map.t Incr.t
+    -> f:(key:'k -> 'v1 -> 'v2 -> 'v3)
+    -> ('k, 'v3, 'cmp) Map.t Incr.t
+
   val unzip
-    :  ?left_result_equal:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?left_result_equal:('v1 -> 'v1 -> bool)
     -> ?right_result_equal:('v2 -> 'v2 -> bool)
     -> ('k, 'v1 * 'v2, 'cmp) Map.t Incr.t
     -> ('k, 'v1, 'cmp) Map.t Incr.t * ('k, 'v2, 'cmp) Map.t Incr.t
 
   val unzip_mapi
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ?left_result_equal:('v1 -> 'v1 -> bool)
     -> ?right_result_equal:('v2 -> 'v2 -> bool)
     -> ('k, 'v, 'cmp) Map.t Incr.t
@@ -192,14 +263,16 @@ module type S_gen = sig
     -> ('k, 'v1, 'cmp) Map.t Incr.t * ('k, 'v2, 'cmp) Map.t Incr.t
 
   val unzip_mapi'
-    :  ?cutoff:'v Incr.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:'v Incr.Cutoff.t
     -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, 'cmp) Map.t Incr.t
     -> f:(key:'k -> data:'v Incr.t -> 'v1 Incr.t * 'v2 Incr.t)
     -> ('k, 'v1, 'cmp) Map.t Incr.t * ('k, 'v2, 'cmp) Map.t Incr.t
 
   val merge'
-    :  ?cutoff:('v1, 'v2) Map.Merge_element.t Incr.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:('v1, 'v2) Map.Merge_element.t Incr.Cutoff.t
     -> ?data_equal_left:('v1 -> 'v1 -> bool)
     -> ?data_equal_right:('v2 -> 'v2 -> bool)
     -> ('k, 'v1, 'cmp) Map.t Incr.t
@@ -208,51 +281,70 @@ module type S_gen = sig
     -> ('k, 'v3, 'cmp) Map.t Incr.t
 
   val flatten : ('k, 'v Incr.t, 'cmp) Map.t -> ('k, 'v, 'cmp) Map.t Incr.t
-  val join : ('k, 'v Incr.t, 'cmp) Map.t Incr.t -> ('k, 'v, 'cmp) Map.t Incr.t
+
+  val join
+    :  ?instrumentation:Instrumentation.t
+    -> ('k, 'v Incr.t, 'cmp) Map.t Incr.t
+    -> ('k, 'v, 'cmp) Map.t Incr.t
 
   val separate
-    :  ('k, 'v, 'cmp) Map.t Incr.t
+    :  ?instrumentation:Instrumentation.t
+    -> ('k, 'v, 'cmp) Map.t Incr.t
     -> data_equal:('v -> 'v -> bool)
     -> ('k, 'v Incr.t, 'cmp) Map.t Incr.t
 
-  val keys : ('k, 'v, 'c) Map.t Incr.t -> ('k, 'c) Set.t Incr.t
-  val rank : ('k, 'v, 'cmp) Base.Map.t Incr.t -> 'k Incr.t -> int option Incr.t
+  val keys
+    :  ?instrumentation:Instrumentation.t
+    -> ('k, 'v, 'c) Map.t Incr.t
+    -> ('k, 'c) Set.t Incr.t
+
+  val rank
+    :  ?instrumentation:Instrumentation.t
+    -> ('k, 'v, 'cmp) Base.Map.t Incr.t
+    -> 'k Incr.t
+    -> int option Incr.t
 
   val subrange
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, 'cmp) Map.t Incr.t
     -> ('k Maybe_bound.As_lower_bound.t * 'k Maybe_bound.As_upper_bound.t) option Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
 
   val subrange_by_rank
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, 'cmp) Map.t Incr.t
     -> (int Maybe_bound.As_lower_bound.t * int Maybe_bound.As_upper_bound.t) Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
 
   val rekey
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k1, 'v, 'cmp1) Map.t Incr.t
-    -> comparator:('k2, 'cmp2) Map.comparator
+    -> comparator:('k2, 'cmp2) Comparator.Module.t
     -> f:(key:'k1 -> data:'v -> 'k2)
     -> ('k2, 'v, 'cmp2) Map.t Incr.t
 
   val index_byi
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('inner_key, 'v, 'inner_cmp) Map.t Incr.t
-    -> comparator:('outer_key, 'outer_cmp) Map.comparator
+    -> comparator:('outer_key, 'outer_cmp) Comparator.Module.t
     -> index:(key:'inner_key -> data:'v -> 'outer_key option)
     -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
 
   val index_by
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('inner_key, 'v, 'inner_cmp) Map.t Incr.t
-    -> comparator:('outer_key, 'outer_cmp) Map.comparator
+    -> comparator:('outer_key, 'outer_cmp) Comparator.Module.t
     -> index:('v -> 'outer_key option)
     -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
 
   val unordered_fold_nested_maps
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ?revert_to_init_when_empty:bool
     -> ?update:
          (outer_key:'outer_key
@@ -268,15 +360,17 @@ module type S_gen = sig
     -> 'acc Incr.t
 
   val transpose
-    :  ?data_equal:('v -> 'v -> bool)
-    -> ('k2, 'k2_cmp) Map.comparator
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
+    -> ('k2, 'k2_cmp) Comparator.Module.t
     -> ('k1, ('k2, 'v, 'k2_cmp) Map.t, 'k1_cmp) Map.t Incr.t
     -> ('k2, ('k1, 'v, 'k1_cmp) Map.t, 'k2_cmp) Map.t Incr.t
 
   val collapse
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
-    -> comparator:('inner_key, 'inner_cmp) Map.comparator
+    -> comparator:('inner_key, 'inner_cmp) Comparator.Module.t
     -> ( 'outer_key * 'inner_key
        , 'v
        , ('outer_cmp, 'inner_cmp) Tuple2.comparator_witness )
@@ -284,57 +378,66 @@ module type S_gen = sig
          Incr.t
 
   val collapse_by
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
     -> merge_keys:('outer_key -> 'inner_key -> 'combined_key)
-    -> comparator:('combined_key, 'combined_cmp) Map.comparator
+    -> comparator:('combined_key, 'combined_cmp) Comparator.Module.t
     -> ('combined_key, 'v, 'combined_cmp) Map.t Incr.t
 
   val expand
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('outer_key * 'inner_key, 'v, 'tuple_cmp) Map.t Incr.t
-    -> outer_comparator:('outer_key, 'outer_cmp) Map.comparator
-    -> inner_comparator:('inner_key, 'inner_cmp) Map.comparator
+    -> outer_comparator:('outer_key, 'outer_cmp) Comparator.Module.t
+    -> inner_comparator:('inner_key, 'inner_cmp) Comparator.Module.t
     -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
 
   val counti
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
     -> f:(key:'k -> data:'v -> bool)
     -> int Incr.t
 
   val count
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (_, 'v, _) Map.t Incr.t
     -> f:('v -> bool)
     -> int Incr.t
 
   val for_alli
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
     -> f:(key:'k -> data:'v -> bool)
     -> bool Incr.t
 
   val for_all
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (_, 'v, _) Map.t Incr.t
     -> f:('v -> bool)
     -> bool Incr.t
 
   val existsi
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, _) Map.t Incr.t
     -> f:(key:'k -> data:'v -> bool)
     -> bool Incr.t
 
   val exists
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (_, 'v, _) Map.t Incr.t
     -> f:('v -> bool)
     -> bool Incr.t
 
   val sum
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (_, 'v, _) Map.t Incr.t
     -> (module Abstract_algebra.Commutative_group.Without_sexp with type t = 'u)
     -> f:('v -> 'u)
@@ -344,7 +447,8 @@ module type S_gen = sig
     type ('k, 'v, 'cmp) t
 
     val create
-      :  ?data_equal:('v -> 'v -> bool)
+      :  ?instrumentation:Instrumentation.t
+      -> ?data_equal:('v -> 'v -> bool)
       -> ('k, 'v, 'cmp) Map.t Incr.t
       -> comparator:('k, 'cmp) Comparator.t
       -> ('k, 'v, 'cmp) t
@@ -383,70 +487,83 @@ module type Incr_map = sig
       ignoring performance) is the same as the corresponding function in Core's [Map]
       module.  *)
 
+  module Instrumentation = Instrumentation
+
   val of_set
-    :  (('k, 'cmp) Set.t, 'w) Incremental.t
+    :  ?instrumentation:Instrumentation.t
+    -> (('k, 'cmp) Set.t, 'w) Incremental.t
     -> (('k, unit, 'cmp) Map.t, 'w) Incremental.t
 
   val filter_mapi
-    :  ?data_equal:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:(key:'k -> data:'v1 -> 'v2 option)
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
 
   val mapi
-    :  ?data_equal:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:(key:'k -> data:'v1 -> 'v2)
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
 
   val filter_map
-    :  ?data_equal:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:('v1 -> 'v2 option)
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
 
   val map
-    :  ?data_equal:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:('v1 -> 'v2)
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
 
   val filter_mapi'
-    :  ?cutoff:'v1 Incremental.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:'v1 Incremental.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:(key:'k -> data:('v1, 'w) Incremental.t -> ('v2 option, 'w) Incremental.t)
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
 
   val map'
-    :  ?cutoff:'v1 Incremental.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:'v1 Incremental.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:(('v1, 'w) Incremental.t -> ('v2, 'w) Incremental.t)
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
 
   val filter_map'
-    :  ?cutoff:'v1 Incremental.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:'v1 Incremental.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:(('v1, 'w) Incremental.t -> ('v2 option, 'w) Incremental.t)
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
 
   val mapi'
-    :  ?cutoff:'v1 Incremental.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:'v1 Incremental.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:(key:'k -> data:('v1, 'w) Incremental.t -> ('v2, 'w) Incremental.t)
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
 
   val partition_mapi
-    :  ?data_equal:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v1 -> 'v1 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:(key:'k -> data:'v1 -> ('v2, 'v3) Either.t)
     -> (('k, 'v2, 'cmp) Map.t * ('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
 
   val partition_mapi'
-    :  ?cutoff:'v1 Incremental.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:'v1 Incremental.Cutoff.t
     -> ?data_equal:('v1 -> 'v1 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> f:
@@ -485,7 +602,8 @@ module type Incr_map = sig
       is stored and returned during stabilization.  You can use it to e.g. process the
       fold operations in a different order. *)
   val unordered_fold
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
     -> ?specialized_initial:(init:'acc -> ('k, 'v, 'cmp) Map.t -> 'acc)
     -> ?finalize:('acc -> 'acc)
@@ -509,111 +627,136 @@ module type Incr_map = sig
       and you don't mind the extra allocations, use
       [Incr_map.index_byi] composed with [Incr_map.map ~f:Map.length] *)
   val mapi_count
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k1, 'v, 'cmp1) Map.t, 'w) Incremental.t
-    -> comparator:('k2, 'cmp2) Map.comparator
+    -> comparator:('k2, 'cmp2) Comparator.Module.t
     -> f:(key:'k1 -> data:'v -> 'k2)
     -> (('k2, int, 'cmp2) Map.t, 'w) Incremental.t
 
   (** The same as [mapi_count] but the [f] function only gets to see the
       data instead of both the key and the data. *)
   val map_count
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k1, 'v, 'cmp1) Map.t, 'w) Incremental.t
-    -> comparator:('k2, 'cmp2) Map.comparator
+    -> comparator:('k2, 'cmp2) Comparator.Module.t
     -> f:('v -> 'k2)
     -> (('k2, int, 'cmp2) Map.t, 'w) Incremental.t
 
   (** Computes the smallest [r] where [r] is computed for each kv-pair in the
       input map. *)
   val mapi_min
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
-    -> comparator:('r, _) Map.comparator
+    -> comparator:('r, _) Comparator.Module.t
     -> f:(key:'k -> data:'v -> 'r)
     -> ('r option, 'w) Incremental.t
 
   (** Computes the largest [r] where [r] is computed for each kv-pair in the
       input map. *)
   val mapi_max
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
-    -> comparator:('r, _) Map.comparator
+    -> comparator:('r, _) Comparator.Module.t
     -> f:(key:'k -> data:'v -> 'r)
     -> ('r option, 'w) Incremental.t
 
   (** Computes the smallest [r] where [r] is computed for each kv-pair in the
       input map. *)
   val map_min
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
-    -> comparator:('r, _) Map.comparator
+    -> comparator:('r, _) Comparator.Module.t
     -> f:('v -> 'r)
     -> ('r option, 'w) Incremental.t
 
   (** Computes the largest [r] where [r] is computed for each kv-pair in the
       input map. *)
   val map_max
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
-    -> comparator:('r, _) Map.comparator
+    -> comparator:('r, _) Comparator.Module.t
     -> f:('v -> 'r)
     -> ('r option, 'w) Incremental.t
 
   (** Computes the smallest data value from the input map. *)
   val min_value
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
-    -> comparator:('v, _) Map.comparator
+    -> comparator:('v, _) Comparator.Module.t
     -> ('v option, 'w) Incremental.t
 
   (** Computes the largest data value from the input map. *)
   val max_value
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
-    -> comparator:('v, _) Map.comparator
+    -> comparator:('v, _) Comparator.Module.t
     -> ('v option, 'w) Incremental.t
 
   (** Computes [min * max] where the value is computed for each kv-pair
       in the input map *)
   val mapi_bounds
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
-    -> comparator:('r, _) Map.comparator
+    -> comparator:('r, _) Comparator.Module.t
     -> f:(key:'k -> data:'v -> 'r)
     -> (('r * 'r) option, 'w) Incremental.t
 
   (** Computes [min * max] where the value is computed for each kv-pair
       in the input map *)
   val map_bounds
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
-    -> comparator:('r, _) Map.comparator
+    -> comparator:('r, _) Comparator.Module.t
     -> f:('v -> 'r)
     -> (('r * 'r) option, 'w) Incremental.t
 
   (** Computes the smallest and largest data value from the input map. *)
   val value_bounds
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
-    -> comparator:('v, _) Map.comparator
+    -> comparator:('v, _) Comparator.Module.t
     -> (('v * 'v) option, 'w) Incremental.t
 
 
   (** Like [merge] in [Base.Map.merge]. Note that [f] is called at most once per key in
       any given stabilization. *)
   val merge
-    :  ?data_equal_left:('v1 -> 'v1 -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal_left:('v1 -> 'v1 -> bool)
     -> ?data_equal_right:('v2 -> 'v2 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
     -> f:(key:'k -> ('v1, 'v2) Map.Merge_element.t -> 'v3 option)
     -> (('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
 
+  (** [merge_both_same] is like [merge], but optimized for the case where you only care
+      about the case where both maps contain a particular key. *)
+  val merge_both_some
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal_left:('v1 -> 'v1 -> bool)
+    -> ?data_equal_right:('v2 -> 'v2 -> bool)
+    -> ?out_equal:('v3 -> 'v3 -> bool)
+    -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
+    -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
+    -> f:(key:'k -> 'v1 -> 'v2 -> 'v3)
+    -> (('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
+
   (** Like [merge], but operating using incremental nodes. This is a good use case for
       [ppx_pattern_bind]. *)
   val merge'
-    :  ?cutoff:('v1, 'v2) Map.Merge_element.t Incremental.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:('v1, 'v2) Map.Merge_element.t Incremental.Cutoff.t
     -> ?data_equal_left:('v1 -> 'v1 -> bool)
     -> ?data_equal_right:('v2 -> 'v2 -> bool)
     -> (('k, 'v1, 'cmp) Map.t, 'w) Incremental.t
@@ -625,7 +768,8 @@ module type Incr_map = sig
     -> (('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
 
   val unzip
-    :  ?left_result_equal:('a -> 'a -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?left_result_equal:('a -> 'a -> bool)
     -> ?right_result_equal:('b -> 'b -> bool)
     -> (('k, 'a * 'b, 'cmp) Map.t, 'w) Incremental.t
     -> (('k, 'a, 'cmp) Map.t, 'w) Incremental.t * (('k, 'b, 'cmp) Map.t, 'w) Incremental.t
@@ -633,7 +777,8 @@ module type Incr_map = sig
   (** [unzip_mapi] is similar to [List.unzip], but for incremental maps. Note that [f] may
       be called multiple times on a single element. *)
   val unzip_mapi
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ?left_result_equal:('v1 -> 'v1 -> bool)
     -> ?right_result_equal:('v2 -> 'v2 -> bool)
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
@@ -656,7 +801,8 @@ module type Incr_map = sig
         left, right
       ]} *)
   val unzip_mapi'
-    :  ?cutoff:'v Incremental.Cutoff.t
+    :  ?instrumentation:Instrumentation.t
+    -> ?cutoff:'v Incremental.Cutoff.t
     -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> f:
@@ -676,15 +822,20 @@ module type Incr_map = sig
       purpose is to collapse the extra level of incrementality at the level of the data of
       the map.*)
   val join
-    :  (('k, ('v, 'w) Incremental.t, 'cmp) Map.t, 'w) Incremental.t
+    :  ?instrumentation:Instrumentation.t
+    -> (('k, ('v, 'w) Incremental.t, 'cmp) Map.t, 'w) Incremental.t
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
 
   val separate
-    :  (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
+    :  ?instrumentation:Instrumentation.t
+    -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> data_equal:('v -> 'v -> bool)
     -> (('k, ('v, 'w) Incremental.t, 'cmp) Map.t, 'w) Incremental.t
 
-  val keys : (('k, 'v, 'c) Map.t, 'w) Incremental.t -> (('k, 'c) Set.t, 'w) Incremental.t
+  val keys
+    :  ?instrumentation:Instrumentation.t
+    -> (('k, 'v, 'c) Map.t, 'w) Incremental.t
+    -> (('k, 'c) Set.t, 'w) Incremental.t
 
   (** Computes the [rank] of a key (given incrementally) inside of a map (also
       incremental).  The traditional [Map.rank] function is O(n), and this incremental
@@ -705,7 +856,8 @@ module type Incr_map = sig
       - O(log n + k) when the key changes
       - O(log n + r + k) when both key and map change *)
   val rank
-    :  (('k, 'v, 'cmp) Base.Map.t, 'state_witness) Incremental.t
+    :  ?instrumentation:Instrumentation.t
+    -> (('k, 'v, 'cmp) Base.Map.t, 'state_witness) Incremental.t
     -> ('k, 'state_witness) Incremental.t
     -> (int option, 'state_witness) Incremental.t
 
@@ -723,7 +875,8 @@ module type Incr_map = sig
       not made any changes to the underlying map yet, and m equals the size of the range,
       because the initial range is empty. *)
   val subrange
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> ( ('k Maybe_bound.As_lower_bound.t * 'k Maybe_bound.As_upper_bound.t) option
        , 'w )
@@ -749,7 +902,8 @@ module type Incr_map = sig
       - m' = O( |new s - old s| + |new e - old e| ).
   *)
   val subrange_by_rank
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> ( int Maybe_bound.As_lower_bound.t * int Maybe_bound.As_upper_bound.t
        , 'w )
@@ -763,9 +917,10 @@ module type Incr_map = sig
       This function assumes [f] is cheap to compute and accordingly may call
       it multiple times. *)
   val rekey
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k1, 'v, 'cmp1) Map.t, 'w) Incremental.t
-    -> comparator:('k2, 'cmp2) Map.comparator
+    -> comparator:('k2, 'cmp2) Comparator.Module.t
     -> f:(key:'k1 -> data:'v -> 'k2)
     -> (('k2, 'v, 'cmp2) Map.t, 'w) Incremental.t
 
@@ -792,9 +947,10 @@ module type Incr_map = sig
         ;;
       ]} *)
   val index_byi
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('inner_key, 'v, 'inner_cmp) Map.t, 'w) Incremental.t
-    -> comparator:('outer_key, 'outer_cmp) Map.comparator
+    -> comparator:('outer_key, 'outer_cmp) Comparator.Module.t
     -> index:(key:'inner_key -> data:'v -> 'outer_key option)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
@@ -803,16 +959,18 @@ module type Incr_map = sig
   (** [index_by map ~comparator ~index] is like [index_byi map ~comparator ~index], but
       the [index] function does not take the inner map's [key]. *)
   val index_by
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('inner_key, 'v, 'inner_cmp) Map.t, 'w) Incremental.t
-    -> comparator:('outer_key, 'outer_cmp) Map.comparator
+    -> comparator:('outer_key, 'outer_cmp) Comparator.Module.t
     -> index:('v -> 'outer_key option)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
          Incremental.t
 
   val unordered_fold_nested_maps
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ?revert_to_init_when_empty:bool
     -> ?update:
          (outer_key:'outer_key
@@ -833,17 +991,19 @@ module type Incr_map = sig
 
       All inner map instances will have at least one element. *)
   val transpose
-    :  ?data_equal:('v -> 'v -> bool)
-    -> ('k2, 'k2_cmp) Map.comparator
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
+    -> ('k2, 'k2_cmp) Comparator.Module.t
     -> (('k1, ('k2, 'v, 'k2_cmp) Map.t, 'k1_cmp) Map.t, 'w) Incremental.t
     -> (('k2, ('k1, 'v, 'k1_cmp) Map.t, 'k2_cmp) Map.t, 'w) Incremental.t
 
   val collapse
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
          Incremental.t
-    -> comparator:('inner_key, 'inner_cmp) Map.comparator
+    -> comparator:('inner_key, 'inner_cmp) Comparator.Module.t
     -> ( ( 'outer_key * 'inner_key
          , 'v
          , ('outer_cmp, 'inner_cmp) Tuple2.comparator_witness )
@@ -865,12 +1025,13 @@ module type Incr_map = sig
       [ ~comparator:(module Combined_key) ]
       but make sure that the module implements the [Comparator.S] signature. *)
   val collapse_by
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
          Incremental.t
     -> merge_keys:('outer_key -> 'inner_key -> 'combined_key)
-    -> comparator:('combined_key, 'combined_cmp) Map.comparator
+    -> comparator:('combined_key, 'combined_cmp) Comparator.Module.t
     -> (('combined_key, 'v, 'combined_cmp) Map.t, 'w) Incremental.t
 
   (** Convert a map with tuples for keys into a nested map. This operation is roughly the
@@ -878,46 +1039,53 @@ module type Incr_map = sig
       correspond to empty inner maps, the outer keys will be dropped from the expanded
       map. *)
   val expand
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('outer_key * 'inner_key, 'v, 'tuple_cmp) Map.t, 'w) Incremental.t
-    -> outer_comparator:('outer_key, 'outer_cmp) Map.comparator
-    -> inner_comparator:('inner_key, 'inner_cmp) Map.comparator
+    -> outer_comparator:('outer_key, 'outer_cmp) Comparator.Module.t
+    -> inner_comparator:('inner_key, 'inner_cmp) Comparator.Module.t
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
          Incremental.t
 
   val counti
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
     -> f:(key:'k -> data:'v -> bool)
     -> (int, 'w) Incremental.t
 
   val count
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ((_, 'v, _) Map.t, 'w) Incremental.t
     -> f:('v -> bool)
     -> (int, 'w) Incremental.t
 
   val for_alli
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
     -> f:(key:'k -> data:'v -> bool)
     -> (bool, 'w) Incremental.t
 
   val for_all
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ((_, 'v, _) Map.t, 'w) Incremental.t
     -> f:('v -> bool)
     -> (bool, 'w) Incremental.t
 
   val existsi
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, _) Map.t, 'w) Incremental.t
     -> f:(key:'k -> data:'v -> bool)
     -> (bool, 'w) Incremental.t
 
   val exists
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ((_, 'v, _) Map.t, 'w) Incremental.t
     -> f:('v -> bool)
     -> (bool, 'w) Incremental.t
@@ -928,7 +1096,8 @@ module type Incr_map = sig
       here.
   *)
   val sum
-    :  ?data_equal:('v -> 'v -> bool)
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
     -> ((_, 'v, _) Map.t, 'w) Incremental.t
     -> (module Abstract_algebra.Commutative_group.Without_sexp with type t = 'u)
     -> f:('v -> 'u)
@@ -954,7 +1123,8 @@ module type Incr_map = sig
 
     (** Create the lookup structure on an incremental map. *)
     val create
-      :  ?data_equal:('v -> 'v -> bool)
+      :  ?instrumentation:Instrumentation.t
+      -> ?data_equal:('v -> 'v -> bool)
       -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
       -> comparator:('k, 'cmp) Comparator.t
       -> ('k, 'v, 'cmp, 'w) t

@@ -15,7 +15,7 @@ val run_operations
 
 val nested_run_operations
   :  ('outer_key, ('inner_key, 'data) Without_stabilize.t list) t list
-  -> inner_map_comparator:('inner_key, 'inner_cmp) Map.comparator
+  -> inner_map_comparator:('inner_key, 'inner_cmp) Comparator.Module.t
   -> into:('outer_key, ('inner_key, 'data, 'inner_cmp) Map.t, _) Map.t Incr.Var.t
   -> after_stabilize:(unit -> unit)
   -> unit

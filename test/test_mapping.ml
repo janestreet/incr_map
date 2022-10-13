@@ -97,7 +97,8 @@ let%bench_module "filter_mapi" =
 
     let%bench_fun ("random-ops" [@indexed operations = [ 5000; 10000; 100000 ]]) =
       let operations = test_data ~size:(operations / 100) ~operations in
-      fun () -> benchmark_filter_mapi Incr.Map.filter_mapi ~operations
+      fun () ->
+        benchmark_filter_mapi (Incr.Map.filter_mapi ?instrumentation:None) ~operations
     ;;
   end)
 ;;

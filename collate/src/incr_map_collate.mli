@@ -90,5 +90,38 @@ module Make (Incr : Incremental.S) : sig
       -> ('k, 'v, 'cmp) Map.t Incr.t
       -> ('k, 'filter, 'order) Collate.t Incr.t
       -> ('k, 'v) Collated.t Incr.t
+
+    module Fold : sig
+      type ('k, 'v, 'acc) t
+
+      val create
+        :  ?revert_to_init_when_empty:bool
+        -> init:'acc
+        -> add:(key:'k -> data:'v -> 'acc -> 'acc)
+        -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
+        -> remove:(key:'k -> data:'v -> 'acc -> 'acc)
+        -> unit
+        -> ('k, 'v, 'acc) t
+    end
+
+    (** Like [collate__sort_first], but also gives an opportunity to perform a fold over
+        the post-filtered, pre-range-restricted data. *)
+    val collate_and_fold__sort_first
+      :  filter_equal:('filter -> 'filter -> bool)
+      -> order_equal:('order -> 'order -> bool)
+      -> ?order_cache_params:'order Store_params.t (** default: alist of size 10 *)
+      -> ?order_filter_cache_params:('order * 'filter) Store_params.t
+      (** default: alist of size 30 *)
+      -> ?order_filter_range_cache_params:
+           ('order * 'filter * Range_memoize_bucket.t) Store_params.t
+      (** default: alist of size
+          50 *)
+      -> ?range_memoize_bucket_size:int
+      -> filter_to_predicate:('filter -> (key:'k -> data:'v -> bool) option)
+      -> order_to_compare:('order -> ('k, 'v, 'cmp) Compare.t)
+      -> fold:('k, 'v, 'fold_result) Fold.t
+      -> ('k, 'v, 'cmp) Map.t Incr.t
+      -> ('k, 'filter, 'order) Collate.t Incr.t
+      -> (('k, 'v) Collated.t * 'fold_result) Incr.t
   end
 end

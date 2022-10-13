@@ -78,50 +78,6 @@ module Make (Incr : Incremental.S) = struct
     type ('k, 'v, 'cmp, 'custom_cmp) t =
       | Original of (('k, 'v, 'cmp) Map.t Incr.t * ('k, 'cmp) Comparator.t)
       | Sorted of
-          (* This type is tricky. We store the value *twice*, both in
-             the map's key and in map's data.
-
-             ! you should always use the value from the data !
-
-             We need it in map's key, to be able to sort by data from values. However, the
-             (key, value) comparator does not provide a linear order on all possible
-             tuples. It is the case for all the tuples in the map at any given time
-             (as keys are unique, and we incorporate key comparator in
-             [Custom_tuple_comparator]), but not when diffing two maps!
-
-             For a concrete example, if we have [key = int] and
-             [value = (Symbol.t * Price.t)], sort the map by symbols, and then update
-             price (e.g. change from (1, (AAPL, $1)) to (1, (AAPL, $2))), the
-             [Custom_tuple_comparator] will (rightfully) say the two are equal -
-             this entry doesn't have to move in the sorted map.
-
-             When diffing maps (so in ~every Incr_map function), on such
-             a change we will only notice that the data changed (i.e. symmetric_diff will
-             return `Unequal), and not that the key changed. Therefore, most of the
-             functions (e.g. filter, subrange) will only replace the value for the key,
-             and not update the key.
-
-             ! this means the two values in a single entry might not be equal [0] !
-
-             This is fine though. It suffices to just use the value from the data
-             everywhere where we care about something more than the ordering.
-             It will stay up-to-date, as all incr_map operations (obviously!) need to
-             support changing a value without key changing. In places where we only care
-             about ordering, using either is fine - as they compare equal.
-
-             So, for filtering and the final conversion to a list we properly use the
-             value from the data. The other operations - sorting, subrange,
-             subrange_by_rank, only care about the order, so they're fine [1]
-
-             [0] Note that to restore consistency (i.e. to always have value in key =
-             value in data) we would have to handle this in *all* incremental operations
-             that we do after sorting - so we would need to copy a decent part of Incr_map.
-
-             [1] there is one more catch with subrange - we pass it (key, new_value) as
-             key, as we do the lookup in the original map, but it might only have (key,
-             old_value) in the map it sees. It's still fine, as the two tuples compare
-             equal.
-          *)
           (('k * 'v, 'v, 'custom_cmp) Map.t Incr.t * ('k * 'v, 'custom_cmp) Comparator.t)
 
     let length t =
@@ -134,6 +90,22 @@ module Make (Incr : Incremental.S) = struct
     type ('k, 'v, 'cmp) packed =
       | T : ('k, 'v, 'cmp, 'custom_cmp) t -> ('k, 'v, 'cmp) packed
     [@@unboxed]
+  end
+
+  module Fold_params = struct
+    type ('k, 'v, 'acc) t =
+      { init : 'acc
+      ; add : key:'k -> data:'v -> 'acc -> 'acc
+      ; remove : key:'k -> data:'v -> 'acc -> 'acc
+      ; update : (key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc) option
+      ; revert_to_init_when_empty : bool
+      }
+  end
+
+  module Fold_action = struct
+    type ('k, 'v, 'acc) t =
+      | Fold : ('k, 'v, 'acc) Fold_params.t -> ('k, 'v, 'acc) t
+      | Don't_fold : ('k, 'v, unit) t
   end
 
   open Incr.Let_syntax
@@ -160,6 +132,31 @@ module Make (Incr : Incremental.S) = struct
     match data with
     | Original (m, cmp) -> Original (filter ~get:(fun k v -> k, v) m, cmp)
     | Sorted (m, cmp) -> Sorted (filter ~get:(fun (k, _v1) v2 -> k, v2) m, cmp)
+  ;;
+
+  let do_fold
+        (data : _ Incr_collated_map.t)
+        ({ init; add; remove; update; revert_to_init_when_empty } : _ Fold_params.t)
+    =
+    match data with
+    | Original (map, _) -> Incr_map.unordered_fold map ~init ~add ~remove ?update
+    | Sorted (map, _) ->
+      let lift f ~key ~data acc =
+        let key, _ = key in
+        f ~key ~data acc
+      in
+      let update =
+        Option.map update ~f:(fun update ~key ~old_data ~new_data acc ->
+          let key, _ = key in
+          update ~key ~old_data ~new_data acc)
+      in
+      Incr_map.unordered_fold
+        map
+        ~init
+        ~add:(fun ~key ~data acc -> lift add ~key ~data acc)
+        ~remove:(fun ~key ~data acc -> lift remove ~key ~data acc)
+        ~revert_to_init_when_empty
+        ?update
   ;;
 
   let do_sort
@@ -430,8 +427,8 @@ module Make (Incr : Incremental.S) = struct
   module With_caching = struct
     module Range_memoize_bucket = Range_memoize_bucket
 
-    let collate__sort_first
-          (type k v cmp filter order)
+    let collate_and_maybe_fold__sort_first
+          (type k v cmp filter order fold_result)
           ~filter_equal
           ~order_equal
           ?(order_cache_params =
@@ -451,9 +448,10 @@ module Make (Incr : Incremental.S) = struct
           ?(range_memoize_bucket_size = 10000)
           ~(filter_to_predicate : filter -> _)
           ~(order_to_compare : order -> _)
+          ~(fold_action : (k, v, fold_result) Fold_action.t)
           (data : (k, v, cmp) Map.t Incr.t)
           (collate : (k, filter, order) Collate.t Incr.t)
-      : (k, v) Collated.t Incr.t
+      : ((k, v) Collated.t * fold_result) Incr.t
       =
       let cache_sorted = Store.create order_cache_params in
       let cache_sorted_filtered = Store.create order_filter_cache_params in
@@ -495,7 +493,7 @@ module Make (Incr : Incremental.S) = struct
       let%bind () = never_cutoff in
       let compare = order_to_compare order in
       let predicate = filter_to_predicate filter in
-      let do_range ~sorted ~sorted_filtered =
+      let do_range ~sorted ~sorted_filtered ~fold_result =
         let sorted_filtered_ranked =
           in_scope (fun () ->
             let (Incr_collated_map.T sorted_filtered) = sorted_filtered in
@@ -504,19 +502,26 @@ module Make (Incr : Incremental.S) = struct
         Store.add
           cache_sorted_filtered_ranked
           ~key:(order, filter, range_bucket)
-          ~value:(sorted, sorted_filtered, sorted_filtered_ranked);
-        sorted_filtered_ranked
+          ~value:(sorted, sorted_filtered, fold_result, sorted_filtered_ranked);
+        Incr.both sorted_filtered_ranked fold_result
       in
       let do_filter_range ~sorted =
         let sorted_filtered : _ Incr_collated_map.packed =
           let (Incr_collated_map.T sorted) = sorted in
           in_scope (fun () -> do_filter_sorted sorted ~predicate) |> T
         in
+        let fold_result =
+          match fold_action with
+          | Fold fold_params ->
+            let (T sorted_filtered) = sorted_filtered in
+            in_scope (fun () -> do_fold sorted_filtered fold_params)
+          | Don't_fold -> in_scope (fun () -> Incr.return ())
+        in
         Store.add
           cache_sorted_filtered
           ~key:(order, filter)
-          ~value:(sorted, sorted_filtered);
-        do_range ~sorted ~sorted_filtered
+          ~value:(sorted, sorted_filtered, fold_result);
+        do_range ~sorted ~sorted_filtered ~fold_result
       in
       let do_sort_filter_range () =
         let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
@@ -542,12 +547,81 @@ module Make (Incr : Incremental.S) = struct
         Store.find cache_sorted_filtered_ranked (order, filter, range_bucket)
       in
       match sorted, sorted_filtered, sorted_filtered_ranked with
-      | Some s, Some (s', sf), Some (s'', sf', sfr)
-        when phys_equal s s' && phys_equal s s'' && phys_equal sf sf' -> sfr
-      | Some s, Some (s', sf), _ when phys_equal s s' ->
-        do_range ~sorted:s ~sorted_filtered:sf
+      | Some s, Some (s', sf, fr), Some (s'', sf', fr', sfr)
+        when phys_equal s s' && phys_equal s s'' && phys_equal sf sf' && phys_equal fr fr'
+        -> Incr.both sfr fr
+      | Some s, Some (s', sf, fr), _ when phys_equal s s' ->
+        do_range ~sorted:s ~sorted_filtered:sf ~fold_result:fr
       | Some sorted, _, _ -> do_filter_range ~sorted
       | None, _, _ -> do_sort_filter_range ()
+    ;;
+
+    let collate__sort_first
+          (type k v cmp filter order)
+          ~filter_equal
+          ~order_equal
+          ?order_cache_params
+          ?order_filter_cache_params
+          ?order_filter_range_cache_params
+          ?range_memoize_bucket_size
+          ~(filter_to_predicate : filter -> _)
+          ~(order_to_compare : order -> _)
+          (data : (k, v, cmp) Map.t Incr.t)
+          (collate : (k, filter, order) Collate.t Incr.t)
+      : (k, v) Collated.t Incr.t
+      =
+      let%pattern_map collated, () =
+        collate_and_maybe_fold__sort_first
+          ~filter_equal
+          ~order_equal
+          ?order_cache_params
+          ?order_filter_cache_params
+          ?order_filter_range_cache_params
+          ?range_memoize_bucket_size
+          ~filter_to_predicate
+          ~order_to_compare
+          ~fold_action:Don't_fold
+          data
+          collate
+      in
+      collated
+    ;;
+
+    module Fold = struct
+      include Fold_params
+
+      let create ?(revert_to_init_when_empty = true) ~init ~add ?update ~remove () =
+        { init; add; update; remove; revert_to_init_when_empty }
+      ;;
+    end
+
+    let collate_and_fold__sort_first
+          (type k v cmp filter order fold_result)
+          ~filter_equal
+          ~order_equal
+          ?order_cache_params
+          ?order_filter_cache_params
+          ?order_filter_range_cache_params
+          ?range_memoize_bucket_size
+          ~(filter_to_predicate : filter -> _)
+          ~(order_to_compare : order -> _)
+          ~(fold : (k, v, fold_result) Fold_params.t)
+          (data : (k, v, cmp) Map.t Incr.t)
+          (collate : (k, filter, order) Collate.t Incr.t)
+      : ((k, v) Collated.t * fold_result) Incr.t
+      =
+      collate_and_maybe_fold__sort_first
+        ~filter_equal
+        ~order_equal
+        ?order_cache_params
+        ?order_filter_cache_params
+        ?order_filter_range_cache_params
+        ?range_memoize_bucket_size
+        ~filter_to_predicate
+        ~order_to_compare
+        ~fold_action:(Fold fold)
+        data
+        collate
     ;;
   end
 end

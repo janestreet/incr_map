@@ -1,0 +1,4 @@
+(library (name incr_map_erase_key_test)
+ (libraries bignum core expect_test_helpers_core incr_map_test
+  incr_map_erase_key)
+ (preprocess (pps ppx_jane)))
