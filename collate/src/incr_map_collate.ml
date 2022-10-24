@@ -98,6 +98,7 @@ module Make (Incr : Incremental.S) = struct
       ; add : key:'k -> data:'v -> 'acc -> 'acc
       ; remove : key:'k -> data:'v -> 'acc -> 'acc
       ; update : (key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc) option
+      ; finalize : ('acc -> 'acc) option
       ; revert_to_init_when_empty : bool
       }
   end
@@ -136,7 +137,8 @@ module Make (Incr : Incremental.S) = struct
 
   let do_fold
         (data : _ Incr_collated_map.t)
-        ({ init; add; remove; update; revert_to_init_when_empty } : _ Fold_params.t)
+        ({ init; add; remove; update; finalize; revert_to_init_when_empty } :
+           _ Fold_params.t)
     =
     match data with
     | Original (map, _) -> Incr_map.unordered_fold map ~init ~add ~remove ?update
@@ -157,6 +159,7 @@ module Make (Incr : Incremental.S) = struct
         ~remove:(fun ~key ~data acc -> lift remove ~key ~data acc)
         ~revert_to_init_when_empty
         ?update
+        ?finalize
   ;;
 
   let do_sort
@@ -590,8 +593,16 @@ module Make (Incr : Incremental.S) = struct
     module Fold = struct
       include Fold_params
 
-      let create ?(revert_to_init_when_empty = true) ~init ~add ?update ~remove () =
-        { init; add; update; remove; revert_to_init_when_empty }
+      let create
+            ?(revert_to_init_when_empty = true)
+            ~init
+            ~add
+            ?update
+            ~remove
+            ?finalize
+            ()
+        =
+        { init; add; update; remove; finalize; revert_to_init_when_empty }
       ;;
     end
 

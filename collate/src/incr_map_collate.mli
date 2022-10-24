@@ -100,6 +100,7 @@ module Make (Incr : Incremental.S) : sig
         -> add:(key:'k -> data:'v -> 'acc -> 'acc)
         -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
         -> remove:(key:'k -> data:'v -> 'acc -> 'acc)
+        -> ?finalize:('acc -> 'acc)
         -> unit
         -> ('k, 'v, 'acc) t
     end
