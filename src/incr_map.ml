@@ -202,6 +202,60 @@ module Generic = struct
         b))
   ;;
 
+  let unordered_fold_with_extra
+        ?(instrumentation = no_instrumentation)
+        ?(data_equal = phys_equal)
+        ?(extra_equal = phys_equal)
+        ?update
+        ?specialized_initial
+        ?(finalize = Fn.id)
+        ?(revert_to_init_when_empty = false)
+        map
+        extra
+        ~init
+        ~add
+        ~remove
+        ~extra_changed
+    =
+    let update =
+      let default ~key ~old_data ~new_data acc extra =
+        add ~key ~data:new_data (remove ~key ~data:old_data acc extra) extra
+      in
+      Option.value update ~default
+    in
+    with_old2 ~instrumentation map extra ~f:(fun ~old new_in new_extra ->
+      let acc =
+        match old with
+        | None ->
+          (match specialized_initial with
+           | None ->
+             Map.fold new_in ~init ~f:(fun ~key ~data acc ->
+               add ~key ~data acc new_extra)
+           | Some initial -> initial ~init new_in new_extra)
+        | Some (old_in, old_extra, old_out) ->
+          let acc =
+            if extra_equal old_extra new_extra
+            then old_out
+            else extra_changed ~old_extra ~new_extra ~input:old_in old_out
+          in
+          if revert_to_init_when_empty && Map.length new_in = 0
+          then init
+          else
+            Map.fold_symmetric_diff
+              ~init:acc
+              old_in
+              new_in
+              ~data_equal
+              ~f:(fun acc (key, change) ->
+                match change with
+                | `Left old -> remove ~key ~data:old acc new_extra
+                | `Right new_ -> add ~key ~data:new_ acc new_extra
+                | `Unequal (old, new_) ->
+                  update ~key ~old_data:old ~new_data:new_ acc new_extra)
+      in
+      finalize acc)
+  ;;
+
   let mapi_count
         (type a cmp)
         ?(instrumentation = no_instrumentation)

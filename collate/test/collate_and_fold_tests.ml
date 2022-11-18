@@ -3,7 +3,6 @@ open Incr_map_collate
 
 (***)
 module Incr = Incremental.Make ()
-module Incr_map_collate = Incr_map_collate.Make (Incr)
 module Key = String
 module Range = Incr_map_collate.With_caching.Range_memoize_bucket
 module Fold = Incr_map_collate.With_caching.Fold

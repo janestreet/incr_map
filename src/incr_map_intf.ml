@@ -142,6 +142,27 @@ module type S_gen = sig
     -> remove:(key:'k -> data:'v -> 'acc -> 'acc)
     -> 'acc Incr.t
 
+  val unordered_fold_with_extra
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
+    -> ?extra_equal:('extra -> 'extra -> bool)
+    -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'extra -> 'acc)
+    -> ?specialized_initial:(init:'acc -> ('k, 'v, 'e) Map.t -> 'extra -> 'acc)
+    -> ?finalize:('acc -> 'acc)
+    -> ?revert_to_init_when_empty:bool
+    -> ('k, 'v, 'e) Map.t Incr.t
+    -> 'extra Incr.t
+    -> init:'acc
+    -> add:(key:'k -> data:'v -> 'acc -> 'extra -> 'acc)
+    -> remove:(key:'k -> data:'v -> 'acc -> 'extra -> 'acc)
+    -> extra_changed:
+         (old_extra:'extra
+          -> new_extra:'extra
+          -> input:('k, 'v, 'e) Map.t
+          -> 'acc
+          -> 'acc)
+    -> 'acc Incr.t
+
   val mapi_count
     :  ?instrumentation:Instrumentation.t
     -> ?data_equal:('v -> 'v -> bool)
@@ -612,6 +633,30 @@ module type Incr_map = sig
     -> init:'acc
     -> add:(key:'k -> data:'v -> 'acc -> 'acc)
     -> remove:(key:'k -> data:'v -> 'acc -> 'acc)
+    -> ('acc, 'w) Incremental.t
+
+  (** [unordered_fold_with_extra] is similar to [unordered_fold], but it also
+      depends on another arbitrary incremental value which can be factored into
+      the folding computation. *)
+  val unordered_fold_with_extra
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
+    -> ?extra_equal:('extra -> 'extra -> bool)
+    -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'extra -> 'acc)
+    -> ?specialized_initial:(init:'acc -> ('k, 'v, 'e) Map.t -> 'extra -> 'acc)
+    -> ?finalize:('acc -> 'acc)
+    -> ?revert_to_init_when_empty:bool
+    -> (('k, 'v, 'e) Map.t, 'w) Incremental.t
+    -> ('extra, 'w) Incremental.t
+    -> init:'acc
+    -> add:(key:'k -> data:'v -> 'acc -> 'extra -> 'acc)
+    -> remove:(key:'k -> data:'v -> 'acc -> 'extra -> 'acc)
+    -> extra_changed:
+         (old_extra:'extra
+          -> new_extra:'extra
+          -> input:('k, 'v, 'e) Map.t
+          -> 'acc
+          -> 'acc)
     -> ('acc, 'w) Incremental.t
 
   (** Given an input map and a function mapping a kv-pair to a new
