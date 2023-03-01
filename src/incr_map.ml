@@ -29,6 +29,26 @@ module Generic = struct
       b)
   ;;
 
+  let cutoff ?(instrumentation = no_instrumentation) map ~cutoff =
+    let data_equal old_value new_value =
+      Incremental.Cutoff.should_cutoff cutoff ~old_value ~new_value
+    in
+    with_old ~instrumentation map ~f:(fun ~old cur ->
+      match old with
+      | None -> cur
+      | Some (_old_in, old) ->
+        Map.fold_symmetric_diff
+          ~data_equal
+          ~init:old
+          old
+          cur
+          ~f:(fun acc (key, change) ->
+            match change with
+            | `Left _old -> Map.remove acc key
+            | `Right new_ -> Map.add_exn acc ~key ~data:new_
+            | `Unequal (_old, new_value) -> Map.set acc ~key ~data:new_value))
+  ;;
+
   let unordered_fold
         ~instrumentation
         ?(data_equal = phys_equal)
@@ -106,7 +126,7 @@ module Generic = struct
             | `Left data_removed -> remove ~outer_key ~inner_key ~data:data_removed acc
             | `Right data_added -> add ~outer_key ~inner_key ~data:data_added acc
             | `Unequal (old_data, new_data) ->
-              update ~outer_key ~inner_key ~old_data ~new_data acc))
+              update ~outer_key ~inner_key ~old_data ~new_data acc) [@nontail])
       ~add:(fun ~key:outer_key ~data:inner_map acc ->
         Map.fold inner_map ~init:acc ~f:(fun ~key:inner_key ~data acc ->
           add ~outer_key ~inner_key ~data acc))

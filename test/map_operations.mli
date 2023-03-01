@@ -3,9 +3,16 @@ open Import
 
 module Without_stabilize : sig
   type ('key, 'data) t [@@deriving sexp_of]
+
+  val add : key:'key -> data:'data -> ('key, 'data) t
+  val remove : 'key -> ('key, _) t
 end
 
 type ('key, 'data) t [@@deriving sexp_of]
+
+val add : key:'key -> data:'data -> ('key, 'data) t
+val remove : 'key -> ('key, _) t
+val stabilize : _ t
 
 val run_operations
   :  ('key, 'data) t list

@@ -19,11 +19,11 @@ let quickcheck_test ~incremental ~non_incremental =
 let%test_unit "Incr_map.for_alli" =
   quickcheck_test
     ~incremental:(Incr_map.for_alli ?instrumentation:None)
-    ~non_incremental:Map.for_alli
+    ~non_incremental:(Map.for_alli :> _ -> f:(key:_ -> data:_ -> _) -> _)
 ;;
 
 let%test_unit "Incr_map.existsi" =
   quickcheck_test
     ~incremental:(Incr_map.existsi ?instrumentation:None)
-    ~non_incremental:Map.existsi
+    ~non_incremental:(Map.existsi :> _ -> f:(key:_ -> data:_ -> _) -> _)
 ;;

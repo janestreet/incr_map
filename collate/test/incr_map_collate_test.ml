@@ -27,17 +27,22 @@ module Order = struct
   let to_compare = function
     | By_symbol -> Compare.Unchanged
     | By_symbol_reversed -> Reversed
-    | By_price -> Custom_by_value { compare = Comparable.lift ~f:snd Float.compare }
+    | By_price ->
+      Custom_by_value { compare = (fun a b -> Comparable.lift ~f:snd Float.compare a b) }
     | By_price_reversed ->
       Custom_by_value
-        { compare = Comparable.reverse (Comparable.lift ~f:snd Float.compare) }
+        { compare =
+            (fun a b ->
+               Comparable.reverse (fun a b -> Comparable.lift ~f:snd Float.compare a b) a b)
+        }
     | By_price_and_key ->
-      let compare =
-        (* By "price" first, then by key descending *)
+      let compare (* By "price" first, then by key descending *) a_1 b_1 =
         Comparable.lexicographic
-          [ Comparable.lift Float.compare ~f:(fun (_, (_, x)) -> x)
-          ; Comparable.lift String.descending ~f:fst
+          [ (fun a b -> Comparable.lift Float.compare ~f:(fun (_, (_, x)) -> x) a b)
+          ; (fun a b -> Comparable.lift String.descending ~f:fst a b)
           ]
+          a_1
+          b_1
       in
       Custom_by_key_and_value { compare }
   ;;

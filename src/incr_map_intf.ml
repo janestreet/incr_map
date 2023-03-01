@@ -163,6 +163,12 @@ module type S_gen = sig
           -> 'acc)
     -> 'acc Incr.t
 
+  val cutoff
+    :  ?instrumentation:Instrumentation.t
+    -> ('k, 'v, 'cmp) Map.t Incr.t
+    -> cutoff:'v Incremental.Cutoff.t
+    -> ('k, 'v, 'cmp) Map.t Incr.t
+
   val mapi_count
     :  ?instrumentation:Instrumentation.t
     -> ?data_equal:('v -> 'v -> bool)
@@ -658,6 +664,16 @@ module type Incr_map = sig
           -> 'acc
           -> 'acc)
     -> ('acc, 'w) Incremental.t
+
+  (** [cutoff] applies a cutoff to values in the map as they pass through the
+      function.  It has the same behavior as calling [Incr_map.map'] with an
+      [Incr.set_cutoff] inside, but with considerably better performance and
+      memory usage. *)
+  val cutoff
+    :  ?instrumentation:Instrumentation.t
+    -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
+    -> cutoff:'v Incremental.Cutoff.t
+    -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
 
   (** Given an input map and a function mapping a kv-pair to a new
       value, [mapi_count] will compute a multi-set keyed on that

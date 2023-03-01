@@ -24,6 +24,9 @@ module Without_stabilize = struct
           ~f:(fun inner_map t -> apply t inner_map))
     | `Remove key -> Map.remove map key
   ;;
+
+  let add ~key ~data = `Add (key, data)
+  let remove key = `Remove key
 end
 
 type ('key, 'data) t =
@@ -31,6 +34,10 @@ type ('key, 'data) t =
   | ('key, 'data) Without_stabilize.t
   ]
 [@@deriving sexp_of]
+
+let add = Without_stabilize.add
+let remove = Without_stabilize.remove
+let stabilize = `Stabilize
 
 let int_key_gen ~keys_size =
   let open Quickcheck.Generator.Let_syntax in
