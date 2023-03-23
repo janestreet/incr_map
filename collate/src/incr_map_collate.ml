@@ -104,6 +104,14 @@ module Fold_action = struct
     | Don't_fold : ('k, 'v, unit) t
 end
 
+module Fold = struct
+  include Fold_params
+
+  let create ?(revert_to_init_when_empty = true) ~init ~add ?update ~remove ?finalize () =
+    { init; add; update; remove; finalize; revert_to_init_when_empty }
+  ;;
+end
+
 open Incremental.Let_syntax
 
 let do_filter data ~predicate =
@@ -157,6 +165,20 @@ let do_fold
       ~revert_to_init_when_empty
       ?update
       ?finalize
+;;
+
+let do_fold
+      (type fold_result)
+      (data : _ Incr_collated_map.packed)
+      ~incremental_state
+      ~in_scope
+      ~(fold_action : (_, _, fold_result) Fold_action.t)
+  =
+  match fold_action with
+  | Fold_action.Fold fold_params ->
+    let (T data) = data in
+    in_scope (fun () -> do_fold data fold_params)
+  | Don't_fold -> in_scope (fun () -> Incremental.return incremental_state ())
 ;;
 
 let do_sort
@@ -387,17 +409,19 @@ let do_range_restrict orig_data data ~key_range ~rank_range =
     ~num_unfiltered_rows
 ;;
 
-let collate
-      (type k v cmp filter order w)
+let collate_and_maybe_fold
+      (type k v cmp filter order w fold_result)
       ?(operation_order = `Sort_first)
       ~filter_equal
       ~order_equal
       ~(filter_to_predicate : filter -> _)
       ~(order_to_compare : order -> _)
+      ~(fold_action : (k, v, fold_result) Fold_action.t)
       (data : ((k, v, cmp) Map.t, w) Incremental.t)
       (collate : ((k, filter, order) Collate.t, w) Incremental.t)
-  : ((k, v) Collated.t, w) Incremental.t
+  : ((k, v) Collated.t * fold_result, w) Incremental.t
   =
+  let incremental_state = Incremental.state data in
   let%bind map_comparator = Incremental.freeze (data >>| Map.comparator) in
   let%pattern_bind { key_range; rank_range; filter; order } = collate in
   let filter = with_cutoff filter ~equal:filter_equal in
@@ -408,11 +432,20 @@ let collate
     let%bind filter = filter in
     let predicate = filter_to_predicate filter in
     let data = do_filter data ~predicate in
+    let fold_result =
+      do_fold
+        (T (Original (data, map_comparator)))
+        ~incremental_state
+        ~in_scope:(fun f -> f ())
+        ~fold_action
+    in
     let%bind order = order in
     let compare = order_to_compare order in
     let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
     let data = do_sort data ~map_comparator ~custom_comparator in
-    do_range_restrict orig_data data ~key_range ~rank_range
+    let%mapn out = do_range_restrict orig_data data ~key_range ~rank_range
+    and fold_result = fold_result in
+    out, fold_result
   | `Sort_first ->
     let%bind order = order in
     let compare = order_to_compare order in
@@ -421,7 +454,59 @@ let collate
     let%bind filter = filter in
     let predicate = filter_to_predicate filter in
     let data = do_filter_sorted data ~predicate in
-    do_range_restrict orig_data data ~key_range ~rank_range
+    let fold_result =
+      do_fold (T data) ~incremental_state ~in_scope:(fun f -> f ()) ~fold_action
+    in
+    let%mapn out = do_range_restrict orig_data data ~key_range ~rank_range
+    and fold_result = fold_result in
+    out, fold_result
+;;
+
+let collate
+      ?operation_order
+      ~filter_equal
+      ~order_equal
+      ~filter_to_predicate
+      ~order_to_compare
+      data
+      c
+  =
+  let%map out, () =
+    collate_and_maybe_fold
+      ?operation_order
+      ~filter_equal
+      ~order_equal
+      ~filter_to_predicate
+      ~order_to_compare
+      ~fold_action:Fold_action.Don't_fold
+      data
+      c
+  in
+  out
+;;
+
+let collate_and_fold
+      ?operation_order
+      ~filter_equal
+      ~order_equal
+      ~filter_to_predicate
+      ~order_to_compare
+      ~fold
+      data
+      c
+  =
+  let%pattern_bind out, folded =
+    collate_and_maybe_fold
+      ?operation_order
+      ~filter_equal
+      ~order_equal
+      ~filter_to_predicate
+      ~order_to_compare
+      ~fold_action:(Fold_action.Fold fold)
+      data
+      c
+  in
+  out, folded
 ;;
 
 module With_caching = struct
@@ -431,8 +516,7 @@ module With_caching = struct
         (type k v cmp filter order fold_result w)
         ~filter_equal
         ~order_equal
-        ?(order_cache_params =
-          Store_params.alist_based__lru ~equal:order_equal ~max_size:10)
+        ?(order_cache_params = Store_params.alist_based__lru ~equal:order_equal ~max_size:10)
         ?(order_filter_cache_params =
           Store_params.alist_based__lru
             ~equal:(Tuple2.equal ~eq1:order_equal ~eq2:filter_equal)
@@ -512,11 +596,7 @@ module With_caching = struct
         in_scope (fun () -> do_filter_sorted sorted ~predicate) |> T
       in
       let fold_result =
-        match fold_action with
-        | Fold fold_params ->
-          let (T sorted_filtered) = sorted_filtered in
-          in_scope (fun () -> do_fold sorted_filtered fold_params)
-        | Don't_fold -> in_scope (fun () -> Incremental.return incremental_state ())
+        do_fold sorted_filtered ~incremental_state ~in_scope ~fold_action
       in
       Store.add
         cache_sorted_filtered
@@ -587,15 +667,6 @@ module With_caching = struct
     in
     collated
   ;;
-
-  module Fold = struct
-    include Fold_params
-
-    let create ?(revert_to_init_when_empty = true) ~init ~add ?update ~remove ?finalize ()
-      =
-      { init; add; update; remove; finalize; revert_to_init_when_empty }
-    ;;
-  end
 
   let collate_and_fold__sort_first
         (type k v cmp filter order fold_result w)

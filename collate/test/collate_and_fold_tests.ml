@@ -5,7 +5,7 @@ open Incr_map_collate
 module Incr = Incremental.Make ()
 module Key = String
 module Range = Incr_map_collate.With_caching.Range_memoize_bucket
-module Fold = Incr_map_collate.With_caching.Fold
+module Fold = Incr_map_collate.Fold
 
 module Value = struct
   type t = int [@@deriving sexp, bin_io, equal, compare]
@@ -71,38 +71,58 @@ let do_collate_and_fold
       ~order_cache_size
       ~order_filter_cache_size
       ~order_filter_range_cache_size
+      ~data_equal
+      ~fold_result_equal
       ~fold
       ()
       input
       collate
   =
-  let order_cache_params =
-    Incr_memoize.Store_params.alist_based__lru
-      ~equal:Order.equal
-      ~max_size:order_cache_size
+  let with_caching =
+    let order_cache_params =
+      Incr_memoize.Store_params.alist_based__lru
+        ~equal:Order.equal
+        ~max_size:order_cache_size
+    in
+    let order_filter_cache_params =
+      Incr_memoize.Store_params.alist_based__lru
+        ~equal:Order_filter.equal
+        ~max_size:order_filter_cache_size
+    in
+    let order_filter_range_cache_params =
+      Incr_memoize.Store_params.alist_based__lru
+        ~equal:Order_filter_range.equal
+        ~max_size:order_filter_range_cache_size
+    in
+    Incr_map_collate.With_caching.collate_and_fold__sort_first
+      ~filter_to_predicate:Filter.to_predicate
+      ~order_to_compare:Order.to_compare
+      ~filter_equal:Filter.equal
+      ~order_equal:Order.equal
+      ~range_memoize_bucket_size:1
+      ~order_cache_params
+      ~order_filter_cache_params
+      ~order_filter_range_cache_params
+      ~fold
+      input
+      collate
   in
-  let order_filter_cache_params =
-    Incr_memoize.Store_params.alist_based__lru
-      ~equal:Order_filter.equal
-      ~max_size:order_filter_cache_size
+  let without_caching_data, without_caching_fold_result =
+    Incr_map_collate.collate_and_fold
+      ~filter_to_predicate:Filter.to_predicate
+      ~order_to_compare:Order.to_compare
+      ~filter_equal:Filter.equal
+      ~order_equal:Order.equal
+      ~fold
+      input
+      collate
   in
-  let order_filter_range_cache_params =
-    Incr_memoize.Store_params.alist_based__lru
-      ~equal:Order_filter_range.equal
-      ~max_size:order_filter_range_cache_size
-  in
-  Incr_map_collate.With_caching.collate_and_fold__sort_first
-    ~filter_to_predicate:Filter.to_predicate
-    ~order_to_compare:Order.to_compare
-    ~filter_equal:Filter.equal
-    ~order_equal:Order.equal
-    ~range_memoize_bucket_size:1
-    ~order_cache_params
-    ~order_filter_cache_params
-    ~order_filter_range_cache_params
-    ~fold
-    input
-    collate
+  let%map.Incr with_caching_data, with_caching_fold_result = with_caching
+  and without_caching_data = without_caching_data
+  and without_caching_fold_result = without_caching_fold_result in
+  assert (Collated.equal String.equal data_equal with_caching_data without_caching_data);
+  assert (fold_result_equal with_caching_fold_result without_caching_fold_result);
+  with_caching_data, with_caching_fold_result
 ;;
 
 let get_res t =
@@ -155,6 +175,8 @@ let init_test
         ~order_cache_size:1
         ~order_filter_cache_size:2
         ~order_filter_range_cache_size:3
+        ~data_equal:[%equal: int]
+        ~fold_result_equal:[%equal: int]
         ~fold
         ()
         (Incr.Var.watch map)
@@ -257,6 +279,7 @@ let%expect_test "fold with update" =
   print_res t;
   [%expect
     {|
+    (Updating (key A) (old_data 1) (new_data 7))
     (Updating (key A) (old_data 1) (new_data 7))
     (((A 7) (B 2) (C 3)) (fold_result 15) (num_filtered_rows 3)
      (num_unfiltered_rows 3)) |}];

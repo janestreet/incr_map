@@ -115,11 +115,24 @@ let erase
       { t with key_to_bignum; out }
     ;;
 
-    let process_removals_and_additions acc =
+    let add_all l acc =
+      List.fold l ~init:acc ~f:(fun acc (key, data) -> add ~key ~data acc)
+    ;;
+
+    let process_removals_and_additions
+          (module M : Comparator.S with type comparator_witness = cmp and type t = key)
+          acc
+      =
       let acc = List.fold acc.removals ~init:acc ~f:(fun acc key -> remove ~key acc) in
       let acc =
-        List.fold (List.rev acc.additions) ~init:acc ~f:(fun acc (key, data) ->
-          add ~key ~data acc)
+        let lower_than_lowest, rest =
+          match Map.min_elt acc.key_to_bignum with
+          | None -> [], acc.additions
+          | Some (lowest, _) ->
+            List.partition_tf acc.additions ~f:(fun (a, _) ->
+              Int.(M.comparator.compare a lowest < 0))
+        in
+        acc |> add_all lower_than_lowest |> add_all (List.rev rest)
       in
       { acc with removals = []; additions = [] }
     ;;
@@ -141,8 +154,8 @@ let erase
       of_maps acc.comparator ~key_to_bignum ~out
     ;;
 
-    let finalize acc =
-      let acc = process_removals_and_additions acc in
+    let finalize cmp acc =
+      let acc = process_removals_and_additions cmp acc in
       if acc.rebalance_necessary then rebalance acc else acc
     ;;
   end
@@ -163,11 +176,10 @@ let erase
               , Map.add_exn out ~key:k ~data:(get ~key ~data) ))
           in
           Acc.of_maps cmp ~key_to_bignum ~out)
-        ~add:(fun ~key ~data acc ->
-          { acc with additions = (key, data) :: acc.additions })
+        ~add:(fun ~key ~data acc -> { acc with additions = (key, data) :: acc.additions })
         ~remove:(fun ~key ~data:_ acc -> { acc with removals = key :: acc.removals })
         ~update:(fun ~key ~old_data:_ ~new_data:data acc -> Acc.update ~key ~data acc)
-        ~finalize:Acc.finalize
+        ~finalize:(Acc.finalize cmp)
         map)
   in
   out

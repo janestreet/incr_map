@@ -16,6 +16,20 @@ module Compare : sig
   [@@deriving sexp_of]
 end
 
+module Fold : sig
+  type ('k, 'v, 'acc) t
+
+  val create
+    :  ?revert_to_init_when_empty:bool
+    -> init:'acc
+    -> add:(key:'k -> data:'v -> 'acc -> 'acc)
+    -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
+    -> remove:(key:'k -> data:'v -> 'acc -> 'acc)
+    -> ?finalize:('acc -> 'acc)
+    -> unit
+    -> ('k, 'v, 'acc) t
+end
+
 (** Perform filtering, sorting and restricting to ranges.
 
     The [Collate.t Incr.t] contains the parameters for filtering and sorting, and
@@ -40,6 +54,17 @@ val collate
   -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
   -> (('k, 'filter, 'order) Collate.t, 'w) Incremental.t
   -> (('k, 'v) Collated.t, 'w) Incremental.t
+
+val collate_and_fold
+  :  ?operation_order:[ `Filter_first | `Sort_first ] (** default: `Sort_first *)
+  -> filter_equal:('filter -> 'filter -> bool)
+  -> order_equal:('order -> 'order -> bool)
+  -> filter_to_predicate:('filter -> (key:'k -> data:'v -> bool) option)
+  -> order_to_compare:('order -> ('k, 'v, 'cmp) Compare.t)
+  -> fold:('k, 'v, 'fold_result) Fold.t
+  -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
+  -> (('k, 'filter, 'order) Collate.t, 'w) Incremental.t
+  -> (('k, 'v) Collated.t, 'w) Incremental.t * ('fold_result, 'w) Incremental.t
 
 module With_caching : sig
   (** A version of [collate] with caching.
@@ -85,20 +110,6 @@ module With_caching : sig
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> (('k, 'filter, 'order) Collate.t, 'w) Incremental.t
     -> (('k, 'v) Collated.t, 'w) Incremental.t
-
-  module Fold : sig
-    type ('k, 'v, 'acc) t
-
-    val create
-      :  ?revert_to_init_when_empty:bool
-      -> init:'acc
-      -> add:(key:'k -> data:'v -> 'acc -> 'acc)
-      -> ?update:(key:'k -> old_data:'v -> new_data:'v -> 'acc -> 'acc)
-      -> remove:(key:'k -> data:'v -> 'acc -> 'acc)
-      -> ?finalize:('acc -> 'acc)
-      -> unit
-      -> ('k, 'v, 'acc) t
-  end
 
   (** Like [collate__sort_first], but also gives an opportunity to perform a fold over
       the post-filtered, pre-range-restricted data. *)

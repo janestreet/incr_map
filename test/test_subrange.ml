@@ -408,8 +408,7 @@ let%expect_test "subrange_by_rank" =
     ~initial_range:(Incl 1, Incl 3)
     ~ops:
       [ map_only_op (fun _ ->
-          String.Map.of_alist_exn
-            [ "a", (); "c", (); "e", (); "g", (); "i", (); "k", () ])
+          String.Map.of_alist_exn [ "a", (); "c", (); "e", (); "g", (); "i", (); "k", () ])
       ]
     ();
   [%expect
@@ -606,8 +605,7 @@ let%test_unit "quickcheck subrange_by_rank large fixed range" =
       check ();
       List.iter updates ~f:(fun ops ->
         let map =
-          List.fold ops ~init:(Incr.Var.value var) ~f:(fun acc op ->
-            apply_map_op acc op)
+          List.fold ops ~init:(Incr.Var.value var) ~f:(fun acc op -> apply_map_op acc op)
         in
         Incr.Var.set var map;
         check ()))

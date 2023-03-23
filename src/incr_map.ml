@@ -37,16 +37,11 @@ module Generic = struct
       match old with
       | None -> cur
       | Some (_old_in, old) ->
-        Map.fold_symmetric_diff
-          ~data_equal
-          ~init:old
-          old
-          cur
-          ~f:(fun acc (key, change) ->
-            match change with
-            | `Left _old -> Map.remove acc key
-            | `Right new_ -> Map.add_exn acc ~key ~data:new_
-            | `Unequal (_old, new_value) -> Map.set acc ~key ~data:new_value))
+        Map.fold_symmetric_diff ~data_equal ~init:old old cur ~f:(fun acc (key, change) ->
+          match change with
+          | `Left _old -> Map.remove acc key
+          | `Right new_ -> Map.add_exn acc ~key ~data:new_
+          | `Unequal (_old, new_value) -> Map.set acc ~key ~data:new_value))
   ;;
 
   let unordered_fold
@@ -249,8 +244,7 @@ module Generic = struct
         | None ->
           (match specialized_initial with
            | None ->
-             Map.fold new_in ~init ~f:(fun ~key ~data acc ->
-               add ~key ~data acc new_extra)
+             Map.fold new_in ~init ~f:(fun ~key ~data acc -> add ~key ~data acc new_extra)
            | Some initial -> initial ~init new_in new_extra)
         | Some (old_in, old_extra, old_out) ->
           let acc =
@@ -281,8 +275,7 @@ module Generic = struct
         ?(instrumentation = no_instrumentation)
         ?(data_equal = phys_equal)
         input
-        ~(comparator :
-            (module Comparator.S with type t = a and type comparator_witness = cmp))
+        ~(comparator : (module Comparator.S with type t = a and type comparator_witness = cmp))
         ~f
     =
     let module M = (val comparator) in
@@ -451,8 +444,7 @@ module Generic = struct
             let left_data_opt, right_data_opt =
               match diff_element with
               | Both ((_, left_diff), (_, right_diff)) ->
-                ( new_data_from_diff_element left_diff
-                , new_data_from_diff_element right_diff )
+                new_data_from_diff_element left_diff, new_data_from_diff_element right_diff
               | Left (_, left_diff) ->
                 new_data_from_diff_element left_diff, Map.find new_right_map key
               | Right (_, right_diff) ->
@@ -594,9 +586,7 @@ module Generic = struct
                      in
                      Option.iter cutoff ~f:(fun c ->
                        Incremental.set_cutoff (E.Node.watch node) c);
-                     E.Node.add_dependency
-                       node
-                       (E.Dependency.create (force lhs_change));
+                     E.Node.add_dependency node (E.Dependency.create (force lhs_change));
                      let user_function_dep =
                        E.Dependency.create
                          (f ~key ~data:(E.Node.watch node))
@@ -829,14 +819,10 @@ module Generic = struct
                      in
                      Option.iter cutoff ~f:(fun c ->
                        Incremental.set_cutoff (E.Node.watch node) c);
-                     E.Node.add_dependency
-                       node
-                       (E.Dependency.create (force input_change));
+                     E.Node.add_dependency node (E.Dependency.create (force input_change));
                      let left_incr, right_incr = f ~key ~data:(E.Node.watch node) in
                      let left_user_function_dep =
-                       E.Dependency.create
-                         left_incr
-                         ~on_change:(left_on_inner_change ~key)
+                       E.Dependency.create left_incr ~on_change:(left_on_inner_change ~key)
                      in
                      let right_user_function_dep =
                        E.Dependency.create
@@ -862,12 +848,7 @@ module Generic = struct
     let pair =
       with_comparator map (fun comparator ->
         map
-        |> unzip_mapi_with_comparator'
-             ~instrumentation
-             ?cutoff
-             ?data_equal
-             ~comparator
-             ~f
+        |> unzip_mapi_with_comparator' ~instrumentation ?cutoff ?data_equal ~comparator ~f
         |> Tuple2.uncurry Incremental.both)
     in
     Incremental.map ~f:fst pair, Incremental.map ~f:snd pair
@@ -962,8 +943,7 @@ module Generic = struct
                 | `Left _ -> remove_subnode current_dependencies ~key
                 | `Right data_node -> add_subnode current_dependencies ~key ~data_node
                 | `Unequal (_, data_node) ->
-                  remove_subnode current_dependencies ~key
-                  |> add_subnode ~key ~data_node)
+                  remove_subnode current_dependencies ~key |> add_subnode ~key ~data_node)
           in
           current_dependencies := new_dependency_map;
           old_map_of_incrs := map_of_incrs))
@@ -1033,10 +1013,7 @@ module Generic = struct
                        Map.remove expert_nodes key, Map.remove output_map key
                      | `Right _new_value ->
                        let node =
-                         Separate_state.create_lookup_node
-                           incremental_state
-                           state
-                           key
+                         Separate_state.create_lookup_node incremental_state state key
                        in
                        make_node_depend_on_input_map_changed node ~input_map_changed;
                        Incremental.Expert.Node.make_stale output_map_node;
@@ -1046,8 +1023,7 @@ module Generic = struct
                            ~key
                            ~data:(Incremental.Expert.Node.watch node) )
                      | `Unequal (_old_value, _new_value) ->
-                       Incremental.Expert.Node.make_stale
-                         (Map.find_exn expert_nodes key);
+                       Incremental.Expert.Node.make_stale (Map.find_exn expert_nodes key);
                        expert_nodes, output_map)
                in
                state.input_map <- input_map;
@@ -1080,8 +1056,7 @@ module Generic = struct
       let maybe_bound_equal a b : bool = equal_maybe_bound_structurally equal a b in
       let range_is_empty ~min ~max : bool =
         match min, max with
-        | Unbounded, (Unbounded | Excl _ | Incl _) | (Excl _ | Incl _), Unbounded ->
-          false
+        | Unbounded, (Unbounded | Excl _ | Incl _) | (Excl _ | Incl _), Unbounded -> false
         | Incl min, Incl max -> min > max
         | Excl min, Excl max | Incl min, Excl max | Excl min, Incl max -> min >= max
       in
@@ -1143,11 +1118,7 @@ module Generic = struct
                  ~f:apply_diff_in_intersection
                |> snd
              in
-             if Tuple2.equal
-                  ~eq1:maybe_bound_equal
-                  ~eq2:maybe_bound_equal
-                  old_range
-                  range
+             if Tuple2.equal ~eq1:maybe_bound_equal ~eq2:maybe_bound_equal old_range range
              then
                (* There are no keys to remove and everything in range is updated. *)
                with_updated_values_in_intersection
@@ -1202,16 +1173,27 @@ module Generic = struct
       map_incr
       ?data_equal
       ~instrumentation
-      ~init:(Map.empty outer_comparator)
+      ~init:(Map.empty outer_comparator, [])
       ~revert_to_init_when_empty:true
-      ~add:(fun ~key ~data output -> Map.add_exn output ~key:(f ~key ~data) ~data)
-      ~remove:(fun ~key ~data output -> Map.remove output (f ~key ~data))
-      ~update:(fun ~key ~old_data ~new_data output ->
+      ~add:(fun ~key ~data (output, adds) ->
+        let new_entry = f ~key ~data, data in
+        output, new_entry :: adds)
+      ~remove:(fun ~key ~data (output, adds) -> Map.remove output (f ~key ~data), adds)
+      ~update:(fun ~key ~old_data ~new_data (output, adds) ->
         let prev_key = f ~key ~data:old_data in
         let new_key = f ~key ~data:new_data in
         if (Map.comparator output).compare prev_key new_key = 0
-        then Map.set output ~key:new_key ~data:new_data
-        else Map.remove output prev_key |> Map.add_exn ~key:new_key ~data:new_data)
+        then Map.set output ~key:new_key ~data:new_data, adds
+        else (
+          let output = Map.remove output prev_key in
+          output, (new_key, new_data) :: adds))
+      ~finalize:(fun (output, adds) ->
+        let output =
+          List.fold adds ~init:output ~f:(fun output (key, data) ->
+            Map.add_exn output ~key ~data)
+        in
+        output, [])
+    |> Incremental.map ~f:fst
   ;;
 
   let index_byi
@@ -1234,10 +1216,7 @@ module Generic = struct
           | Some outer_key ->
             Map.update outer_map outer_key ~f:(function
               | None ->
-                Map.Using_comparator.singleton
-                  inner_key
-                  data
-                  ~comparator:inner_comparator
+                Map.Using_comparator.singleton inner_key data ~comparator:inner_comparator
               | Some inner_map -> Map.add_exn inner_map ~key:inner_key ~data))
         ~remove:(fun ~key:inner_key ~data outer_map ->
           match index ~key:inner_key ~data with
@@ -1793,8 +1772,7 @@ module Generic = struct
                        entry.saved_value
                        <- (match changed_value with
                          | `Left _ -> None
-                         | `Right new_value | `Unequal (_, new_value) ->
-                           Some new_value);
+                         | `Right new_value | `Unequal (_, new_value) -> Some new_value);
                        Incremental.Expert.Node.make_stale entry.node));
                  self.saved_map <- input_map))
            in
@@ -1869,13 +1847,14 @@ module Generic = struct
           { saved_value : value option
           ; node_info = (Incremental.user_info node : (Info.t option[@sexp.option]))
           ; node_is_const =
-              (Option.some_if (Incremental.is_const node) () : (unit option[@sexp.option]))
+              (Option.some_if (Incremental.is_const node) ()
+               : (unit option[@sexp.option]))
           ; node_is_invalid =
-              (Option.some_if (not (Incremental.is_valid node)) () : (unit option
-                                                                      [@sexp.option]))
+              (Option.some_if (not (Incremental.is_valid node)) ()
+               : (unit option[@sexp.option]))
           ; node_is_unnecessary =
-              (Option.some_if (not (Incremental.is_necessary node)) () : (unit option
-                                                                          [@sexp.option]))
+              (Option.some_if (not (Incremental.is_necessary node)) ()
+               : (unit option[@sexp.option]))
           }]
       ;;
 

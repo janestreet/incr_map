@@ -57,9 +57,7 @@ let%test_unit "modify map" = test ~mutator:(fun map key -> M.rand_modify_map map
 let%test_unit "if the key is in the map, remove it from the map, otherwise pick a new key"
   =
   test ~mutator:(fun map key ->
-    if Map.mem map key
-    then Map.remove map key, key
-    else map, M.get_rand_existing_key map)
+    if Map.mem map key then Map.remove map key, key else map, M.get_rand_existing_key map)
 ;;
 
 let%test_unit "pick random keys" =

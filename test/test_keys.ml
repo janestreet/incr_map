@@ -35,8 +35,7 @@ let%test_unit "correctness" =
       Quickcheck.test
         ~examples:[ [] ]
         ~trials:100
-        [%quickcheck.generator:
-          [%custom Quickcheck.Generator.small_positive_int] list]
+        [%quickcheck.generator: [%custom Quickcheck.Generator.small_positive_int] list]
         ~f:(fun l ->
           l |> List.mapi ~f:Tuple2.create |> Int.Map.of_alist_exn |> update_and_check)))
 ;;

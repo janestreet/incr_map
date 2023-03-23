@@ -11,8 +11,7 @@ let%expect_test _ =
     change_m_v (fun m ->
       Map.change m k1 ~f:(fun m_inner ->
         let m_inner =
-          Map.change (Option.value m_inner ~default:K2.Map.empty) k2 ~f:(fun _ ->
-            data)
+          Map.change (Option.value m_inner ~default:K2.Map.empty) k2 ~f:(fun _ -> data)
         in
         if Map.is_empty m_inner then None else Some m_inner))
   in

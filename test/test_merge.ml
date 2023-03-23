@@ -188,12 +188,7 @@ let%test_module "random tests" =
 
     let%test_unit "rand test: start with two empty maps, stabilize every step" =
       List.iter Bool.all ~f:(fun use_merge' ->
-        test_merge
-          Int.Map.empty
-          Int.Map.empty
-          ~steps:500
-          ~stabilize_every_n:1
-          ~use_merge')
+        test_merge Int.Map.empty Int.Map.empty ~steps:500 ~stabilize_every_n:1 ~use_merge')
     ;;
 
     let%test_unit "rand test: start with empty and non-empty map, stabilize every step" =

@@ -129,3 +129,72 @@ let%expect_test _ =
   |> print_s;
   [%expect {| ((0 ()) (0.0625 ()) (0.125 ()) (300 ())) |}]
 ;;
+
+let%expect_test "adding elements before and after existing elements" =
+  let test inputs =
+    let input_map = Incr.Var.create (Int.Map.of_alist_exn [ 0, () ]) in
+    let derived_map =
+      Incr_map_erase_key.erase ~get:(fun ~key ~data:() -> key) (Incr.Var.watch input_map)
+    in
+    let observer = Incr.observe derived_map in
+    Incr.stabilize ();
+    Incr.Var.replace input_map ~f:(fun map ->
+      List.fold inputs ~init:map ~f:(fun map key -> Map.set map ~key ~data:()));
+    Incr.stabilize ();
+    observer
+    |> Incr.Observer.value_exn
+    |> Map.iteri ~f:(fun ~key ~data ->
+      print_s [%sexp (key : Incr_map_erase_key.Key.t), (data : int)])
+  in
+  test [];
+  [%expect {| (0 0) |}];
+  let one_through_nine = List.init 9 ~f:(fun i -> i + 1) in
+  test one_through_nine;
+  [%expect
+    {|
+    (0 0)
+    (100 1)
+    (200 2)
+    (300 3)
+    (400 4)
+    (500 5)
+    (600 6)
+    (700 7)
+    (800 8)
+    (900 9) |}];
+  test (List.map one_through_nine ~f:Int.neg);
+  [%expect
+    {|
+    (-900 -9)
+    (-800 -8)
+    (-700 -7)
+    (-600 -6)
+    (-500 -5)
+    (-400 -4)
+    (-300 -3)
+    (-200 -2)
+    (-100 -1)
+    (0 0) |}];
+  test (one_through_nine @ List.map one_through_nine ~f:Int.neg);
+  [%expect
+    {|
+    (-900 -9)
+    (-800 -8)
+    (-700 -7)
+    (-600 -6)
+    (-500 -5)
+    (-400 -4)
+    (-300 -3)
+    (-200 -2)
+    (-100 -1)
+    (0 0)
+    (100 1)
+    (200 2)
+    (300 3)
+    (400 4)
+    (500 5)
+    (600 6)
+    (700 7)
+    (800 8)
+    (900 9) |}]
+;;
