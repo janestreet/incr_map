@@ -24,14 +24,14 @@ struct
       (* Build a map from scratch, one [Map.set] per element, stabilizing along the way. *)
       let%bench_fun ("make" [@indexed size = [ 1000; 100_000 ]]) =
         fun () ->
-          let open Infix in
-          let input = Incr.Var.create Int.Map.empty in
-          let output = f (Incr.Var.watch input) |> Incr.observe in
-          for i = 1 to size do
-            input := Map.set !input ~key:i ~data:i;
-            Incr.stabilize ();
-            assert (Incr.Observer.value_exn output = i)
-          done
+        let open Infix in
+        let input = Incr.Var.create Int.Map.empty in
+        let output = f (Incr.Var.watch input) |> Incr.observe in
+        for i = 1 to size do
+          input := Map.set !input ~key:i ~data:i;
+          Incr.stabilize ();
+          assert (Incr.Observer.value_exn output = i)
+        done
       ;;
 
       (* Take a map as input, update one key (1, specifically), and stabilize *)

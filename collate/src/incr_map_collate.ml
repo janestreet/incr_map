@@ -69,22 +69,33 @@ module Range_memoize_bucket = struct
 end
 
 module Incr_collated_map = struct
-  type ('k, 'v, 'cmp, 'custom_cmp, 'w) t =
-    | Original of ((('k, 'v, 'cmp) Map.t, 'w) Incremental.t * ('k, 'cmp) Comparator.t)
-    | Sorted of
-        ((('k * 'v, 'v, 'custom_cmp) Map.t, 'w) Incremental.t
-         * ('k * 'v, 'custom_cmp) Comparator.t)
+  type ('k, 'v, 'w) t =
+    | Original : (('k, 'v, 'cmp) Map.t, 'w) Incremental.t -> ('k, 'v, 'w) t
+    | Sorted :
+        ((('k * 'v, 'v, 'custom_cmp) Map.t, 'w) Incremental.t * ('k, 'cmp) Comparator.t)
+        -> ('k, 'v, 'w) t
 
   let length t =
     let open Incremental.Let_syntax in
     match t with
-    | Original (m, _) -> m >>| Map.length
+    | Original m -> m >>| Map.length
     | Sorted (m, _) -> m >>| Map.length
   ;;
 
-  type ('k, 'v, 'cmp, 'w) packed =
-    | T : ('k, 'v, 'cmp, 'custom_cmp, 'w) t -> ('k, 'v, 'cmp, 'w) packed
-  [@@unboxed]
+  let key_rank t =
+    let open Incremental.Let_syntax in
+    match t with
+    | Original m ->
+      let%map m = m in
+      fun key -> Map.rank m key
+    | Sorted (m, key_comparator) ->
+      let%map m = m in
+      fun key ->
+        let compare = key_comparator.compare in
+        Map.to_sequence m
+        |> Sequence.findi ~f:(fun _i ((k, _), _) -> compare k key = 0)
+        |> Option.map ~f:fst
+  ;;
 end
 
 module Fold_params = struct
@@ -137,8 +148,8 @@ let do_filter_sorted (data : _ Incr_collated_map.t) ~predicate : _ Incr_collated
         if filter ~key ~data then Some data else None)
   in
   match data with
-  | Original (m, cmp) -> Original (filter ~get:(fun k v -> k, v) m, cmp)
-  | Sorted (m, cmp) -> Sorted (filter ~get:(fun (k, _v1) v2 -> k, v2) m, cmp)
+  | Original m -> Original (filter ~get:(fun k v -> k, v) m)
+  | Sorted (m, key_cmp) -> Sorted (filter ~get:(fun (k, _v1) v2 -> k, v2) m, key_cmp)
 ;;
 
 let do_fold
@@ -146,7 +157,7 @@ let do_fold
       ({ init; add; remove; update; finalize; revert_to_init_when_empty } : _ Fold_params.t)
   =
   match data with
-  | Original (map, _) -> Incr_map.unordered_fold map ~init ~add ~remove ?update
+  | Original map -> Incr_map.unordered_fold map ~init ~add ~remove ?update
   | Sorted (map, _) ->
     let lift f ~key ~data acc =
       let key, _ = key in
@@ -169,15 +180,13 @@ let do_fold
 
 let do_fold
       (type fold_result)
-      (data : _ Incr_collated_map.packed)
+      (data : _ Incr_collated_map.t)
       ~incremental_state
       ~in_scope
       ~(fold_action : (_, _, fold_result) Fold_action.t)
   =
   match fold_action with
-  | Fold_action.Fold fold_params ->
-    let (T data) = data in
-    in_scope (fun () -> do_fold data fold_params)
+  | Fold_action.Fold fold_params -> in_scope (fun () -> do_fold data fold_params)
   | Don't_fold -> in_scope (fun () -> Incremental.return incremental_state ())
 ;;
 
@@ -186,10 +195,10 @@ let do_sort
       (data : ((k, v, cmp) Map.t, w) Incremental.t)
       ~(map_comparator : (k, cmp) Comparator.t)
       ~(custom_comparator : (k * v, custom_cmp) Comparator.t option)
-  : (k, v, cmp, custom_cmp, w) Incr_collated_map.t
+  : (k, v, w) Incr_collated_map.t
   =
   match custom_comparator with
-  | None -> Incr_collated_map.Original (data, map_comparator)
+  | None -> Incr_collated_map.Original data
   | Some custom_comparator ->
     let sorted =
       Incr_map.unordered_fold
@@ -216,14 +225,14 @@ let do_sort
               arr)
         data
     in
-    Sorted (sorted, custom_comparator)
+    Sorted (sorted, map_comparator)
 ;;
 
 let do_rank_range_restrict_and_rank
-      (type k v cmp custom_cmp w)
-      (data : (k, v, cmp, custom_cmp, w) Incr_collated_map.t)
+      (type k v w)
+      (data : (k, v, w) Incr_collated_map.t)
       ~(rank_range : (int Collate.Which_range.t, w) Incremental.t)
-  : (k, v, cmp, custom_cmp, w) Incr_collated_map.t * (int, w) Incremental.t
+  : (k, v, w) Incr_collated_map.t * (int, w) Incremental.t
   =
   let incremental_state = Incremental.state rank_range in
   let apply_range data =
@@ -240,16 +249,16 @@ let do_rank_range_restrict_and_rank
     | Between (l, _) | From l -> l
   in
   match data with
-  | Original (m, cmp) -> Original (apply_range m, cmp), count_before
-  | Sorted (m, cmp) -> Sorted (apply_range m, cmp), count_before
+  | Original m -> Original (apply_range m), count_before
+  | Sorted (m, key_cmp) -> Sorted (apply_range m, key_cmp), count_before
 ;;
 
 let do_key_range_restrict
-      (type k v cmp custom_cmp w)
-      (data : (k, v, cmp, custom_cmp, w) Incr_collated_map.t)
+      (type k v cmp w)
+      (data : (k, v, w) Incr_collated_map.t)
       ~(orig_map : ((k, v, cmp) Map.t, w) Incremental.t)
       ~(key_range : (k Collate.Which_range.t, w) Incremental.t)
-  : (k, v, cmp, custom_cmp, w) Incr_collated_map.t * (int, w) Incremental.t
+  : (k, v, w) Incr_collated_map.t * (int, w) Incremental.t
   =
   let incremental_state = Incremental.state orig_map in
   let none = Incremental.return incremental_state None in
@@ -282,7 +291,7 @@ let do_key_range_restrict
   in
   let count_before =
     match data with
-    | Original (map, _cmp) ->
+    | Original map ->
       (match%pattern_bind key_range with
        | All_rows | To _ -> none
        | Between (k, _) | From k ->
@@ -294,7 +303,7 @@ let do_key_range_restrict
          (match%pattern_bind closest with
           | Some (k, _) -> Incr_map.rank map k
           | None -> none))
-    | Sorted (map, _cmp) ->
+    | Sorted (map, _key_cmp) ->
       (match%pattern_bind key_range with
        | All_rows | To _ -> none
        | Between (k, _) | From k ->
@@ -318,13 +327,13 @@ let do_key_range_restrict
   in
   let count_before = Incremental.map count_before ~f:(Option.value ~default:0) in
   match data with
-  | Original (data, cmp) ->
+  | Original data ->
     let lookup k =
       let%map k = k in
       Maybe_bound.Incl k
     in
-    Original (resolve_range_and_do data ~lookup, cmp), count_before
-  | Sorted (data, cmp) ->
+    Original (resolve_range_and_do data ~lookup), count_before
+  | Sorted (data, key_cmp) ->
     let lookup k =
       let%map orig_map = orig_map
       and k = k in
@@ -332,7 +341,7 @@ let do_key_range_restrict
       | None -> Maybe_bound.Unbounded
       | Some v -> Maybe_bound.Incl (k, v)
     in
-    Sorted (resolve_range_and_do data ~lookup, cmp), count_before
+    Sorted (resolve_range_and_do data ~lookup, key_cmp), count_before
 ;;
 
 type ('k, 'v) kv_custom_comparator =
@@ -376,37 +385,49 @@ let with_cutoff incr ~equal =
   incr
 ;;
 
-let do_to_pos_map
-      (type k v cmp custom_cmp w)
-      (data : (k, v, cmp, custom_cmp, w) Incr_collated_map.t)
-  =
+let do_to_pos_map (type k v w) (data : (k, v, w) Incr_collated_map.t) =
   match data with
-  | Original (data, _cmp) -> Map_list.erase data ~get:(fun ~key ~data -> key, data)
-  | Sorted (data, _cmp) -> Map_list.erase data ~get:(fun ~key:(k, _v1) ~data:v2 -> k, v2)
+  | Original data -> Map_list.erase data ~get:(fun ~key ~data -> key, data)
+  | Sorted (data, _key_cmp) ->
+    Map_list.erase data ~get:(fun ~key:(k, _v1) ~data:v2 -> k, v2)
 ;;
+
+type ('k, 'v, 'fold_result, 'w) t =
+  { collated : (('k, 'v) Collated.t, 'w) Incremental.t
+  ; key_rank : ('k -> int option, 'w) Incremental.t
+  ; fold_result : ('fold_result, 'w) Incremental.t
+  }
+
+let collated t = t.collated
+let key_rank t = t.key_rank
+let fold_result t = t.fold_result
 
 let do_range_restrict orig_data data ~key_range ~rank_range =
   let num_filtered_rows = Incr_collated_map.length data in
+  let key_rank = Incr_collated_map.key_rank data in
   let data, count_before_key_rank =
     do_key_range_restrict data ~key_range ~orig_map:orig_data
   in
   let data, count_before_range_rank = do_rank_range_restrict_and_rank data ~rank_range in
   let data = do_to_pos_map data in
-  let%map data = data
-  and num_unfiltered_rows = orig_data >>| Map.length
-  and num_filtered_rows = num_filtered_rows
-  and key_range = key_range
-  and rank_range = rank_range
-  and count_before_key_rank = count_before_key_rank
-  and count_before_range_rank = count_before_range_rank in
-  let num_before_range = count_before_key_rank + count_before_range_rank in
-  Collated.Private.create
-    ~data
-    ~num_filtered_rows
-    ~key_range
-    ~rank_range
-    ~num_before_range
-    ~num_unfiltered_rows
+  let collated =
+    let%map data = data
+    and num_unfiltered_rows = orig_data >>| Map.length
+    and num_filtered_rows = num_filtered_rows
+    and key_range = key_range
+    and rank_range = rank_range
+    and count_before_key_rank = count_before_key_rank
+    and count_before_range_rank = count_before_range_rank in
+    let num_before_range = count_before_key_rank + count_before_range_rank in
+    Collated.Private.create
+      ~data
+      ~num_filtered_rows
+      ~key_range
+      ~rank_range
+      ~num_before_range
+      ~num_unfiltered_rows
+  in
+  Incremental.both collated key_rank
 ;;
 
 let collate_and_maybe_fold
@@ -419,47 +440,46 @@ let collate_and_maybe_fold
       ~(fold_action : (k, v, fold_result) Fold_action.t)
       (data : ((k, v, cmp) Map.t, w) Incremental.t)
       (collate : ((k, filter, order) Collate.t, w) Incremental.t)
-  : ((k, v) Collated.t * fold_result, w) Incremental.t
+  : (k, v, fold_result, w) t
   =
   let incremental_state = Incremental.state data in
-  let%bind map_comparator = Incremental.freeze (data >>| Map.comparator) in
-  let%pattern_bind { key_range; rank_range; filter; order } = collate in
-  let filter = with_cutoff filter ~equal:filter_equal in
-  let order = with_cutoff order ~equal:order_equal in
-  let orig_data = data in
-  match operation_order with
-  | `Filter_first ->
-    let%bind filter = filter in
-    let predicate = filter_to_predicate filter in
-    let data = do_filter data ~predicate in
-    let fold_result =
-      do_fold
-        (T (Original (data, map_comparator)))
-        ~incremental_state
-        ~in_scope:(fun f -> f ())
-        ~fold_action
-    in
-    let%bind order = order in
-    let compare = order_to_compare order in
-    let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
-    let data = do_sort data ~map_comparator ~custom_comparator in
-    let%mapn out = do_range_restrict orig_data data ~key_range ~rank_range
-    and fold_result = fold_result in
-    out, fold_result
-  | `Sort_first ->
-    let%bind order = order in
-    let compare = order_to_compare order in
-    let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
-    let data = do_sort data ~map_comparator ~custom_comparator in
-    let%bind filter = filter in
-    let predicate = filter_to_predicate filter in
-    let data = do_filter_sorted data ~predicate in
-    let fold_result =
-      do_fold (T data) ~incremental_state ~in_scope:(fun f -> f ()) ~fold_action
-    in
-    let%mapn out = do_range_restrict orig_data data ~key_range ~rank_range
-    and fold_result = fold_result in
-    out, fold_result
+  let%pattern_bind (collated, key_rank), fold_result =
+    let%bind map_comparator = Incremental.freeze (data >>| Map.comparator) in
+    let%pattern_bind { key_range; rank_range; filter; order } = collate in
+    let filter = with_cutoff filter ~equal:filter_equal in
+    let order = with_cutoff order ~equal:order_equal in
+    let orig_data = data in
+    match operation_order with
+    | `Filter_first ->
+      let%bind filter = filter in
+      let predicate = filter_to_predicate filter in
+      let data = do_filter data ~predicate in
+      let fold_result =
+        do_fold (Original data) ~incremental_state ~in_scope:(fun f -> f ()) ~fold_action
+      in
+      let%bind order = order in
+      let compare = order_to_compare order in
+      let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
+      let data = do_sort data ~map_comparator ~custom_comparator in
+      let%mapn out = do_range_restrict orig_data data ~key_range ~rank_range
+      and fold_result = fold_result in
+      out, fold_result
+    | `Sort_first ->
+      let%bind order = order in
+      let compare = order_to_compare order in
+      let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
+      let data = do_sort data ~map_comparator ~custom_comparator in
+      let%bind filter = filter in
+      let predicate = filter_to_predicate filter in
+      let data = do_filter_sorted data ~predicate in
+      let fold_result =
+        do_fold data ~incremental_state ~in_scope:(fun f -> f ()) ~fold_action
+      in
+      let%mapn out = do_range_restrict orig_data data ~key_range ~rank_range
+      and fold_result = fold_result in
+      out, fold_result
+  in
+  { collated; key_rank; fold_result }
 ;;
 
 let collate
@@ -471,18 +491,15 @@ let collate
       data
       c
   =
-  let%map out, () =
-    collate_and_maybe_fold
-      ?operation_order
-      ~filter_equal
-      ~order_equal
-      ~filter_to_predicate
-      ~order_to_compare
-      ~fold_action:Fold_action.Don't_fold
-      data
-      c
-  in
-  out
+  collate_and_maybe_fold
+    ?operation_order
+    ~filter_equal
+    ~order_equal
+    ~filter_to_predicate
+    ~order_to_compare
+    ~fold_action:Fold_action.Don't_fold
+    data
+    c
 ;;
 
 let collate_and_fold
@@ -495,18 +512,15 @@ let collate_and_fold
       data
       c
   =
-  let%pattern_bind out, folded =
-    collate_and_maybe_fold
-      ?operation_order
-      ~filter_equal
-      ~order_equal
-      ~filter_to_predicate
-      ~order_to_compare
-      ~fold_action:(Fold_action.Fold fold)
-      data
-      c
-  in
-  out, folded
+  collate_and_maybe_fold
+    ?operation_order
+    ~filter_equal
+    ~order_equal
+    ~filter_to_predicate
+    ~order_to_compare
+    ~fold_action:(Fold_action.Fold fold)
+    data
+    c
 ;;
 
 module With_caching = struct
@@ -535,106 +549,105 @@ module With_caching = struct
         ~(fold_action : (k, v, fold_result) Fold_action.t)
         (data : ((k, v, cmp) Map.t, w) Incremental.t)
         (collate : ((k, filter, order) Collate.t, w) Incremental.t)
-    : ((k, v) Collated.t * fold_result, w) Incremental.t
+    : (k, v, fold_result, w) t
     =
-    let cache_sorted = Store.create order_cache_params in
-    let cache_sorted_filtered = Store.create order_filter_cache_params in
-    let cache_sorted_filtered_ranked = Store.create order_filter_range_cache_params in
-    let%bind map_comparator = Incremental.freeze (data >>| Map.comparator) in
-    let%pattern_bind { key_range; rank_range; filter; order } = collate in
-    let incremental_state = Incremental.state key_range in
-    let range_bucket =
-      (* Range operations are incremental with respect to the range, so we don't have
-         to bind to ranges.
+    let%pattern_bind (collated, key_rank), fold_result =
+      let cache_sorted = Store.create order_cache_params in
+      let cache_sorted_filtered = Store.create order_filter_cache_params in
+      let cache_sorted_filtered_ranked = Store.create order_filter_range_cache_params in
+      let%bind map_comparator = Incremental.freeze (data >>| Map.comparator) in
+      let%pattern_bind { key_range; rank_range; filter; order } = collate in
+      let incremental_state = Incremental.state key_range in
+      let range_bucket =
+        (* Range operations are incremental with respect to the range, so we don't have
+           to bind to ranges.
 
-         However, incrementality does not necessarily mean they're fast - they run in
-         roughly O(|new ranks - old ranks|) or O(|new key position - old key position|).
-         So, if we request two very different ranges one after another, the computation
-         will be very expensive.
+           However, incrementality does not necessarily mean they're fast - they run in
+           roughly O(|new ranks - old ranks|) or O(|new key position - old key position|).
+           So, if we request two very different ranges one after another, the computation
+           will be very expensive.
 
-         We alleviate this problem here by dividing possible ranges into buckets, and
-         only using incremental computation when old & new belong to the same bucket.
+           We alleviate this problem here by dividing possible ranges into buckets, and
+           only using incremental computation when old & new belong to the same bucket.
 
-         We also keep a cache of a few least recently used buckets.
+           We also keep a cache of a few least recently used buckets.
+        *)
+        let%map key_range = key_range
+        and rank_range = rank_range in
+        Range_memoize_bucket.create
+          ~bucket_size:range_memoize_bucket_size
+          ~key_range
+          ~rank_range
+      in
+      let orig_data = data in
+      let scope = Incremental.Scope.current incremental_state () in
+      let in_scope f = Incremental.Scope.within incremental_state scope ~f in
+      let%bind order = order
+      and filter = filter
+      and range_bucket = range_bucket in
+      (* This line causes the computation below to always be executed. This is fine,
+         as it consists only of cache lookups, which are cheap. And we want to execute
+         them to get more accurate LRU caches & hooks behaviour. *)
+      let never_cutoff = Incremental.return incremental_state () in
+      Incremental.set_cutoff never_cutoff Incremental.Cutoff.never;
+      let%bind () = never_cutoff in
+      let compare = order_to_compare order in
+      let predicate = filter_to_predicate filter in
+      let do_range ~sorted ~sorted_filtered ~fold_result =
+        let sorted_filtered_ranked =
+          in_scope (fun () ->
+            do_range_restrict orig_data sorted_filtered ~key_range ~rank_range)
+        in
+        Store.add
+          cache_sorted_filtered_ranked
+          ~key:(order, filter, range_bucket)
+          ~value:(sorted, sorted_filtered, fold_result, sorted_filtered_ranked);
+        Incremental.both sorted_filtered_ranked fold_result
+      in
+      let do_filter_range ~sorted =
+        let sorted_filtered = in_scope (fun () -> do_filter_sorted sorted ~predicate) in
+        let fold_result =
+          do_fold sorted_filtered ~incremental_state ~in_scope ~fold_action
+        in
+        Store.add
+          cache_sorted_filtered
+          ~key:(order, filter)
+          ~value:(sorted, sorted_filtered, fold_result);
+        do_range ~sorted ~sorted_filtered ~fold_result
+      in
+      let do_sort_filter_range () =
+        let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
+        let sorted =
+          in_scope (fun () -> do_sort data ~map_comparator ~custom_comparator)
+        in
+        Store.add cache_sorted ~key:order ~value:sorted;
+        do_filter_range ~sorted
+      in
+      (* We implement "lazy eviction" here - we only allow ourselves to use a value from
+         deeper cache if its partial computations are present in the earlier layers.
+
+         E.g. if we evict some ordering "s" from [cache_sorted], we might still have
+         "s, f, r" in [cache_sorted_filtered_ranked], but we won't use it, and instead
+         recreate from scratch and overwrite the cache.
+
+         This guarantees that, in presence of evicting from earlier layers, we won't
+         duplicate computations.
       *)
-      let%map key_range = key_range
-      and rank_range = rank_range in
-      Range_memoize_bucket.create
-        ~bucket_size:range_memoize_bucket_size
-        ~key_range
-        ~rank_range
-    in
-    let orig_data = data in
-    let scope = Incremental.Scope.current incremental_state () in
-    let in_scope f = Incremental.Scope.within incremental_state scope ~f in
-    let%bind order = order
-    and filter = filter
-    and range_bucket = range_bucket in
-    (* This line causes the computation below to always be executed. This is fine,
-       as it consists only of cache lookups, which are cheap. And we want to execute
-       them to get more accurate LRU caches & hooks behaviour. *)
-    let never_cutoff = Incremental.return incremental_state () in
-    Incremental.set_cutoff never_cutoff Incremental.Cutoff.never;
-    let%bind () = never_cutoff in
-    let compare = order_to_compare order in
-    let predicate = filter_to_predicate filter in
-    let do_range ~sorted ~sorted_filtered ~fold_result =
+      let sorted = Store.find cache_sorted order in
+      let sorted_filtered = Store.find cache_sorted_filtered (order, filter) in
       let sorted_filtered_ranked =
-        in_scope (fun () ->
-          let (Incr_collated_map.T sorted_filtered) = sorted_filtered in
-          do_range_restrict orig_data sorted_filtered ~key_range ~rank_range)
+        Store.find cache_sorted_filtered_ranked (order, filter, range_bucket)
       in
-      Store.add
-        cache_sorted_filtered_ranked
-        ~key:(order, filter, range_bucket)
-        ~value:(sorted, sorted_filtered, fold_result, sorted_filtered_ranked);
-      Incremental.both sorted_filtered_ranked fold_result
+      match sorted, sorted_filtered, sorted_filtered_ranked with
+      | Some s, Some (s', sf, fr), Some (s'', sf', fr', sfr)
+        when phys_equal s s' && phys_equal s s'' && phys_equal sf sf' && phys_equal fr fr'
+        -> Incremental.both sfr fr
+      | Some s, Some (s', sf, fr), _ when phys_equal s s' ->
+        do_range ~sorted:s ~sorted_filtered:sf ~fold_result:fr
+      | Some sorted, _, _ -> do_filter_range ~sorted
+      | None, _, _ -> do_sort_filter_range ()
     in
-    let do_filter_range ~sorted =
-      let sorted_filtered : _ Incr_collated_map.packed =
-        let (Incr_collated_map.T sorted) = sorted in
-        in_scope (fun () -> do_filter_sorted sorted ~predicate) |> T
-      in
-      let fold_result =
-        do_fold sorted_filtered ~incremental_state ~in_scope ~fold_action
-      in
-      Store.add
-        cache_sorted_filtered
-        ~key:(order, filter)
-        ~value:(sorted, sorted_filtered, fold_result);
-      do_range ~sorted ~sorted_filtered ~fold_result
-    in
-    let do_sort_filter_range () =
-      let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
-      let sorted : _ Incr_collated_map.packed =
-        in_scope (fun () -> do_sort data ~map_comparator ~custom_comparator) |> T
-      in
-      Store.add cache_sorted ~key:order ~value:sorted;
-      do_filter_range ~sorted
-    in
-    (* We implement "lazy eviction" here - we only allow ourselves to use a value from
-       deeper cache if its partial computations are present in the earlier layers.
-
-       E.g. if we evict some ordering "s" from [cache_sorted], we might still have
-       "s, f, r" in [cache_sorted_filtered_ranked], but we won't use it, and instead
-       recreate from scratch and overwrite the cache.
-
-       This guarantees that, in presence of evicting from earlier layers, we won't
-       duplicate computations.
-    *)
-    let sorted = Store.find cache_sorted order in
-    let sorted_filtered = Store.find cache_sorted_filtered (order, filter) in
-    let sorted_filtered_ranked =
-      Store.find cache_sorted_filtered_ranked (order, filter, range_bucket)
-    in
-    match sorted, sorted_filtered, sorted_filtered_ranked with
-    | Some s, Some (s', sf, fr), Some (s'', sf', fr', sfr)
-      when phys_equal s s' && phys_equal s s'' && phys_equal sf sf' && phys_equal fr fr'
-      -> Incremental.both sfr fr
-    | Some s, Some (s', sf, fr), _ when phys_equal s s' ->
-      do_range ~sorted:s ~sorted_filtered:sf ~fold_result:fr
-    | Some sorted, _, _ -> do_filter_range ~sorted
-    | None, _, _ -> do_sort_filter_range ()
+    { collated; key_rank; fold_result }
   ;;
 
   let collate__sort_first
@@ -649,23 +662,20 @@ module With_caching = struct
         ~(order_to_compare : order -> _)
         (data : ((k, v, cmp) Map.t, w) Incremental.t)
         (collate : ((k, filter, order) Collate.t, w) Incremental.t)
-    : ((k, v) Collated.t, w) Incremental.t
+    : (k, v, unit, w) t
     =
-    let%pattern_map collated, () =
-      collate_and_maybe_fold__sort_first
-        ~filter_equal
-        ~order_equal
-        ?order_cache_params
-        ?order_filter_cache_params
-        ?order_filter_range_cache_params
-        ?range_memoize_bucket_size
-        ~filter_to_predicate
-        ~order_to_compare
-        ~fold_action:Don't_fold
-        data
-        collate
-    in
-    collated
+    collate_and_maybe_fold__sort_first
+      ~filter_equal
+      ~order_equal
+      ?order_cache_params
+      ?order_filter_cache_params
+      ?order_filter_range_cache_params
+      ?range_memoize_bucket_size
+      ~filter_to_predicate
+      ~order_to_compare
+      ~fold_action:Don't_fold
+      data
+      collate
   ;;
 
   let collate_and_fold__sort_first
@@ -681,7 +691,7 @@ module With_caching = struct
         ~(fold : (k, v, fold_result) Fold_params.t)
         (data : ((k, v, cmp) Map.t, w) Incremental.t)
         (collate : ((k, filter, order) Collate.t, w) Incremental.t)
-    : ((k, v) Collated.t * fold_result, w) Incremental.t
+    : (k, v, fold_result, w) t
     =
     collate_and_maybe_fold__sort_first
       ~filter_equal

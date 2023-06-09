@@ -26,7 +26,7 @@ let%test_unit "map_counti" =
     |> Map.to_alist
     |> List.map ~f:(fun (k, v) -> k + v, ())
     |> Map.of_alist_multi (module Int)
-    |> Map.map ~f:List.length
+    |> Map.map ~f:(List.length :> _ -> _)
   in
   run_test [%here] ~incrementally ~all_at_once ~test:[%test_result: int Int.Map.t]
 ;;
@@ -38,7 +38,7 @@ let%test_unit "map_count" =
     |> Map.data
     |> List.map ~f:(fun d -> d, ())
     |> Map.of_alist_multi (module Int)
-    |> Map.map ~f:List.length
+    |> Map.map ~f:(List.length :> _ -> _)
   in
   run_test [%here] ~incrementally ~all_at_once ~test:[%test_result: int Int.Map.t]
 ;;

@@ -107,7 +107,7 @@ let do_collate_and_fold
       input
       collate
   in
-  let without_caching_data, without_caching_fold_result =
+  let without_caching =
     Incr_map_collate.collate_and_fold
       ~filter_to_predicate:Filter.to_predicate
       ~order_to_compare:Order.to_compare
@@ -117,9 +117,10 @@ let do_collate_and_fold
       input
       collate
   in
-  let%map.Incr with_caching_data, with_caching_fold_result = with_caching
-  and without_caching_data = without_caching_data
-  and without_caching_fold_result = without_caching_fold_result in
+  let%map.Incr with_caching_data = Incr_map_collate.collated with_caching
+  and with_caching_fold_result = Incr_map_collate.fold_result with_caching
+  and without_caching_data = Incr_map_collate.collated without_caching
+  and without_caching_fold_result = Incr_map_collate.fold_result without_caching in
   assert (Collated.equal String.equal data_equal with_caching_data without_caching_data);
   assert (fold_result_equal with_caching_fold_result without_caching_fold_result);
   with_caching_data, with_caching_fold_result

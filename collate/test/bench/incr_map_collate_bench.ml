@@ -66,6 +66,7 @@ let fresh_test ~map_len ~collate ~operation_order =
       ~order_equal:Order.equal
       (Incr.Var.watch map_var)
       (Incr.Var.watch collate_var)
+    |> Incr_map_collate.collated
   in
   let ob = Incr.observe res in
   stage (fun () ->
@@ -88,6 +89,7 @@ let change_filter_test ~map_len ~(collate : _ Collate.t) ~operation_order =
       ~order_equal:Order.equal
       (Incr.Var.watch map_var)
       (Incr.Var.watch collate_var)
+    |> Incr_map_collate.collated
   in
   let ob = Incr.observe res in
   stage (fun () ->
@@ -107,16 +109,17 @@ let incr_test ~map_len ~diff_len ~collate =
   let map2 = List.fold ~init:map1 ops ~f:Incr_map_helpers.apply_map_op in
   let map_var = Incr.Var.create map1 in
   let collate_var = Incr.Var.create collate in
-  let ob =
-    Incr.observe
-      (Incr_map_collate.collate
-         ~order_to_compare:Order.to_compare
-         ~filter_to_predicate:Filter.to_predicate
-         ~filter_equal:Filter.equal
-         ~order_equal:Order.equal
-         (Incr.Var.watch map_var)
-         (Incr.Var.watch collate_var))
+  let res =
+    Incr_map_collate.collate
+      ~order_to_compare:Order.to_compare
+      ~filter_to_predicate:Filter.to_predicate
+      ~filter_equal:Filter.equal
+      ~order_equal:Order.equal
+      (Incr.Var.watch map_var)
+      (Incr.Var.watch collate_var)
+    |> Incr_map_collate.collated
   in
+  let ob = Incr.observe res in
   Incr.stabilize ();
   let is_currently_map2 = ref false in
   stage (fun () ->

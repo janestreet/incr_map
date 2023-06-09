@@ -138,6 +138,7 @@ let init_test
   let observer =
     let collated =
       do_collate ?operation_order (Incr.Var.watch map) (Incr.Var.watch collate)
+      |> Incr_map_collate.collated
     in
     Incr.observe collated
   in
