@@ -5,7 +5,7 @@ module Measurement = struct
     { time : Time_ns.Span.t
     ; words : int
     }
-  [@@deriving fields]
+  [@@deriving fields ~getters]
 
   let to_string ({ time; words } : t) = sprintf !"t=%{Time_ns.Span}, mem=%d Wd" time words
 end

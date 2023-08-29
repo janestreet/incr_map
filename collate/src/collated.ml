@@ -11,7 +11,7 @@ module Parametrized = struct
     ; num_before_range : int
     ; num_unfiltered_rows : int
     }
-  [@@deriving sexp, compare, fields, equal, bin_io]
+  [@@deriving sexp, compare, fields ~getters ~iterators:(create, fold), equal, bin_io]
 
   let empty =
     { data = Map_list.Key.Map.empty

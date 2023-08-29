@@ -33,6 +33,6 @@ type ('k, 'filter, 'order) t =
       the result would be [(B, 2); (C, 3)]
   *)
   }
-[@@deriving sexp_of, fields]
+[@@deriving sexp_of]
 
 val default : filter:'filter -> order:'order -> (_, 'filter, 'order) t

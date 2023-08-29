@@ -15,7 +15,7 @@ type ('k, 'filter, 'order) t =
   ; key_range : 'k Which_range.t
   ; rank_range : int Which_range.t
   }
-[@@deriving sexp_of, fields]
+[@@deriving sexp_of]
 
 let default ~filter ~order =
   { filter; order; key_range = All_rows; rank_range = All_rows }
