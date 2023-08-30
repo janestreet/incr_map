@@ -12,17 +12,17 @@ end
 
 type ('k, 'filter, 'order) t =
   { filter : 'filter
-  (** User-defined type, usually algebraic data type, describing how the table can be
+      (** User-defined type, usually algebraic data type, describing how the table can be
       filtered. You'll need to provide [equal] and [to_predicate] of type
       ['filter -> ('k -> 'v -> bool)] for [collate]. *)
   ; order : 'order
-  (** User-defined type, usually algebraic data type, describing how the table can be
+      (** User-defined type, usually algebraic data type, describing how the table can be
       sorted. You'll need to provide [equal] and [to_compare] of type functionally
       equivalent to ['order -> ('v -> 'v -> int)] for [collate]. *)
   ; key_range : 'k Which_range.t
-  (** Select only rows between these keys (in the configured ordering) *)
+      (** Select only rows between these keys (in the configured ordering) *)
   ; rank_range : int Which_range.t
-  (** After selecting rows according to [key_range], select rows between these
+      (** After selecting rows according to [key_range], select rows between these
       positions.
 
       For example, if your (sorted & filtered) data is [(A, 1); (B, 2); (C, 3)], then

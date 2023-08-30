@@ -80,10 +80,10 @@ let%test_module _ =
       Quickcheck.test
         (Map_operations.tuple_key_quickcheck_generator String.quickcheck_generator)
         ~f:(fun operations ->
-          Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
-            [%test_result: string Int.Map.t Int.Map.t]
-              ~expect:(all_at_once (Incr.Var.latest_value var))
-              (Incremental.Observer.value_exn observer)))
+        Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
+          [%test_result: string Int.Map.t Int.Map.t]
+            ~expect:(all_at_once (Incr.Var.latest_value var))
+            (Incremental.Observer.value_exn observer)))
     ;;
 
     let%test_unit "expand collapse compose" =
@@ -100,10 +100,10 @@ let%test_module _ =
       Quickcheck.test
         (Map_operations.tuple_key_quickcheck_generator String.quickcheck_generator)
         ~f:(fun operations ->
-          Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
-            [%test_result: string Key.Map.t]
-              ~expect:(Incr.Var.latest_value var)
-              (Incremental.Observer.value_exn observer)))
+        Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
+          [%test_result: string Key.Map.t]
+            ~expect:(Incr.Var.latest_value var)
+            (Incremental.Observer.value_exn observer)))
     ;;
   end)
 ;;

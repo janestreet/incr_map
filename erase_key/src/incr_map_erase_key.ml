@@ -37,14 +37,13 @@ let ( > ) = Bignum.( > )
 let zero = Bignum.zero
 let two = Bignum.one + Bignum.one
 let denom_rebalance_cutoff = Bigint.of_int 100_000_000
-
 let separation = Bignum.of_int 100
 
 let erase
-      (type key data res cmp)
-      ?data_equal
-      (map : ((key, data, cmp) Map.t, 'w) Incremental.t)
-      ~(get : key:key -> data:data -> res)
+  (type key data res cmp)
+  ?data_equal
+  (map : ((key, data, cmp) Map.t, 'w) Incremental.t)
+  ~(get : key:key -> data:data -> res)
   : (res t, 'incr_witness) Incremental.t
   =
   let module Acc = struct
@@ -120,8 +119,8 @@ let erase
     ;;
 
     let process_removals_and_additions
-          (module M : Comparator.S with type comparator_witness = cmp and type t = key)
-          acc
+      (module M : Comparator.S with type comparator_witness = cmp and type t = key)
+      acc
       =
       let acc = List.fold acc.removals ~init:acc ~f:(fun acc key -> remove ~key acc) in
       let acc =
@@ -146,10 +145,10 @@ let erase
           acc.key_to_bignum
           ~init
           ~f:(fun ~key ~data:prev_bignum (key_to_bignum, out) ->
-            let prev_res = Map.find_exn acc.out prev_bignum in
-            let k = !i in
-            i := k + separation;
-            Map.add_exn key_to_bignum ~key ~data:k, Map.add_exn out ~key:k ~data:prev_res)
+          let prev_res = Map.find_exn acc.out prev_bignum in
+          let k = !i in
+          i := k + separation;
+          Map.add_exn key_to_bignum ~key ~data:k, Map.add_exn out ~key:k ~data:prev_res)
       in
       of_maps acc.comparator ~key_to_bignum ~out
     ;;

@@ -33,7 +33,7 @@ module Order = struct
       Custom_by_value
         { compare =
             (fun a b ->
-               Comparable.reverse (fun a b -> Comparable.lift ~f:snd Float.compare a b) a b)
+              Comparable.reverse (fun a b -> Comparable.lift ~f:snd Float.compare a b) a b)
         }
     | By_price_and_key ->
       let compare (* By "price" first, then by key descending *) a_1 b_1 =
@@ -66,8 +66,8 @@ module Filter = struct
     | Key_has_vowel ->
       Some
         (fun ~key ~data:_ ->
-           String.exists (String.lowercase key) ~f:(fun ch ->
-             List.exists [ 'a'; 'e'; 'i'; 'o'; 'u' ] ~f:(Char.equal ch)))
+          String.exists (String.lowercase key) ~f:(fun ch ->
+            List.exists [ 'a'; 'e'; 'i'; 'o'; 'u' ] ~f:(Char.equal ch)))
   ;;
 end
 
@@ -121,14 +121,14 @@ let do_collate_default ?operation_order input collate =
 ;;
 
 let init_test
-      ?(data = [ "AAPL", (10, 1.0); "GOOG", (10, 3.0); "VOD", (10, 2.0) ])
-      ?operation_order
-      ?(filter = Filter.None)
-      ?(order = Order.By_symbol)
-      ?(key_range = Collate.Which_range.All_rows)
-      ?(rank_range = Collate.Which_range.All_rows)
-      ?(do_collate = do_collate_default)
-      ()
+  ?(data = [ "AAPL", (10, 1.0); "GOOG", (10, 3.0); "VOD", (10, 2.0) ])
+  ?operation_order
+  ?(filter = Filter.None)
+  ?(order = Order.By_symbol)
+  ?(key_range = Collate.Which_range.All_rows)
+  ?(rank_range = Collate.Which_range.All_rows)
+  ?(do_collate = do_collate_default)
+  ()
   =
   let initial = Key.Map.of_alist_exn data in
   let map = Incr.Var.create initial in
@@ -737,13 +737,13 @@ let%test_module "new API" =
     end
 
     let do_collate_new_api
-          ~order_cache_size
-          ~order_filter_cache_size
-          ~order_filter_range_cache_size
-          ()
-          ?operation_order
-          input
-          collate
+      ~order_cache_size
+      ~order_filter_cache_size
+      ~order_filter_range_cache_size
+      ()
+      ?operation_order
+      input
+      collate
       =
       (match operation_order with
        | None | Some `Sort_first -> ()

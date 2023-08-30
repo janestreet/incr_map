@@ -2,16 +2,16 @@ open! Core
 open! Import
 
 let unordered_fold_with_extra
-      (type k v a)
-      ~(data_equal : v -> v -> bool)
-      ~(acc_equal : a -> a -> bool)
-      ?specialized_initial
-      (m : (k, v, _) Map.t Incr.t)
-      ~extra
-      ~(init : a)
-      ~add
-      ~remove
-      ~extra_changed
+  (type k v a)
+  ~(data_equal : v -> v -> bool)
+  ~(acc_equal : a -> a -> bool)
+  ?specialized_initial
+  (m : (k, v, _) Map.t Incr.t)
+  ~extra
+  ~(init : a)
+  ~add
+  ~remove
+  ~extra_changed
   =
   let a =
     Incr.Map.unordered_fold_with_extra

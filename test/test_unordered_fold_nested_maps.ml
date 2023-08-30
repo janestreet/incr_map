@@ -9,7 +9,7 @@ let%test_module _ =
           (Option.some_if
              use_update
              (fun ~outer_key:_ ~inner_key:_ ~old_data ~new_data acc ->
-                acc - old_data + new_data))
+             acc - old_data + new_data))
         ~data_equal:( = )
         map
         ~init:0

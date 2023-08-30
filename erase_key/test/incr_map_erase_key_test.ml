@@ -144,7 +144,7 @@ let%expect_test "adding elements before and after existing elements" =
     observer
     |> Incr.Observer.value_exn
     |> Map.iteri ~f:(fun ~key ~data ->
-      print_s [%sexp (key : Incr_map_erase_key.Key.t), (data : int)])
+         print_s [%sexp (key : Incr_map_erase_key.Key.t), (data : int)])
   in
   test [];
   [%expect {| (0 0) |}];

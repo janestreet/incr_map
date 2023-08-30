@@ -112,12 +112,12 @@ let cell_update_generator t cell_update_batch_size =
 ;;
 
 let create_action_generator
-      t
-      ~scroll_weight
-      ~page_move_weight
-      ~top_bottom_move_weight
-      ~cell_update_weight
-      ~cell_update_batch_size
+  t
+  ~scroll_weight
+  ~page_move_weight
+  ~top_bottom_move_weight
+  ~cell_update_weight
+  ~cell_update_batch_size
   =
   let direction_generator = Generator.doubleton Up Down in
   Generator.weighted_union
@@ -204,12 +204,12 @@ let for_perf_cmd =
 let%bench_module "inline_benchmarks" =
   (module struct
     let setup
-          ?(scroll_weight = 0.)
-          ?(page_move_weight = 0.)
-          ?(top_bottom_move_weight = 0.)
-          ?(cell_update_weight = 0.)
-          ?(cell_update_batch_size = 0)
-          ()
+      ?(scroll_weight = 0.)
+      ?(page_move_weight = 0.)
+      ?(top_bottom_move_weight = 0.)
+      ?(cell_update_weight = 0.)
+      ?(cell_update_batch_size = 0)
+      ()
       =
       let t =
         create

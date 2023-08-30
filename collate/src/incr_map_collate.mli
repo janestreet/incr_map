@@ -11,7 +11,7 @@ module Compare : sig
     | Reversed
     | Custom_by_value of { compare : 'v -> 'v -> int }
     | Custom_by_key_and_value of { compare : 'k * 'v -> 'k * 'v -> int }
-    (** Partial orders are supported in Custom_by_*, i.e. returning 0 shouldn't cause
+        (** Partial orders are supported in Custom_by_*, i.e. returning 0 shouldn't cause
         issues. Rows will be then sorted by key. *)
   [@@deriving sexp_of]
 end
@@ -115,10 +115,10 @@ module With_caching : sig
     -> order_equal:('order -> 'order -> bool)
     -> ?order_cache_params:'order Store_params.t (** default: alist of size 10 *)
     -> ?order_filter_cache_params:('order * 'filter) Store_params.t
-    (** default: alist of size 30 *)
+         (** default: alist of size 30 *)
     -> ?order_filter_range_cache_params:
          ('order * 'filter * Range_memoize_bucket.t) Store_params.t
-    (** default: alist of size 50 *)
+         (** default: alist of size 50 *)
     -> ?range_memoize_bucket_size:int
     -> filter_to_predicate:('filter -> (key:'k -> data:'v -> bool) option)
     -> order_to_compare:('order -> ('k, 'v, 'cmp) Compare.t)
@@ -133,10 +133,10 @@ module With_caching : sig
     -> order_equal:('order -> 'order -> bool)
     -> ?order_cache_params:'order Store_params.t (** default: alist of size 10 *)
     -> ?order_filter_cache_params:('order * 'filter) Store_params.t
-    (** default: alist of size 30 *)
+         (** default: alist of size 30 *)
     -> ?order_filter_range_cache_params:
          ('order * 'filter * Range_memoize_bucket.t) Store_params.t
-    (** default: alist of size
+         (** default: alist of size
         50 *)
     -> ?range_memoize_bucket_size:int
     -> filter_to_predicate:('filter -> (key:'k -> data:'v -> bool) option)

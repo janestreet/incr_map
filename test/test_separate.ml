@@ -17,10 +17,10 @@ let%expect_test "separate -> join" =
     in
     Map.symmetric_diff old_ new_ ~data_equal:phys_equal
     |> Sequence.iter ~f:(fun (key, change) ->
-      match change with
-      | `Left _ -> print_s [%message "removed_node" ~_:(key : string)]
-      | `Right _ -> print_s [%message "added_node" ~_:(key : string)]
-      | `Unequal _ -> failwith "Should not remake a node for a key"));
+         match change with
+         | `Left _ -> print_s [%message "removed_node" ~_:(key : string)]
+         | `Right _ -> print_s [%message "added_node" ~_:(key : string)]
+         | `Unequal _ -> failwith "Should not remake a node for a key"));
   let rejoined_map =
     Incr.observe (Incr.Map.join (Incr.Observer.observing separated_map))
   in
@@ -34,11 +34,11 @@ let%expect_test "separate -> join" =
     print_s [%message "current_map" ~_:(new_ : int String.Map.t)];
     Map.symmetric_diff old_ new_ ~data_equal:Int.equal
     |> Sequence.iter ~f:(fun (key, change) ->
-      match change with
-      | `Left x -> print_s [%message "removed" (key : string) ~_:(x : int)]
-      | `Right x -> print_s [%message "added" (key : string) ~_:(x : int)]
-      | `Unequal (from, into) ->
-        print_s [%message "changed" (key : string) (from : int) (into : int)]));
+         match change with
+         | `Left x -> print_s [%message "removed" (key : string) ~_:(x : int)]
+         | `Right x -> print_s [%message "added" (key : string) ~_:(x : int)]
+         | `Unequal (from, into) ->
+           print_s [%message "changed" (key : string) (from : int) (into : int)]));
   let run_test alist =
     Incr.Var.set input_original_map (String.Map.of_alist_exn alist);
     Incr.stabilize ();

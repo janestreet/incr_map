@@ -401,8 +401,8 @@ module type S_gen = sig
     -> ( 'outer_key * 'inner_key
        , 'v
        , ('outer_cmp, 'inner_cmp) Tuple2.comparator_witness )
-         Map.t
-         Incr.t
+       Map.t
+       Incr.t
 
   val collapse_by
     :  ?instrumentation:Instrumentation.t
@@ -483,9 +483,9 @@ module type S_gen = sig
     val find : ('k, 'v, _) t -> 'k -> 'v option Incr.t
 
     module M (K : sig
-        type t
-        type comparator_witness
-      end) : sig
+      type t
+      type comparator_witness
+    end) : sig
       type nonrec 'v t = (K.t, 'v, K.comparator_witness) t
     end
 
@@ -789,7 +789,6 @@ module type Incr_map = sig
     -> comparator:('v, _) Comparator.Module.t
     -> (('v * 'v) option, 'w) Incremental.t
 
-
   (** Like [merge] in [Base.Map.merge]. Note that [f] is called at most once per key in
       any given stabilization. *)
   val merge
@@ -941,7 +940,7 @@ module type Incr_map = sig
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> ( ('k Maybe_bound.As_lower_bound.t * 'k Maybe_bound.As_upper_bound.t) option
        , 'w )
-         Incremental.t
+       Incremental.t
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
 
   (** [subrange_by_rank map (s, e)] constructs an incremental submap that includes (e-s+1)
@@ -968,7 +967,7 @@ module type Incr_map = sig
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> ( int Maybe_bound.As_lower_bound.t * int Maybe_bound.As_upper_bound.t
        , 'w )
-         Incremental.t
+       Incremental.t
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
 
   (** [rekey] transforms a map by modifying the type of the key.  The user is
@@ -1015,7 +1014,7 @@ module type Incr_map = sig
     -> index:(key:'inner_key -> data:'v -> 'outer_key option)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
-         Incremental.t
+       Incremental.t
 
   (** [index_by map ~comparator ~index] is like [index_byi map ~comparator ~index], but
       the [index] function does not take the inner map's [key]. *)
@@ -1027,7 +1026,7 @@ module type Incr_map = sig
     -> index:('v -> 'outer_key option)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
-         Incremental.t
+       Incremental.t
 
   val unordered_fold_nested_maps
     :  ?instrumentation:Instrumentation.t
@@ -1042,7 +1041,7 @@ module type Incr_map = sig
           -> 'acc)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
-         Incremental.t
+       Incremental.t
     -> init:'acc
     -> add:(outer_key:'outer_key -> inner_key:'inner_key -> data:'v -> 'acc -> 'acc)
     -> remove:(outer_key:'outer_key -> inner_key:'inner_key -> data:'v -> 'acc -> 'acc)
@@ -1063,14 +1062,14 @@ module type Incr_map = sig
     -> ?data_equal:('v -> 'v -> bool)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
-         Incremental.t
+       Incremental.t
     -> comparator:('inner_key, 'inner_cmp) Comparator.Module.t
     -> ( ( 'outer_key * 'inner_key
          , 'v
          , ('outer_cmp, 'inner_cmp) Tuple2.comparator_witness )
-           Map.t
+         Map.t
        , 'w )
-         Incremental.t
+       Incremental.t
 
   (** [collapse_by] is similar to [collapse], but it allows the user to
       choose how to combine the two keys from the outer and inner maps.
@@ -1090,7 +1089,7 @@ module type Incr_map = sig
     -> ?data_equal:('v -> 'v -> bool)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
-         Incremental.t
+       Incremental.t
     -> merge_keys:('outer_key -> 'inner_key -> 'combined_key)
     -> comparator:('combined_key, 'combined_cmp) Comparator.Module.t
     -> (('combined_key, 'v, 'combined_cmp) Map.t, 'w) Incremental.t
@@ -1107,7 +1106,7 @@ module type Incr_map = sig
     -> inner_comparator:('inner_key, 'inner_cmp) Comparator.Module.t
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
        , 'w )
-         Incremental.t
+       Incremental.t
 
   val counti
     :  ?instrumentation:Instrumentation.t
@@ -1203,9 +1202,9 @@ module type Incr_map = sig
 
     (** A convenient way to refer to the type for a given key. *)
     module M (K : sig
-        type t
-        type comparator_witness
-      end) : sig
+      type t
+      type comparator_witness
+    end) : sig
       type nonrec ('v, 'w) t = (K.t, 'v, K.comparator_witness, 'w) t
     end
 
@@ -1229,9 +1228,9 @@ module type Incr_map = sig
 
     include
       S_gen
-      with type 'a Incr.t = ('a, state_witness) Incremental.t
-       and type 'a Incr.Cutoff.t = 'a Incremental.Cutoff.t
-       and type ('k, 'v, 'cmp) Lookup.t = ('k, 'v, 'cmp, state_witness) Lookup.t
+        with type 'a Incr.t = ('a, state_witness) Incremental.t
+         and type 'a Incr.Cutoff.t = 'a Incremental.Cutoff.t
+         and type ('k, 'v, 'cmp) Lookup.t = ('k, 'v, 'cmp, state_witness) Lookup.t
   end
 
   module Make (Incr : Incremental.S) :

@@ -16,15 +16,15 @@ end
 
 module Custom_tuple_comparator = struct
   include Comparator.Derived2 (struct
-      type ('a, 'b) t = 'a * 'b
+    type ('a, 'b) t = 'a * 'b
 
-      let[@inline always] compare compare_k compare_v (k1, v1) (k2, v2) =
-        let cmp_v = compare_v v1 v2 in
-        if cmp_v <> 0 then cmp_v else compare_k k1 k2
-      ;;
+    let[@inline always] compare compare_k compare_v (k1, v1) (k2, v2) =
+      let cmp_v = compare_v v1 v2 in
+      if cmp_v <> 0 then cmp_v else compare_k k1 k2
+    ;;
 
-      let sexp_of_t = Tuple2.sexp_of_t
-    end)
+    let sexp_of_t = Tuple2.sexp_of_t
+  end)
 end
 
 module Range_memoize_bucket = struct
@@ -48,9 +48,9 @@ module Range_memoize_bucket = struct
   include Comparable.Make_plain (T)
 
   let create
-        ~bucket_size
-        ~(key_range : _ Collate.Which_range.t)
-        ~(rank_range : int Collate.Which_range.t)
+    ~bucket_size
+    ~(key_range : _ Collate.Which_range.t)
+    ~(rank_range : int Collate.Which_range.t)
     =
     let key_bucket : key_bucket =
       match key_range with
@@ -135,9 +135,9 @@ let do_filter data ~predicate =
 
 let do_filter_sorted (data : _ Incr_collated_map.t) ~predicate : _ Incr_collated_map.t =
   let filter
-        (type a c)
-        ~(get : a -> 'v -> 'k * 'v)
-        (m : ((a, 'v, c) Map.t, 'w) Incremental.t)
+    (type a c)
+    ~(get : a -> 'v -> 'k * 'v)
+    (m : ((a, 'v, c) Map.t, 'w) Incremental.t)
     : ((a, 'v, c) Map.t, 'w) Incremental.t
     =
     match predicate with
@@ -153,8 +153,8 @@ let do_filter_sorted (data : _ Incr_collated_map.t) ~predicate : _ Incr_collated
 ;;
 
 let do_fold
-      (data : _ Incr_collated_map.t)
-      ({ init; add; remove; update; finalize; revert_to_init_when_empty } : _ Fold_params.t)
+  (data : _ Incr_collated_map.t)
+  ({ init; add; remove; update; finalize; revert_to_init_when_empty } : _ Fold_params.t)
   =
   match data with
   | Original map -> Incr_map.unordered_fold map ~init ~add ~remove ?update
@@ -179,11 +179,11 @@ let do_fold
 ;;
 
 let do_fold
-      (type fold_result)
-      (data : _ Incr_collated_map.t)
-      ~incremental_state
-      ~in_scope
-      ~(fold_action : (_, _, fold_result) Fold_action.t)
+  (type fold_result)
+  (data : _ Incr_collated_map.t)
+  ~incremental_state
+  ~in_scope
+  ~(fold_action : (_, _, fold_result) Fold_action.t)
   =
   match fold_action with
   | Fold_action.Fold fold_params -> in_scope (fun () -> do_fold data fold_params)
@@ -191,10 +191,10 @@ let do_fold
 ;;
 
 let do_sort
-      (type k v cmp custom_cmp w)
-      (data : ((k, v, cmp) Map.t, w) Incremental.t)
-      ~(map_comparator : (k, cmp) Comparator.t)
-      ~(custom_comparator : (k * v, custom_cmp) Comparator.t option)
+  (type k v cmp custom_cmp w)
+  (data : ((k, v, cmp) Map.t, w) Incremental.t)
+  ~(map_comparator : (k, cmp) Comparator.t)
+  ~(custom_comparator : (k * v, custom_cmp) Comparator.t option)
   : (k, v, w) Incr_collated_map.t
   =
   match custom_comparator with
@@ -229,9 +229,9 @@ let do_sort
 ;;
 
 let do_rank_range_restrict_and_rank
-      (type k v w)
-      (data : (k, v, w) Incr_collated_map.t)
-      ~(rank_range : (int Collate.Which_range.t, w) Incremental.t)
+  (type k v w)
+  (data : (k, v, w) Incr_collated_map.t)
+  ~(rank_range : (int Collate.Which_range.t, w) Incremental.t)
   : (k, v, w) Incr_collated_map.t * (int, w) Incremental.t
   =
   let incremental_state = Incremental.state rank_range in
@@ -254,18 +254,18 @@ let do_rank_range_restrict_and_rank
 ;;
 
 let do_key_range_restrict
-      (type k v cmp w)
-      (data : (k, v, w) Incr_collated_map.t)
-      ~(orig_map : ((k, v, cmp) Map.t, w) Incremental.t)
-      ~(key_range : (k Collate.Which_range.t, w) Incremental.t)
+  (type k v cmp w)
+  (data : (k, v, w) Incr_collated_map.t)
+  ~(orig_map : ((k, v, cmp) Map.t, w) Incremental.t)
+  ~(key_range : (k Collate.Which_range.t, w) Incremental.t)
   : (k, v, w) Incr_collated_map.t * (int, w) Incremental.t
   =
   let incremental_state = Incremental.state orig_map in
   let none = Incremental.return incremental_state None in
   let resolve_range_and_do
-        (type full_key)
-        (data : ((full_key, _, _) Map.t, w) Incremental.t)
-        ~(lookup : (k, w) Incremental.t -> (full_key Maybe_bound.t, w) Incremental.t)
+    (type full_key)
+    (data : ((full_key, _, _) Map.t, w) Incremental.t)
+    ~(lookup : (k, w) Incremental.t -> (full_key Maybe_bound.t, w) Incremental.t)
     =
     match%pattern_bind key_range with
     | All_rows -> data
@@ -348,9 +348,9 @@ type ('k, 'v) kv_custom_comparator =
   | T : ('k * 'v, _) Comparator.t option -> ('k, 'v) kv_custom_comparator
 
 let comparator_of_compare
-      (type k v cmp)
-      ~(map_comparator : (k, cmp) Comparator.t)
-      (compare : (k, v, cmp) Compare.t)
+  (type k v cmp)
+  ~(map_comparator : (k, cmp) Comparator.t)
+  (compare : (k, v, cmp) Compare.t)
   : (k, v) kv_custom_comparator
   =
   match compare with
@@ -431,15 +431,15 @@ let do_range_restrict orig_data data ~key_range ~rank_range =
 ;;
 
 let collate_and_maybe_fold
-      (type k v cmp filter order w fold_result)
-      ?(operation_order = `Sort_first)
-      ~filter_equal
-      ~order_equal
-      ~(filter_to_predicate : filter -> _)
-      ~(order_to_compare : order -> _)
-      ~(fold_action : (k, v, fold_result) Fold_action.t)
-      (data : ((k, v, cmp) Map.t, w) Incremental.t)
-      (collate : ((k, filter, order) Collate.t, w) Incremental.t)
+  (type k v cmp filter order w fold_result)
+  ?(operation_order = `Sort_first)
+  ~filter_equal
+  ~order_equal
+  ~(filter_to_predicate : filter -> _)
+  ~(order_to_compare : order -> _)
+  ~(fold_action : (k, v, fold_result) Fold_action.t)
+  (data : ((k, v, cmp) Map.t, w) Incremental.t)
+  (collate : ((k, filter, order) Collate.t, w) Incremental.t)
   : (k, v, fold_result, w) t
   =
   let incremental_state = Incremental.state data in
@@ -483,13 +483,13 @@ let collate_and_maybe_fold
 ;;
 
 let collate
-      ?operation_order
-      ~filter_equal
-      ~order_equal
-      ~filter_to_predicate
-      ~order_to_compare
-      data
-      c
+  ?operation_order
+  ~filter_equal
+  ~order_equal
+  ~filter_to_predicate
+  ~order_to_compare
+  data
+  c
   =
   collate_and_maybe_fold
     ?operation_order
@@ -503,14 +503,14 @@ let collate
 ;;
 
 let collate_and_fold
-      ?operation_order
-      ~filter_equal
-      ~order_equal
-      ~filter_to_predicate
-      ~order_to_compare
-      ~fold
-      data
-      c
+  ?operation_order
+  ~filter_equal
+  ~order_equal
+  ~filter_to_predicate
+  ~order_to_compare
+  ~fold
+  data
+  c
   =
   collate_and_maybe_fold
     ?operation_order
@@ -527,28 +527,28 @@ module With_caching = struct
   module Range_memoize_bucket = Range_memoize_bucket
 
   let collate_and_maybe_fold__sort_first
-        (type k v cmp filter order fold_result w)
-        ~filter_equal
-        ~order_equal
-        ?(order_cache_params = Store_params.alist_based__lru ~equal:order_equal ~max_size:10)
-        ?(order_filter_cache_params =
-          Store_params.alist_based__lru
-            ~equal:(Tuple2.equal ~eq1:order_equal ~eq2:filter_equal)
-            ~max_size:30)
-        ?(order_filter_range_cache_params =
-          Store_params.alist_based__lru
-            ~equal:
-              (Tuple3.equal
-                 ~eq1:order_equal
-                 ~eq2:filter_equal
-                 ~eq3:Range_memoize_bucket.equal)
-            ~max_size:50)
-        ?(range_memoize_bucket_size = 10000)
-        ~(filter_to_predicate : filter -> _)
-        ~(order_to_compare : order -> _)
-        ~(fold_action : (k, v, fold_result) Fold_action.t)
-        (data : ((k, v, cmp) Map.t, w) Incremental.t)
-        (collate : ((k, filter, order) Collate.t, w) Incremental.t)
+    (type k v cmp filter order fold_result w)
+    ~filter_equal
+    ~order_equal
+    ?(order_cache_params = Store_params.alist_based__lru ~equal:order_equal ~max_size:10)
+    ?(order_filter_cache_params =
+      Store_params.alist_based__lru
+        ~equal:(Tuple2.equal ~eq1:order_equal ~eq2:filter_equal)
+        ~max_size:30)
+    ?(order_filter_range_cache_params =
+      Store_params.alist_based__lru
+        ~equal:
+          (Tuple3.equal
+             ~eq1:order_equal
+             ~eq2:filter_equal
+             ~eq3:Range_memoize_bucket.equal)
+        ~max_size:50)
+    ?(range_memoize_bucket_size = 10000)
+    ~(filter_to_predicate : filter -> _)
+    ~(order_to_compare : order -> _)
+    ~(fold_action : (k, v, fold_result) Fold_action.t)
+    (data : ((k, v, cmp) Map.t, w) Incremental.t)
+    (collate : ((k, filter, order) Collate.t, w) Incremental.t)
     : (k, v, fold_result, w) t
     =
     let%pattern_bind (collated, key_rank), fold_result =
@@ -651,17 +651,17 @@ module With_caching = struct
   ;;
 
   let collate__sort_first
-        (type k v cmp filter order w)
-        ~filter_equal
-        ~order_equal
-        ?order_cache_params
-        ?order_filter_cache_params
-        ?order_filter_range_cache_params
-        ?range_memoize_bucket_size
-        ~(filter_to_predicate : filter -> _)
-        ~(order_to_compare : order -> _)
-        (data : ((k, v, cmp) Map.t, w) Incremental.t)
-        (collate : ((k, filter, order) Collate.t, w) Incremental.t)
+    (type k v cmp filter order w)
+    ~filter_equal
+    ~order_equal
+    ?order_cache_params
+    ?order_filter_cache_params
+    ?order_filter_range_cache_params
+    ?range_memoize_bucket_size
+    ~(filter_to_predicate : filter -> _)
+    ~(order_to_compare : order -> _)
+    (data : ((k, v, cmp) Map.t, w) Incremental.t)
+    (collate : ((k, filter, order) Collate.t, w) Incremental.t)
     : (k, v, unit, w) t
     =
     collate_and_maybe_fold__sort_first
@@ -679,18 +679,18 @@ module With_caching = struct
   ;;
 
   let collate_and_fold__sort_first
-        (type k v cmp filter order fold_result w)
-        ~filter_equal
-        ~order_equal
-        ?order_cache_params
-        ?order_filter_cache_params
-        ?order_filter_range_cache_params
-        ?range_memoize_bucket_size
-        ~(filter_to_predicate : filter -> _)
-        ~(order_to_compare : order -> _)
-        ~(fold : (k, v, fold_result) Fold_params.t)
-        (data : ((k, v, cmp) Map.t, w) Incremental.t)
-        (collate : ((k, filter, order) Collate.t, w) Incremental.t)
+    (type k v cmp filter order fold_result w)
+    ~filter_equal
+    ~order_equal
+    ?order_cache_params
+    ?order_filter_cache_params
+    ?order_filter_range_cache_params
+    ?range_memoize_bucket_size
+    ~(filter_to_predicate : filter -> _)
+    ~(order_to_compare : order -> _)
+    ~(fold : (k, v, fold_result) Fold_params.t)
+    (data : ((k, v, cmp) Map.t, w) Incremental.t)
+    (collate : ((k, filter, order) Collate.t, w) Incremental.t)
     : (k, v, fold_result, w) t
     =
     collate_and_maybe_fold__sort_first

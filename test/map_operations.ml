@@ -93,11 +93,11 @@ let inner_map_generator ~keys_size ~operations data_gen =
 ;;
 
 let nested_quickcheck_generator
-      ?outer_map_keys_size
-      ?outer_map_operations
-      ?inner_map_keys_size
-      ?inner_map_operations
-      data_gen
+  ?outer_map_keys_size
+  ?outer_map_operations
+  ?inner_map_keys_size
+  ?inner_map_operations
+  data_gen
   =
   quickcheck_generator
     ?keys_size:outer_map_keys_size

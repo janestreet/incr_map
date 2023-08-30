@@ -42,12 +42,12 @@ module Parametrized = struct
 
   module For_testing = struct
     let of_list
-          ~num_filtered_rows
-          ~key_range
-          ~rank_range
-          ~num_before_range
-          ~num_unfiltered_rows
-          data
+      ~num_filtered_rows
+      ~key_range
+      ~rank_range
+      ~num_before_range
+      ~num_unfiltered_rows
+      data
       =
       { data = Map_list.For_testing.of_list data
       ; num_filtered_rows
@@ -65,8 +65,8 @@ include Parametrized
 module type Concrete = Collated_intf.Concrete with type ('k, 'v) parametrized = ('k, 'v) t
 
 module Make_concrete
-    (Key : Collated_intf.Bin_comp_sexp)
-    (Value : Collated_intf.Bin_comp_sexp) =
+  (Key : Collated_intf.Bin_comp_sexp)
+  (Value : Collated_intf.Bin_comp_sexp) =
 struct
   module Key = Key
   module Value = Value

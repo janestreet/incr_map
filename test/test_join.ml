@@ -62,15 +62,15 @@ let%expect_test "check join against slow implementation" =
       let map = Int.Map.of_alist_exn alist in
       Map.symmetric_diff !old_map map ~data_equal:String.equal
       |> Sequence.iter ~f:(fun (key, change) ->
-        match change with
-        | `Left _ ->
-          vars := Map.remove !vars key;
-          incrs := Map.remove !incrs key
-        | `Right new_value ->
-          let new_var = Incr.Var.create new_value in
-          vars := Map.set !vars ~key ~data:new_var;
-          incrs := Map.set !incrs ~key ~data:(Incr.Var.watch new_var)
-        | `Unequal (_, new_value) -> Incr.Var.set (Map.find_exn !vars key) new_value);
+           match change with
+           | `Left _ ->
+             vars := Map.remove !vars key;
+             incrs := Map.remove !incrs key
+           | `Right new_value ->
+             let new_var = Incr.Var.create new_value in
+             vars := Map.set !vars ~key ~data:new_var;
+             incrs := Map.set !incrs ~key ~data:(Incr.Var.watch new_var)
+           | `Unequal (_, new_value) -> Incr.Var.set (Map.find_exn !vars key) new_value);
       old_map := map;
       Incr.Var.set input_shape !incrs;
       test_now ()

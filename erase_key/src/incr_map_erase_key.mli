@@ -1,6 +1,5 @@
 open! Core
 
-
 module Key : sig
   type t [@@deriving sexp, bin_io]
 
@@ -23,7 +22,7 @@ val erase
   :  ?data_equal:('data -> 'data -> bool)
   -> (('key, 'data, _) Map.t, 'w) Incremental.t
   -> get:(key:'key -> data:'data -> 'a)
-  (** Make the result value from the key & data of the original map. Most of the time you
+       (** Make the result value from the key & data of the original map. Most of the time you
       just want [fun ~key ~data -> (key,data)], but the presence of this argument
       effectively lets you fuse a [mapi] operation into this one *)
   -> ('a t, 'w) Incremental.t

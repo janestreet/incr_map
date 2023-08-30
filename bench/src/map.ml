@@ -12,9 +12,9 @@ let input =
 ;;
 
 module M (S : sig
-    val name : string
-    val f : int Int.Map.t Incr.t -> int Incr.t
-  end) =
+  val name : string
+  val f : int Int.Map.t Incr.t -> int Incr.t
+end) =
 struct
   let name = S.name
   let f = S.f
@@ -44,9 +44,9 @@ struct
         fun () ->
           let open Infix in
           input
-          := Map.update !input 1 ~f:(function
-            | None -> 0
-            | Some i -> i + 1);
+            := Map.update !input 1 ~f:(function
+                 | None -> 0
+                 | Some i -> i + 1);
           Incr.stabilize ();
           assert (Incr.Observer.value_exn output = size)
       ;;
@@ -74,22 +74,22 @@ struct
 end
 
 module _ = M (struct
-    let name = "trivial"
-    let f map = map >>| Map.length
-  end)
+  let name = "trivial"
+  let f map = map >>| Map.length
+end)
 
 module _ = M (struct
-    let name = "mapi"
-    let f map = Incr_map.mapi map ~f:(fun ~key ~data -> key + data) >>| Map.length
-  end)
+  let name = "mapi"
+  let f map = Incr_map.mapi map ~f:(fun ~key ~data -> key + data) >>| Map.length
+end)
 
 module _ = M (struct
-    let name = "mapi'"
+  let name = "mapi'"
 
-    let f map =
-      Incr_map.mapi' map ~f:(fun ~key ~data ->
-        let%map data = data in
-        key + data)
-      >>| Map.length
-    ;;
-  end)
+  let f map =
+    Incr_map.mapi' map ~f:(fun ~key ~data ->
+      let%map data = data in
+      key + data)
+    >>| Map.length
+  ;;
+end)

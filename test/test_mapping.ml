@@ -49,21 +49,21 @@ let%test_unit "filter_mapi randomised fuzz test" =
     ~sexp_of:[%sexp_of: (int, int) Map_operations.t list]
     (Map_operations.quickcheck_generator Int.quickcheck_generator)
     ~f:(fun operations ->
-      let m = Incr.Var.create Int.Map.empty in
-      let watch_m = Incr.Var.watch m
-      and f ~key ~data =
-        let y = data * data in
-        Option.some_if (key + y > 33) y
-      in
-      let incr_filter_mapi =
-        Incr.Map.filter_mapi watch_m ~data_equal:Int.equal ~f |> Incr.observe
-      and slow_filter_mapi = Incr.map watch_m ~f:(Map.filter_mapi ~f) |> Incr.observe in
-      Map_operations.run_operations operations ~into:m ~after_stabilize:(fun () ->
-        [%test_result: int Int.Map.t]
-          ~expect:(Incr.Observer.value_exn slow_filter_mapi)
-          (Incr.Observer.value_exn incr_filter_mapi));
-      Incr.Observer.disallow_future_use incr_filter_mapi;
-      Incr.Observer.disallow_future_use slow_filter_mapi)
+    let m = Incr.Var.create Int.Map.empty in
+    let watch_m = Incr.Var.watch m
+    and f ~key ~data =
+      let y = data * data in
+      Option.some_if (key + y > 33) y
+    in
+    let incr_filter_mapi =
+      Incr.Map.filter_mapi watch_m ~data_equal:Int.equal ~f |> Incr.observe
+    and slow_filter_mapi = Incr.map watch_m ~f:(Map.filter_mapi ~f) |> Incr.observe in
+    Map_operations.run_operations operations ~into:m ~after_stabilize:(fun () ->
+      [%test_result: int Int.Map.t]
+        ~expect:(Incr.Observer.value_exn slow_filter_mapi)
+        (Incr.Observer.value_exn incr_filter_mapi));
+    Incr.Observer.disallow_future_use incr_filter_mapi;
+    Incr.Observer.disallow_future_use slow_filter_mapi)
 ;;
 
 let%bench_module "filter_mapi" =
@@ -73,7 +73,7 @@ let%bench_module "filter_mapi" =
       Quickcheck.random_value
         ~seed:
           (`Deterministic
-             (sprintf "%i-%i-%i-hello world, do not forget your towel" 42 size operations))
+            (sprintf "%i-%i-%i-hello world, do not forget your towel" 42 size operations))
         (Map_operations.quickcheck_generator
            Int.quickcheck_generator
            ~keys_size:size

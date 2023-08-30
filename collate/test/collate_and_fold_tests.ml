@@ -48,8 +48,8 @@ module Filter = struct
     | Key_has_vowel ->
       Some
         (fun ~key ~data:_ ->
-           String.exists (String.lowercase key) ~f:(fun ch ->
-             List.exists [ 'a'; 'e'; 'i'; 'o'; 'u' ] ~f:(Char.equal ch)))
+          String.exists (String.lowercase key) ~f:(fun ch ->
+            List.exists [ 'a'; 'e'; 'i'; 'o'; 'u' ] ~f:(Char.equal ch)))
   ;;
 end
 
@@ -68,15 +68,15 @@ type 'a t =
   }
 
 let do_collate_and_fold
-      ~order_cache_size
-      ~order_filter_cache_size
-      ~order_filter_range_cache_size
-      ~data_equal
-      ~fold_result_equal
-      ~fold
-      ()
-      input
-      collate
+  ~order_cache_size
+  ~order_filter_cache_size
+  ~order_filter_range_cache_size
+  ~data_equal
+  ~fold_result_equal
+  ~fold
+  ()
+  input
+  collate
   =
   let with_caching =
     let order_cache_params =
@@ -157,13 +157,13 @@ let set_collate ?filter ?rank_range ?key_range ?order t =
 ;;
 
 let init_test
-      ?(data = [ "A", 1; "B", 2; "C", 3 ])
-      ?(filter = Filter.None)
-      ?(order = Order.Ascending)
-      ?(key_range = Collate.Which_range.All_rows)
-      ?(rank_range = Collate.Which_range.All_rows)
-      ~fold
-      ()
+  ?(data = [ "A", 1; "B", 2; "C", 3 ])
+  ?(filter = Filter.None)
+  ?(order = Order.Ascending)
+  ?(key_range = Collate.Which_range.All_rows)
+  ?(rank_range = Collate.Which_range.All_rows)
+  ~fold
+  ()
   =
   let initial = Key.Map.of_alist_exn data in
   let map = Incr.Var.create initial in

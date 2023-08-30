@@ -100,9 +100,9 @@ let%test_unit "[Incr_map.index_byi] quickcheck" =
   let all_at_once map ~comparator ~index =
     Map.to_alist map
     |> List.filter_map ~f:(fun (key, data) ->
-      match index ~key ~data with
-      | None -> None
-      | Some index -> Some (index, (key, data)))
+         match index ~key ~data with
+         | None -> None
+         | Some index -> Some (index, (key, data)))
     |> Map.of_alist_multi comparator
     |> Map.map ~f:(Map.of_alist_exn (Map.comparator_s map))
   in
@@ -114,8 +114,8 @@ let%test_unit "[Incr_map.index_byi] quickcheck" =
   Quickcheck.test
     (Map_operations.quickcheck_generator String.quickcheck_generator)
     ~f:(fun operations ->
-      Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
-        [%test_result: string Int.Map.t Odd_or_even.Map.t]
-          ~expect:(Incr.Observer.value_exn observer)
-          (all_at_once (Incr.Var.latest_value var) ~comparator:(module Odd_or_even) ~index)))
+    Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
+      [%test_result: string Int.Map.t Odd_or_even.Map.t]
+        ~expect:(Incr.Observer.value_exn observer)
+        (all_at_once (Incr.Var.latest_value var) ~comparator:(module Odd_or_even) ~index)))
 ;;

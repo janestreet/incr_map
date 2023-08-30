@@ -35,10 +35,10 @@ end
 
 let report_results ~verbose (results : Measurement.t list) =
   let calculate_and_report
-        (type a)
-        ~name
-        (results : a list)
-        (module M : Reportable with type t = a)
+    (type a)
+    ~name
+    (results : a list)
+    (module M : Reportable with type t = a)
     =
     let len = List.length results in
     let sum = List.sum (module M) ~f:Fn.id results in

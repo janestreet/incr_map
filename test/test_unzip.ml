@@ -23,10 +23,10 @@ module Make_test (S : S) = struct
         ~data_equal_right:Int.equal
         (Incr.Var.watch m)
         ~f:(fun ~key:_ ~data:x ->
-          ( (let%map x = x in
-             let y = x * x in
-             if y > 10 then Some y else None)
-          , x ))
+        ( (let%map x = x in
+           let y = x * x in
+           if y > 10 then Some y else None)
+        , x ))
     in
     let fm = Incr.both l r |> Incr.observe in
     let dump () =
@@ -64,44 +64,44 @@ module Make_test (S : S) = struct
       ~sexp_of:[%sexp_of: (int, int) Map_operations.t list]
       (Map_operations.quickcheck_generator Int.quickcheck_generator)
       ~f:(fun operations ->
-        let m = Incr.Var.create Int.Map.empty in
-        let watch_m = Incr.Var.watch m
-        and f ~key ~data =
-          ( (let%map data = data in
-             let y = data * data in
-             Option.some_if (key + y > 33) y)
-          , data )
+      let m = Incr.Var.create Int.Map.empty in
+      let watch_m = Incr.Var.watch m
+      and f ~key ~data =
+        ( (let%map data = data in
+           let y = data * data in
+           Option.some_if (key + y > 33) y)
+        , data )
+      in
+      let incr_left, incr_right =
+        S.unzip_mapi'
+          watch_m
+          ~data_equal:[%equal: int]
+          ~data_equal_left:[%equal: int option]
+          ~data_equal_right:[%equal: int]
+          ~f
+      and slow_left, slow_right =
+        let paired =
+          Incr.Map.mapi' watch_m ~f:(fun ~key ~data ->
+            let left, right = f ~key ~data in
+            Incr.both left right)
         in
-        let incr_left, incr_right =
-          S.unzip_mapi'
-            watch_m
-            ~data_equal:[%equal: int]
-            ~data_equal_left:[%equal: int option]
-            ~data_equal_right:[%equal: int]
-            ~f
-        and slow_left, slow_right =
-          let paired =
-            Incr.Map.mapi' watch_m ~f:(fun ~key ~data ->
-              let left, right = f ~key ~data in
-              Incr.both left right)
-          in
-          Incr.Map.map paired ~f:fst, Incr.Map.map paired ~f:snd
-        in
-        let incr_left = Incr.observe incr_left
-        and incr_right = Incr.observe incr_right
-        and slow_left = Incr.observe slow_left
-        and slow_right = Incr.observe slow_right in
-        Map_operations.run_operations operations ~into:m ~after_stabilize:(fun () ->
-          [%test_result: int option Int.Map.t]
-            ~expect:(Incr.Observer.value_exn slow_left)
-            (Incr.Observer.value_exn incr_left);
-          [%test_result: int Int.Map.t]
-            ~expect:(Incr.Observer.value_exn slow_right)
-            (Incr.Observer.value_exn incr_right));
-        Incr.Observer.disallow_future_use incr_left;
-        Incr.Observer.disallow_future_use incr_right;
-        Incr.Observer.disallow_future_use slow_left;
-        Incr.Observer.disallow_future_use slow_right)
+        Incr.Map.map paired ~f:fst, Incr.Map.map paired ~f:snd
+      in
+      let incr_left = Incr.observe incr_left
+      and incr_right = Incr.observe incr_right
+      and slow_left = Incr.observe slow_left
+      and slow_right = Incr.observe slow_right in
+      Map_operations.run_operations operations ~into:m ~after_stabilize:(fun () ->
+        [%test_result: int option Int.Map.t]
+          ~expect:(Incr.Observer.value_exn slow_left)
+          (Incr.Observer.value_exn incr_left);
+        [%test_result: int Int.Map.t]
+          ~expect:(Incr.Observer.value_exn slow_right)
+          (Incr.Observer.value_exn incr_right));
+      Incr.Observer.disallow_future_use incr_left;
+      Incr.Observer.disallow_future_use incr_right;
+      Incr.Observer.disallow_future_use slow_left;
+      Incr.Observer.disallow_future_use slow_right)
   ;;
 
   let%bench_module "unzip_mapi'" =
@@ -111,11 +111,11 @@ module Make_test (S : S) = struct
         Quickcheck.random_value
           ~seed:
             (`Deterministic
-               (sprintf
-                  "%i-%i-%i-hello world, do not forget your towel"
-                  42
-                  size
-                  operations))
+              (sprintf
+                 "%i-%i-%i-hello world, do not forget your towel"
+                 42
+                 size
+                 operations))
           (Map_operations.quickcheck_generator
              Int.quickcheck_generator
              ~keys_size:size
@@ -144,7 +144,7 @@ module Make_test (S : S) = struct
       ;;
 
       let%bench_fun ("unzip_mapi' random-ops" [@indexed
-                       operations = [ 5000; 10000; 100000 ]])
+                                                operations = [ 5000; 10000; 100000 ]])
         =
         let operations = test_data ~size:(operations / 100) ~operations in
         fun () ->
@@ -163,7 +163,7 @@ module Make_test (S : S) = struct
       ;;
 
       let%bench_fun ("slow_unzip_mapi' random-ops" [@indexed
-                       operations = [ 5000; 10000; 100000 ]])
+                                                     operations = [ 5000; 10000; 100000 ]])
         =
         let operations = test_data ~size:(operations / 100) ~operations in
         fun () -> benchmark_unzip_mapi' slow_unzip_mapi' ~operations

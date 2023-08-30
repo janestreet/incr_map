@@ -187,21 +187,21 @@ let%expect_test "quickcheck ops test" =
     ~sexp_of:[%sexp_of: Test_case.t]
     Test_case.quickcheck_generator
     ~f:(fun { operations; initial_state; range } ->
-      let data = Incr.Var.create (initial_state, range) in
-      let incr = Incr.Var.watch data in
-      let map_incr = Incr.map incr ~f:fst in
-      let range_incr = Incr.map incr ~f:snd |> Incr.map ~f:Option.some in
-      let expect_submap, submap = setup_subrange map_incr range_incr in
-      let check () =
-        Incr.stabilize ();
-        [%test_result: int Int.Map.t]
-          ~expect:(Incr.Observer.value_exn expect_submap)
-          (Incr.Observer.value_exn submap)
-      in
-      check ();
-      List.iter operations ~f:(fun op ->
-        Incr.Var.set data (apply_op (Incr.Var.value data) op);
-        check ()));
+    let data = Incr.Var.create (initial_state, range) in
+    let incr = Incr.Var.watch data in
+    let map_incr = Incr.map incr ~f:fst in
+    let range_incr = Incr.map incr ~f:snd |> Incr.map ~f:Option.some in
+    let expect_submap, submap = setup_subrange map_incr range_incr in
+    let check () =
+      Incr.stabilize ();
+      [%test_result: int Int.Map.t]
+        ~expect:(Incr.Observer.value_exn expect_submap)
+        (Incr.Observer.value_exn submap)
+    in
+    check ();
+    List.iter operations ~f:(fun op ->
+      Incr.Var.set data (apply_op (Incr.Var.value data) op);
+      check ()));
   [%expect {| |}]
 ;;
 
@@ -212,11 +212,11 @@ let observe incr =
 ;;
 
 let subrange_by_rank_test
-      ?(initial_map =
-        String.Map.of_alist_exn [ "b", (); "d", (); "f", (); "h", (); "j", (); "l", () ])
-      ~initial_range
-      ~ops
-      ()
+  ?(initial_map =
+    String.Map.of_alist_exn [ "b", (); "d", (); "f", (); "h", (); "j", (); "l", () ])
+  ~initial_range
+  ~ops
+  ()
   =
   (* test subrange_by_rank by starting from [initial_map] and [initial_range] and applying
      ops, which can change both map and range *)

@@ -92,7 +92,6 @@ module type Concrete = sig
   include Diffable.S with type t := t
   include Streamable.S with type t := t
 
-
   val find_by_key : t -> Key.t -> Value.t option
   val prev : t -> Key.t -> (Key.t * Value.t) option
   val next : t -> Key.t -> (Key.t * Value.t) option

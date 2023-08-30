@@ -57,9 +57,9 @@ module Sum_map_direct = struct
 end
 
 module M (M : sig
-    val outer : int
-    val inner : int
-  end) =
+  val outer : int
+  val inner : int
+end) =
 struct
   let outer = M.outer
   let inner = M.inner
@@ -115,24 +115,24 @@ struct
 end
 
 module _ = M (struct
-    let outer = 10000
-    let inner = 10
-  end)
+  let outer = 10000
+  let inner = 10
+end)
 
 module M2 = M (struct
-    let outer = 1000
-    let inner = 100
-  end)
+  let outer = 1000
+  let inner = 100
+end)
 
 module _ = M (struct
-    let outer = 100
-    let inner = 1000
-  end)
+  let outer = 100
+  let inner = 1000
+end)
 
 module _ = M (struct
-    let outer = 10
-    let inner = 10000
-  end)
+  let outer = 10
+  let inner = 10000
+end)
 
 (* Looks like it doesn't matter all that much how you choose to structure the nested maps,
    though more outer elements clearly adds expense.  Note also that despite the decently

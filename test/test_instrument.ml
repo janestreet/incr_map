@@ -4,10 +4,10 @@ open Import
 let instrumentation =
   { Incr_map.Instrumentation.f =
       (fun f ->
-         print_endline "starting!";
-         let r = f () in
-         print_endline "finishing!";
-         r)
+        print_endline "starting!";
+        let r = f () in
+        print_endline "finishing!";
+        r)
   }
 ;;
 
