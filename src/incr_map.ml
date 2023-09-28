@@ -390,28 +390,80 @@ module Generic = struct
         empty, empty, empty
       | Some x -> x
     in
-    let left_diff =
-      Map.symmetric_diff old_left_map new_left_map ~data_equal:data_equal_left
+    let apply_right output (key, diff_element) =
+      f ~old_output ~key ~output ~diff_element:(`Right diff_element)
     in
-    let right_diff =
-      Map.symmetric_diff old_right_map new_right_map ~data_equal:data_equal_right
-    in
-    (* We merge the two sides of the diffs together so we can make sure to handle each
-       key exactly once. This relies on symmetric diff giving sorted output. *)
-    Sequence.merge_with_duplicates
-      left_diff
-      right_diff
-      ~compare:(fun (left_key, _) (right_key, _) -> comparator.compare left_key right_key)
-    |> Sequence.fold ~init:old_output ~f:(fun output diff_element ->
-         let key =
-           match diff_element with
-           | Left (key, _) | Right (key, _) -> key
-           | Both ((left_key, _), (_right_key, _)) ->
-             (* comparison functions can be expensive! *)
-             (* assert (comparator.compare left_key right_key = 0); *)
-             left_key
-         in
-         f ~old_output ~key ~output ~diff_element)
+    if phys_equal old_left_map new_left_map
+    then
+      Map.fold_symmetric_diff
+        ~init:old_output
+        old_right_map
+        new_right_map
+        ~data_equal:data_equal_right
+        ~f:apply_right [@nontail]
+    else (
+      let right_diffs =
+        Map.symmetric_diff old_right_map new_right_map ~data_equal:data_equal_right
+      in
+      let output, right_diffs =
+        Map.fold_symmetric_diff
+          ~init:(old_output, Sequence.next right_diffs)
+          old_left_map
+          new_left_map
+          ~data_equal:data_equal_left
+          ~f:(fun (output, right_diffs) (left_key, left_diff_element) ->
+            let rec loop
+              compare
+              ~old_output
+              ~output
+              right_diffs
+              left_key
+              left_diff_element
+              ~f
+              =
+              let[@inline] apply_left output =
+                f
+                  ~old_output
+                  ~key:left_key
+                  ~output
+                  ~diff_element:(`Left left_diff_element)
+              in
+              let[@inline] apply_right output (key, diff_element) =
+                f ~old_output ~key ~output ~diff_element:(`Right diff_element)
+              in
+              match right_diffs with
+              | None -> apply_left output, right_diffs
+              | Some (((right_key, right_diff_element) as hd), tl) ->
+                (match compare left_key right_key with
+                 | 0 ->
+                   ( f
+                       ~old_output
+                       ~key:left_key
+                       ~output
+                       ~diff_element:(`Both (left_diff_element, right_diff_element))
+                   , Sequence.next tl )
+                 | x when x > 0 ->
+                   (loop [@tailcall])
+                     compare
+                     ~old_output
+                     ~output:(apply_right output hd)
+                     (Sequence.next tl)
+                     left_key
+                     left_diff_element
+                     ~f
+                 | _ -> apply_left output, right_diffs)
+            in
+            loop
+              comparator.compare
+              ~old_output
+              ~output
+              right_diffs
+              left_key
+              left_diff_element
+              ~f [@nontail])
+      in
+      Option.value_map right_diffs ~default:output ~f:(fun (hd, tl) ->
+        Sequence.fold ~init:(apply_right output hd) tl ~f:apply_right) [@nontail])
   ;;
 
   let new_data_from_diff_element = function
@@ -443,11 +495,11 @@ module Generic = struct
                input in the left and right map. *)
         let left_data_opt, right_data_opt =
           match diff_element with
-          | Both ((_, left_diff), (_, right_diff)) ->
+          | `Both (left_diff, right_diff) ->
             new_data_from_diff_element left_diff, new_data_from_diff_element right_diff
-          | Left (_, left_diff) ->
+          | `Left left_diff ->
             new_data_from_diff_element left_diff, Map.find new_right_map key
-          | Right (_, right_diff) ->
+          | `Right right_diff ->
             Map.find new_left_map key, new_data_from_diff_element right_diff
         in
         let output_data_opt =
@@ -493,15 +545,15 @@ module Generic = struct
           let left_and_right_data_opt =
             let open Option.Let_syntax in
             match diff_element with
-            | Both ((_, left_diff), (_, right_diff)) ->
+            | `Both (left_diff, right_diff) ->
               let%bind left_data = new_data_from_diff_element left_diff in
               let%map right_data = new_data_from_diff_element right_diff in
               left_data, right_data
-            | Left (_, left_diff) ->
+            | `Left left_diff ->
               let%bind left_data = new_data_from_diff_element left_diff in
               let%map right_data = Map.find new_right_map key in
               left_data, right_data
-            | Right (_, right_diff) ->
+            | `Right right_diff ->
               (* This match arm binds [right_data] first because the map lookup
                      is slower than calling [new_data_from_diff_element]. *)
               let%bind right_data = new_data_from_diff_element right_diff in
