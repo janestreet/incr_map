@@ -19,7 +19,7 @@ let check_invariants input_map derived_map =
     (* The keys of the derived map should serialized to unique values. If that
        is not the case, then [of_alist_exn] will raise. *)
     Map.to_alist derived_map
-    |> List.map ~f:(fun (key, data) -> Incr_map_erase_key.Key.to_string key, data)
+    |> List.map ~f:(fun (key, data) -> Opaque_map.Key.to_string key, data)
     |> String.Map.of_alist_exn
   in
   ()
@@ -28,7 +28,9 @@ let check_invariants input_map derived_map =
 let run_test ~size_of_initial_map ~iterations =
   let input_map = Incr.Var.create (U.init_rand_map ~from:0 ~to_:size_of_initial_map) in
   let derived_map =
-    Incr_map_erase_key.erase ~get:(fun ~key ~data -> key, data) (Incr.Var.watch input_map)
+    Opaque_map.erase_key_incrementally
+      ~get:(fun ~key ~data -> key, data)
+      (Incr.Var.watch input_map)
   in
   let both = Incr.both (Incr.Var.watch input_map) derived_map in
   let both = Incr.observe both in
@@ -53,7 +55,9 @@ let%expect_test _ =
   let size = 1500 in
   let input_map = Incr.Var.create (Int.Map.of_alist_exn [ -1, 0.0; size + 1, 0.0 ]) in
   let derived_map =
-    Incr_map_erase_key.erase ~get:(fun ~key ~data -> key, data) (Incr.Var.watch input_map)
+    Opaque_map.erase_key_incrementally
+      ~get:(fun ~key ~data -> key, data)
+      (Incr.Var.watch input_map)
   in
   let both = Incr.both (Incr.Var.watch input_map) derived_map in
   let both = Incr.observe both in
@@ -68,7 +72,7 @@ let%expect_test _ =
   done
 ;;
 
-(* This is a regression-test for [Incr_map_erase_key] that demonstrates changes to an
+(* This is a regression-test for [Opaque_map] that demonstrates changes to an
    input map where the map never gets larger than size 3, but the denomonator for the
    bignum assigned to the key for the middle-most row grows explosively. *)
 let%expect_test _ =
@@ -79,7 +83,9 @@ let%expect_test _ =
          [ Bignum.of_int (-1), (); !needle, (); Bignum.of_int 1, () ])
   in
   let derived_map =
-    Incr_map_erase_key.erase ~get:(fun ~key:_ ~data:_ -> ()) (Incr.Var.watch input_map)
+    Opaque_map.erase_key_incrementally
+      ~get:(fun ~key:_ ~data:_ -> ())
+      (Incr.Var.watch input_map)
   in
   let observer = Incr.observe derived_map in
   for _ = 0 to 1000 do
@@ -91,10 +97,7 @@ let%expect_test _ =
       map);
     Incr.stabilize ()
   done;
-  observer
-  |> Incr.Observer.value_exn
-  |> [%sexp_of: unit Incr_map_erase_key.Key.Map.t]
-  |> print_s;
+  observer |> Incr.Observer.value_exn |> [%sexp_of: unit Opaque_map.Key.Map.t] |> print_s;
   [%expect {| ((0 ()) (100 ()) (200 ())) |}]
 ;;
 
@@ -110,7 +113,9 @@ let%expect_test _ =
          [ Bignum.of_int (-1), (); !needle, (); !needle', (); Bignum.of_int 1, () ])
   in
   let derived_map =
-    Incr_map_erase_key.erase ~get:(fun ~key:_ ~data:_ -> ()) (Incr.Var.watch input_map)
+    Opaque_map.erase_key_incrementally
+      ~get:(fun ~key:_ ~data:_ -> ())
+      (Incr.Var.watch input_map)
   in
   let observer = Incr.observe derived_map in
   for _ = 0 to 1000 do
@@ -123,10 +128,7 @@ let%expect_test _ =
       map);
     Incr.stabilize ()
   done;
-  observer
-  |> Incr.Observer.value_exn
-  |> [%sexp_of: unit Incr_map_erase_key.Key.Map.t]
-  |> print_s;
+  observer |> Incr.Observer.value_exn |> [%sexp_of: unit Opaque_map.Key.Map.t] |> print_s;
   [%expect {| ((0 ()) (0.0625 ()) (0.125 ()) (300 ())) |}]
 ;;
 
@@ -134,7 +136,9 @@ let%expect_test "adding elements before and after existing elements" =
   let test inputs =
     let input_map = Incr.Var.create (Int.Map.of_alist_exn [ 0, () ]) in
     let derived_map =
-      Incr_map_erase_key.erase ~get:(fun ~key ~data:() -> key) (Incr.Var.watch input_map)
+      Opaque_map.erase_key_incrementally
+        ~get:(fun ~key ~data:() -> key)
+        (Incr.Var.watch input_map)
     in
     let observer = Incr.observe derived_map in
     Incr.stabilize ();
@@ -144,7 +148,7 @@ let%expect_test "adding elements before and after existing elements" =
     observer
     |> Incr.Observer.value_exn
     |> Map.iteri ~f:(fun ~key ~data ->
-         print_s [%sexp (key : Incr_map_erase_key.Key.t), (data : int)])
+         print_s [%sexp (key : Opaque_map.Key.t), (data : int)])
   in
   test [];
   [%expect {| (0 0) |}];

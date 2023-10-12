@@ -1,6 +1,5 @@
 open Core
 module Which_range = Collate.Which_range
-module Map_list = Incr_map_erase_key
 
 module type Parametrized = sig
   (** The result of collation - a filtered, sorted and restricted-to-a-range list of keys
@@ -16,7 +15,7 @@ module type Parametrized = sig
   val fold : ('k, 'v) t -> init:'accum -> f:('accum -> 'k * 'v -> 'accum) -> 'accum
   val iter : ('k, 'v) t -> f:('k * 'v -> unit) -> unit
   val to_alist : ('k, 'v) t -> ('k * 'v) list
-  val to_map_list : ('k, 'v) t -> ('k * 'v) Map_list.t
+  val to_opaque_map : ('k, 'v) t -> ('k * 'v) Opaque_map.t
   val first : ('k, 'v) t -> ('k * 'v) option
   val last : ('k, 'v) t -> ('k * 'v) option
   val mapi : ('k, 'v1) t -> f:('k -> 'v1 -> 'v2) -> ('k, 'v2) t
@@ -42,7 +41,7 @@ module type Parametrized = sig
 
   module Private : sig
     val create
-      :  data:('k * 'v) Map_list.t
+      :  data:('k * 'v) Opaque_map.t
       -> num_filtered_rows:int
       -> key_range:'k Which_range.t
       -> rank_range:int Which_range.t
@@ -80,7 +79,7 @@ module type Concrete = sig
   val fold : t -> init:'accum -> f:('accum -> Key.t * Value.t -> 'accum) -> 'accum
   val iter : t -> f:(Key.t * Value.t -> unit) -> unit
   val to_alist : t -> (Key.t * Value.t) list
-  val to_map_list : t -> (Key.t * Value.t) Map_list.t
+  val to_opaque_map : t -> (Key.t * Value.t) Opaque_map.t
   val first : t -> (Key.t * Value.t) option
   val last : t -> (Key.t * Value.t) option
   val length : t -> int

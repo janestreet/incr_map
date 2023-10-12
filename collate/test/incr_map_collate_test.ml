@@ -547,46 +547,103 @@ let%expect_test "don't trigger rebalance" =
   modify_map t ~f:(Map.add_exn ~key:"AAAAAA" ~data:(0, 96.));
   modify_map t ~f:(Map.add_exn ~key:"AAAAAAA" ~data:(0, 98.));
   modify_map t ~f:(Map.add_exn ~key:"AAAAAAAA" ~data:(0, 99.));
+  let next_key = ref "AAAAAAAAA" in
+  for _ = 1 to 26 do
+    modify_map t ~f:(Map.add_exn ~key:!next_key ~data:(0, 0.));
+    next_key := !next_key ^ "A"
+  done;
   (* Still didn't need rebalace *)
   print_res ~full_sexp:true t;
   [%expect
     {|
     ((data (
-       (0   (A        (0 0)))
-       (50  (AA       (0 50)))
-       (75  (AAA      (0 75)))
-       (87  (AAAA     (0 87)))
-       (93  (AAAAA    (0 93)))
-       (96  (AAAAAA   (0 96)))
-       (98  (AAAAAAA  (0 98)))
-       (99  (AAAAAAAA (0 99)))
-       (100 (B        (0 100)))))
-     (num_filtered_rows   9)
+       (0                     (A                          (0 0)))
+       (50                    (AA                         (0 50)))
+       (75                    (AAA                        (0 75)))
+       (87                    (AAAA                       (0 87)))
+       (93                    (AAAAA                      (0 93)))
+       (96                    (AAAAAA                     (0 96)))
+       (98                    (AAAAAAA                    (0 98)))
+       (99                    (AAAAAAAA                   (0 99)))
+       (99.5                  (AAAAAAAAA                  (0 0)))
+       (99.75                 (AAAAAAAAAA                 (0 0)))
+       (99.875                (AAAAAAAAAAA                (0 0)))
+       (99.9375               (AAAAAAAAAAAA               (0 0)))
+       (99.96875              (AAAAAAAAAAAAA              (0 0)))
+       (99.984375             (AAAAAAAAAAAAAA             (0 0)))
+       (99.9921875            (AAAAAAAAAAAAAAA            (0 0)))
+       (99.99609375           (AAAAAAAAAAAAAAAA           (0 0)))
+       (99.998046875          (AAAAAAAAAAAAAAAAA          (0 0)))
+       (99.9990234375         (AAAAAAAAAAAAAAAAAA         (0 0)))
+       (99.99951171875        (AAAAAAAAAAAAAAAAAAA        (0 0)))
+       (99.999755859375       (AAAAAAAAAAAAAAAAAAAA       (0 0)))
+       (99.9998779296875      (AAAAAAAAAAAAAAAAAAAAA      (0 0)))
+       (99.99993896484375     (AAAAAAAAAAAAAAAAAAAAAA     (0 0)))
+       (99.999969482421875    (AAAAAAAAAAAAAAAAAAAAAAA    (0 0)))
+       (99.9999847412109375   (AAAAAAAAAAAAAAAAAAAAAAAA   (0 0)))
+       (99.99999237060546875  (AAAAAAAAAAAAAAAAAAAAAAAAA  (0 0)))
+       (99.999996185302734375 (AAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
+       (99.9999980926513671875 (AAAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
+       (99.99999904632568359375 (AAAAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
+       (99.999999523162841796875 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
+       (99.9999997615814208984375 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
+       (99.99999988079071044921875 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
+       (99.999999940395355224609375 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
+       (99.9999999701976776123046875 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
+       (99.99999998509883880615234375 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
+       (100 (B (0 100)))))
+     (num_filtered_rows   35)
      (key_range           All_rows)
      (rank_range          All_rows)
      (num_before_range    0)
-     (num_unfiltered_rows 9)) |}];
+     (num_unfiltered_rows 35)) |}];
   (* But now it does *)
-  modify_map t ~f:(Map.add_exn ~key:"AAAAAAAAA" ~data:(0, 0.));
+  modify_map t ~f:(Map.add_exn ~key:!next_key ~data:(0, 0.));
   print_res ~full_sexp:true t;
   [%expect
     {|
     ((data (
-       (0    (A         (0 0)))
-       (50   (AA        (0 50)))
-       (75   (AAA       (0 75)))
-       (87   (AAAA      (0 87)))
-       (93   (AAAAA     (0 93)))
-       (96   (AAAAAA    (0 96)))
-       (98   (AAAAAAA   (0 98)))
-       (99   (AAAAAAAA  (0 99)))
-       (99.5 (AAAAAAAAA (0 0)))
-       (100  (B         (0 100)))))
-     (num_filtered_rows   10)
+       (0    (A                                   (0 0)))
+       (100  (AA                                  (0 50)))
+       (200  (AAA                                 (0 75)))
+       (300  (AAAA                                (0 87)))
+       (400  (AAAAA                               (0 93)))
+       (500  (AAAAAA                              (0 96)))
+       (600  (AAAAAAA                             (0 98)))
+       (700  (AAAAAAAA                            (0 99)))
+       (800  (AAAAAAAAA                           (0 0)))
+       (900  (AAAAAAAAAA                          (0 0)))
+       (1000 (AAAAAAAAAAA                         (0 0)))
+       (1100 (AAAAAAAAAAAA                        (0 0)))
+       (1200 (AAAAAAAAAAAAA                       (0 0)))
+       (1300 (AAAAAAAAAAAAAA                      (0 0)))
+       (1400 (AAAAAAAAAAAAAAA                     (0 0)))
+       (1500 (AAAAAAAAAAAAAAAA                    (0 0)))
+       (1600 (AAAAAAAAAAAAAAAAA                   (0 0)))
+       (1700 (AAAAAAAAAAAAAAAAAA                  (0 0)))
+       (1800 (AAAAAAAAAAAAAAAAAAA                 (0 0)))
+       (1900 (AAAAAAAAAAAAAAAAAAAA                (0 0)))
+       (2000 (AAAAAAAAAAAAAAAAAAAAA               (0 0)))
+       (2100 (AAAAAAAAAAAAAAAAAAAAAA              (0 0)))
+       (2200 (AAAAAAAAAAAAAAAAAAAAAAA             (0 0)))
+       (2300 (AAAAAAAAAAAAAAAAAAAAAAAA            (0 0)))
+       (2400 (AAAAAAAAAAAAAAAAAAAAAAAAA           (0 0)))
+       (2500 (AAAAAAAAAAAAAAAAAAAAAAAAAA          (0 0)))
+       (2600 (AAAAAAAAAAAAAAAAAAAAAAAAAAA         (0 0)))
+       (2700 (AAAAAAAAAAAAAAAAAAAAAAAAAAAA        (0 0)))
+       (2800 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAA       (0 0)))
+       (2900 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA      (0 0)))
+       (3000 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA     (0 0)))
+       (3100 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA    (0 0)))
+       (3200 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA   (0 0)))
+       (3300 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  (0 0)))
+       (3400 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
+       (3500 (B                                   (0 100)))))
+     (num_filtered_rows   36)
      (key_range           All_rows)
      (rank_range          All_rows)
      (num_before_range    0)
-     (num_unfiltered_rows 10)) |}]
+     (num_unfiltered_rows 36)) |}]
 ;;
 
 let%expect_test "diffs" =

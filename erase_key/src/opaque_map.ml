@@ -39,7 +39,7 @@ let two = Bignum.one + Bignum.one
 let denom_rebalance_cutoff = Bigint.of_int 100_000_000
 let separation = Bignum.of_int 100
 
-let erase
+let erase_key_incrementally
   (type key data res cmp)
   ?data_equal
   (map : ((key, data, cmp) Map.t, 'w) Incremental.t)
@@ -184,8 +184,9 @@ let erase
   out
 ;;
 
-module For_testing = struct
-  let of_list xs =
-    Bignum.Map.of_alist_exn (List.mapi xs ~f:(fun i x -> Bignum.of_int i, x))
-  ;;
-end
+let empty = Bignum.Map.empty
+let of_list xs = Bignum.Map.of_alist_exn (List.mapi xs ~f:(fun i x -> Bignum.of_int i, x))
+
+let of_array arr =
+  Bignum.Map.of_sorted_array_unchecked (Array.mapi arr ~f:(fun i x -> Bignum.of_int i, x))
+;;

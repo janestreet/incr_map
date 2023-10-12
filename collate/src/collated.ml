@@ -1,10 +1,9 @@
 open Core
 module Which_range = Collate.Which_range
-module Map_list = Incr_map_erase_key
 
 module Parametrized = struct
   type ('k, 'v) t =
-    { data : ('k * 'v) Map_list.t
+    { data : ('k * 'v) Opaque_map.t
     ; num_filtered_rows : int
     ; key_range : 'k Which_range.t (** Ranges that this value was computed for *)
     ; rank_range : int Which_range.t
@@ -14,7 +13,7 @@ module Parametrized = struct
   [@@deriving sexp, compare, fields ~getters ~iterators:(create, fold), equal, bin_io]
 
   let empty =
-    { data = Map_list.Key.Map.empty
+    { data = Opaque_map.Key.Map.empty
     ; num_filtered_rows = 0
     ; key_range = All_rows
     ; rank_range = All_rows
@@ -30,7 +29,7 @@ module Parametrized = struct
   let fold t ~init ~f = Map.fold t.data ~init ~f:(fun ~key:_ ~data acc -> f acc data)
   let iter t ~f = Map.iter t.data ~f
   let to_alist t = Map.data t.data
-  let to_map_list t = t.data
+  let to_opaque_map t = t.data
   let first t = Map.min_elt t.data |> Option.map ~f:snd
   let last t = Map.max_elt t.data |> Option.map ~f:snd
   let mapi t ~f = { t with data = Map.map t.data ~f:(fun (k, v) -> k, f k v) }
@@ -49,7 +48,7 @@ module Parametrized = struct
       ~num_unfiltered_rows
       data
       =
-      { data = Map_list.For_testing.of_list data
+      { data = Opaque_map.of_list data
       ; num_filtered_rows
       ; rank_range
       ; key_range
@@ -85,7 +84,7 @@ struct
         type t = Key.t * Value.t [@@deriving sexp, bin_io, compare, equal]
       end
 
-      module Map = Diffable.Map.Make (Map_list.Key) (Map_data)
+      module Map = Diffable.Map.Make (Opaque_map.Key) (Map_data)
 
       module Diff = struct
         type t =

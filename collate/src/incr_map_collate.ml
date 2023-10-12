@@ -1,7 +1,6 @@
 open! Core
 module Collate = Collate
 module Collated = Collated
-module Map_list = Incr_map_erase_key
 module Store = Incr_memoize.Store
 module Store_params = Incr_memoize.Store_params
 
@@ -387,9 +386,10 @@ let with_cutoff incr ~equal =
 
 let do_to_pos_map (type k v w) (data : (k, v, w) Incr_collated_map.t) =
   match data with
-  | Original data -> Map_list.erase data ~get:(fun ~key ~data -> key, data)
+  | Original data ->
+    Opaque_map.erase_key_incrementally data ~get:(fun ~key ~data -> key, data)
   | Sorted (data, _key_cmp) ->
-    Map_list.erase data ~get:(fun ~key:(k, _v1) ~data:v2 -> k, v2)
+    Opaque_map.erase_key_incrementally data ~get:(fun ~key:(k, _v1) ~data:v2 -> k, v2)
 ;;
 
 type ('k, 'v, 'fold_result, 'w) t =

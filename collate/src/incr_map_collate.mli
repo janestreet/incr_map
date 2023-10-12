@@ -1,7 +1,6 @@
 open! Core
 module Collate = Collate
 module Collated = Collated
-module Map_list = Incr_map_erase_key
 module Store_params = Incr_memoize.Store_params
 
 module Compare : sig

@@ -18,7 +18,9 @@ end
 type 'a t = (Key.t, 'a, Key.comparator_witness) Map.t
 [@@deriving sexp, compare, equal, bin_io]
 
-val erase
+(** When Opaque_maps are created incrementally we can be smart about insertion and get
+    good performance around insertion and rebalancing. *)
+val erase_key_incrementally
   :  ?data_equal:('data -> 'data -> bool)
   -> (('key, 'data, _) Map.t, 'w) Incremental.t
   -> get:(key:'key -> data:'data -> 'a)
@@ -27,6 +29,12 @@ val erase
       effectively lets you fuse a [mapi] operation into this one *)
   -> ('a t, 'w) Incremental.t
 
-module For_testing : sig
-  val of_list : 'a list -> 'a t
-end
+(** [empty], [of_list], and [of_array] won't give you nice incrementality like
+    [erase_key_incrementally], but they are still fine if the primary goal is using the
+    type itself outside of an incremental context.
+
+    But if possible, consider [erase_key_incrementally]. *)
+
+val empty : _ t
+val of_list : 'a list -> 'a t
+val of_array : 'a array -> 'a t
