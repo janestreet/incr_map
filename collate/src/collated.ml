@@ -76,6 +76,8 @@ struct
   module T = struct
     type t = (Key.t, Value.t) Parametrized.t [@@deriving sexp, bin_io, compare, equal]
 
+    let this_type_does_not_support_ldiffable = ()
+
     (* We have to implement this by hand, as ppx_diff (or Diffable really)
        doesn't support parametrized types *)
 

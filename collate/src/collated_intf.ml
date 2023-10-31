@@ -91,6 +91,11 @@ module type Concrete = sig
   include Diffable.S with type t := t
   include Streamable.S with type t := t
 
+  (** This strange value just encodes the fact that this type does not yet implement
+      [Ldiffable.S].  When it does, delete this and then the compiler will show you places
+      to update. *)
+  val this_type_does_not_support_ldiffable : unit
+
   val find_by_key : t -> Key.t -> Value.t option
   val prev : t -> Key.t -> (Key.t * Value.t) option
   val next : t -> Key.t -> (Key.t * Value.t) option
