@@ -524,7 +524,6 @@ let%expect_test "subrange_by_rank is consistent between lower bounds" =
 
    This is purposedly not using Map.nth + Incr_map.subrange to be more different from
    the Incr_map.subrange_by_rank implementation to avoid same bugs in both.
-
 *)
 let subrange_by_rank_reference m (from, to_) =
   let comparator = Map.comparator_s m in

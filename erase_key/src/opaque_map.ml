@@ -20,6 +20,19 @@ end
 
 type 'a t = 'a Map.M(Key).t [@@deriving sexp, compare, equal, bin_io]
 
+module Stable = struct
+  module V1 = struct
+    include Comparable.Stable.V1.With_stable_witness.Make (struct
+      type t = Bignum.Stable.V3.t [@@deriving bin_io, sexp, compare, stable_witness]
+      type comparator_witness = Bignum.comparator_witness
+
+      let comparator = Bignum.comparator
+    end)
+
+    type 'a t = 'a Map.t [@@deriving sexp, bin_io, stable_witness]
+  end
+end
+
 let with_comparator x f =
   Incremental.bind (Incremental.freeze (Incremental.map x ~f:Map.comparator_s)) ~f
 ;;

@@ -86,7 +86,7 @@ struct
         type t = Key.t * Value.t [@@deriving sexp, bin_io, compare, equal]
       end
 
-      module Map = Diffable.Map.Make (Opaque_map.Key) (Map_data)
+      module Map = Legacy_diffable.Map.Make (Opaque_map.Key) (Map_data)
 
       module Diff = struct
         type t =
@@ -185,7 +185,7 @@ struct
   end
 
   include T
-  include Diffable.Make_streamable (T)
+  include Legacy_diffable.Make_streamable (T)
 
   let findi_by_key t key =
     let found =

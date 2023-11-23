@@ -88,7 +88,7 @@ module type Concrete = sig
   val key_range : t -> Key.t Which_range.t
   val rank_range : t -> int Which_range.t
 
-  include Diffable.S with type t := t
+  include Legacy_diffable.S with type t := t
   include Streamable.S with type t := t
 
   (** This strange value just encodes the fact that this type does not yet implement
