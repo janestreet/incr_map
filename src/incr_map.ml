@@ -576,6 +576,70 @@ module Generic = struct
              | Some _ -> Map.remove output key)))
   ;;
 
+  let merge_disjoint
+    ?(instrumentation = no_instrumentation)
+    ?(data_equal = phys_equal)
+    left_map
+    right_map
+    =
+    with_old2
+      left_map
+      right_map
+      ~instrumentation
+      ~f:(fun ~old new_left_map new_right_map ->
+      let comparator = Map.comparator new_left_map in
+      let empty = Map.Using_comparator.empty ~comparator in
+      let merge_from_scratch () =
+        Map.merge_skewed new_left_map new_right_map ~combine:(fun ~key _ _ ->
+          raise_s
+            [%message
+              [%here]
+                "Incr_map.merge_disjoint"
+                "caller has broken invariant, a key is present in both maps"
+                ~key:(comparator.sexp_of_t key : Sexp.t)])
+      in
+      match Map.length new_left_map, Map.length new_right_map with
+      | 0, 0 -> empty
+      | 0, _ ->
+        (* if the left map is empty, the "merged" result is the right map *)
+        new_right_map
+      | _, 0 ->
+        (* if the right map is empty, the "merged" result is the left map*)
+        new_left_map
+      | l, r when l < Int.floor_log2 r || r < Int.floor_log2 l ->
+        (* If one of the maps is small enough in comparison to the other,
+             [Map.merge_skewed] is likely cheaper than computing the symmetric diff of both maps *)
+        merge_from_scratch ()
+      | _, _ ->
+        (match old with
+         | None -> merge_from_scratch ()
+         | Some (old_left_map, old_right_map, old_result) ->
+           let with_left_changes =
+             Map.fold_symmetric_diff
+               old_left_map
+               new_left_map
+               ~data_equal
+               ~init:old_result
+               ~f:(fun acc (key, elt) ->
+               match elt with
+               | `Right data -> Map.set acc ~key ~data
+               | `Left _ -> Map.remove acc key
+               | `Unequal (_prev, cur) -> Map.set acc ~key ~data:cur)
+           in
+           Map.fold_symmetric_diff
+             old_right_map
+             new_right_map
+             ~data_equal
+             ~init:with_left_changes
+             ~f:(fun acc (key, elt) ->
+             match elt with
+             | `Right data -> Map.set acc ~key ~data
+             | `Left _ ->
+               (* the key may have been moved into the the left map, so check before removing *)
+               if Map.mem new_left_map key then acc else Map.remove acc key
+             | `Unequal (_prev, cur) -> Map.set acc ~key ~data:cur)))
+  ;;
+
   let generic_mapi_with_comparator'
     (type input_data output_data f_output state_witness)
     (witness : (input_data, output_data, f_output) Map_type.t)
@@ -1714,6 +1778,31 @@ module Generic = struct
       ~revert_to_init_when_empty:true
       ~add:(fun ~key:_ ~data:v acc -> Group.( + ) acc (f v))
       ~remove:(fun ~key:_ ~data:v acc -> Group.( - ) acc (f v))
+  ;;
+
+  let observe_changes_exn ?(data_equal = phys_equal) map ~f =
+    let state = Incremental.state map in
+    let scope = Incremental.Scope.current state () in
+    if not (Incremental.Scope.is_top scope)
+    then failwith "[Incr_map.observe_changes_exn] called in scope that is not top-level";
+    let on_diff v1 v2 =
+      Map.fold_symmetric_diff v1 v2 ~data_equal ~init:() ~f:(fun () update -> f update)
+    in
+    let empty_version_of map = Map.empty (Map.comparator_s map) in
+    let observer = Incremental.observe map in
+    Incremental.Observer.on_update_exn observer ~f:(fun diff_elt ->
+      let before_and_after =
+        match diff_elt with
+        | Invalidated ->
+          (match Incremental.Observer.value observer with
+           | Ok final_value -> Some (final_value, empty_version_of final_value)
+           | Error _ -> None)
+        | Initialized v -> Some (empty_version_of v, v)
+        | Changed (v1, v2) -> Some (v1, v2)
+      in
+      match before_and_after with
+      | None -> ()
+      | Some (before, after) -> on_diff before after)
   ;;
 
   let for_alli ?instrumentation ?data_equal map_incr ~f =

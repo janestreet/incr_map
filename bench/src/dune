@@ -1,3 +1,5 @@
-(library (name incr_map_bench_lib)
+(library
+ (name incr_map_bench_lib)
  (libraries core incremental incr_map core_bench expect_test_helpers_core)
- (preprocess (pps ppx_jane)))
+ (preprocess
+  (pps ppx_jane)))

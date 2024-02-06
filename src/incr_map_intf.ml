@@ -273,6 +273,13 @@ module type S_gen = sig
     -> f:(key:'k -> 'v1 -> 'v2 -> 'v3)
     -> ('k, 'v3, 'cmp) Map.t Incr.t
 
+  val merge_disjoint
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, 'cmp) Map.t Incr.t
+    -> ('k, 'v, 'cmp) Map.t Incr.t
+    -> ('k, 'v, 'cmp) Map.t Incr.t
+
   val unzip
     :  ?instrumentation:Instrumentation.t
     -> ?left_result_equal:('v1 -> 'v1 -> bool)
@@ -469,6 +476,12 @@ module type S_gen = sig
     -> (module Abstract_algebra.Commutative_group.Without_sexp with type t = 'u)
     -> f:('v -> 'u)
     -> 'u Incr.t
+
+  val observe_changes_exn
+    :  ?data_equal:('v -> 'v -> bool)
+    -> ('k, 'v, 'cmp) Map.t Incr.t
+    -> f:(('k, 'v) Map.Symmetric_diff_element.t -> unit)
+    -> unit
 
   module Lookup : sig
     type ('k, 'v, 'cmp) t
@@ -811,6 +824,16 @@ module type Incr_map = sig
     -> (('k, 'v2, 'cmp) Map.t, 'w) Incremental.t
     -> f:(key:'k -> 'v1 -> 'v2 -> 'v3)
     -> (('k, 'v3, 'cmp) Map.t, 'w) Incremental.t
+
+  (** [merge_disjoint] merges two maps that _must_ not share any keys on a given 
+      stabilization.  If this invariant is not upheld by the caller, incremental may 
+      crash, or the output map may contain incorrect results. *)
+  val merge_disjoint
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
+    -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
+    -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
 
   (** Like [merge], but operating using incremental nodes. This is a good use case for
       [ppx_pattern_bind]. *)
@@ -1163,6 +1186,38 @@ module type Incr_map = sig
     -> f:('v -> 'u)
     -> ('u, 'w) Incremental.t
 
+  (** Observes changes to an incremental map.  Every stabilize, this observer will
+      compare the map from the previous stabilization and the current stabilization,
+      calling [f] for every change that it detects.
+
+      It is important to note that changes to the map _between_ stabilizations will
+      not be processed, for example: 
+
+      {[
+        let var = Incr.Var.create String.Map.empty in
+        Incr_map.observe_changes_exn (Incr.Var.watch var) ~f:(...);
+
+        Incr.stabilize ();
+
+        Incr.Var.replace var ~f:(fun map -> Map.add_exn map "hi" 5);
+        Incr.Var.replace var ~f:(fun map -> Map.set map "hi" 10);
+        Incr.Var.replace var ~f:(fun map -> Map.remove map "hi");
+        Incr.stabilize ();
+      ]}
+
+      won't result in any calls to [f], because the map contents didn't change 
+      from one stabilization to another.
+
+      [observe_changes_exn] must only be called from the top-level incremental 
+      scope.  In practice this means that it must not be inside of an incremental
+      bind, or a call to [Incremental.Scope.within].  If not invoked at top-level,
+      an exception will be raised, irreversibly destroying your incremental universe. *)
+  val observe_changes_exn
+    :  ?data_equal:('v -> 'v -> bool)
+    -> (('k, 'v, 'cmp) Map.t, _) Incremental.t
+    -> f:(('k, 'v) Map.Symmetric_diff_element.t -> unit)
+    -> unit
+
   (** [('k, 'v) Lookup.t] provides a way to lookup keys in a map which uses symmetric
       diffs to trigger updates of the lookups.
 
@@ -1176,8 +1231,7 @@ module type Incr_map = sig
       there are a lot of lookups (close to n) into a map which can be efficiently
       symdiffed (and therefore has a small number of changes also). The cost of updating
       when performing the same lookups by means of [Incr.map ~f:(fun m -> Map.find m key)]
-      is [O(k * log n)].
-  *)
+      is [O(k * log n)]. *)
   module Lookup : sig
     type ('k, 'v, 'cmp, 'w) t
 

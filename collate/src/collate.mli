@@ -7,7 +7,7 @@ module Which_range : sig
     | From of 'a
     | To of 'a
     | Between of 'a * 'a
-  [@@deriving sexp, compare, equal, bin_io]
+  [@@deriving sexp, compare, equal, bin_io, diff]
 end
 
 type ('k, 'filter, 'order) t =
@@ -36,3 +36,16 @@ type ('k, 'filter, 'order) t =
 [@@deriving sexp_of]
 
 val default : filter:'filter -> order:'order -> (_, 'filter, 'order) t
+
+module Stable : sig
+  module Which_range : sig
+    module V1 : sig
+      type 'a t = 'a Which_range.t [@@deriving sexp, bin_io, diff, stable_witness]
+    end
+  end
+
+  module V1 : sig
+    type nonrec ('k, 'filter, 'order) t = ('k, 'filter, 'order) t
+    [@@deriving sexp_of, stable_witness, bin_io, sexp]
+  end
+end

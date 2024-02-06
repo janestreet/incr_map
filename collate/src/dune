@@ -1,4 +1,7 @@
-(library (name incr_map_collate) (public_name incr_map.collate)
+(library
+ (name incr_map_collate)
+ (public_name incr_map.collate)
  (libraries core incr_map incremental.memoize incremental legacy_diffable
-  streamable opaque_map)
- (preprocess (pps ppx_jane ppx_pattern_bind)))
+   streamable opaque_map)
+ (preprocess
+  (pps ppx_jane ppx_diff.ppx_diff ppx_pattern_bind)))

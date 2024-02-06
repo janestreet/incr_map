@@ -1,4 +1,6 @@
-(library (name incr_map_test)
+(library
+ (name incr_map_test)
  (libraries core incremental incr_map expect_test_helpers_core
-  expect_test_sexp_diff core_unix.time_float_unix)
- (preprocess (pps ppx_jane)))
+   expect_test_sexp_diff core_unix.time_float_unix)
+ (preprocess
+  (pps ppx_jane)))

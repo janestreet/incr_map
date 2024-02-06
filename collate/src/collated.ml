@@ -2,7 +2,24 @@ open Core
 module Which_range = Collate.Which_range
 
 module Parametrized = struct
-  type ('k, 'v) t =
+  module Stable = struct
+    open Stable_witness.Export
+
+    module V1 = struct
+      type ('k, 'v) t =
+        { data : ('k * 'v) Opaque_map.Stable.V1.t
+        ; num_filtered_rows : int
+        ; key_range : 'k Collate.Stable.Which_range.V1.t
+            (** Ranges that this value was computed for *)
+        ; rank_range : int Collate.Stable.Which_range.V1.t
+        ; num_before_range : int
+        ; num_unfiltered_rows : int
+        }
+      [@@deriving sexp, bin_io, diff ~stable_version:1, stable_witness]
+    end
+  end
+
+  type ('k, 'v) t = ('k, 'v) Stable.V1.t =
     { data : ('k * 'v) Opaque_map.t
     ; num_filtered_rows : int
     ; key_range : 'k Which_range.t (** Ranges that this value was computed for *)
@@ -10,7 +27,8 @@ module Parametrized = struct
     ; num_before_range : int
     ; num_unfiltered_rows : int
     }
-  [@@deriving sexp, compare, fields ~getters ~iterators:(create, fold), equal, bin_io]
+  [@@deriving
+    diff, sexp, compare, fields ~getters ~iterators:(create, fold), equal, bin_io]
 
   let empty =
     { data = Opaque_map.Key.Map.empty

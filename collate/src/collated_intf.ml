@@ -39,6 +39,14 @@ module type Parametrized = sig
   (** The rank range this result was computed for *)
   val rank_range : _ t -> int Which_range.t
 
+  module Stable : sig
+    module V1 : sig
+      type nonrec ('k, 'v) t = ('k, 'v) t [@@deriving sexp, bin_io, stable_witness]
+
+      include Diffable.S2 with type ('k, 'v) t := ('k, 'v) t
+    end
+  end
+
   module Private : sig
     val create
       :  data:('k * 'v) Opaque_map.t

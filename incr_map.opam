@@ -16,6 +16,7 @@ depends: [
   "core"
   "incremental"
   "legacy_diffable"
+  "ppx_diff"
   "ppx_jane"
   "ppx_pattern_bind"
   "streamable"

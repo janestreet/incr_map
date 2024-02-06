@@ -18,6 +18,8 @@ end
 type 'a t = (Key.t, 'a, Key.comparator_witness) Map.t
 [@@deriving sexp, compare, equal, bin_io]
 
+include Diffable.S1 with type 'a t := 'a t
+
 (** When Opaque_maps are created incrementally we can be smart about insertion and get
     good performance around insertion and rebalancing. *)
 val erase_key_incrementally
@@ -41,6 +43,6 @@ val of_array : 'a array -> 'a t
 
 module Stable : sig
   module V1 : sig
-    type nonrec 'a t = 'a t [@@deriving sexp, bin_io, stable_witness]
+    type nonrec 'a t = 'a t [@@deriving sexp, bin_io, diff, stable_witness]
   end
 end

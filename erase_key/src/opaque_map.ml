@@ -29,9 +29,17 @@ module Stable = struct
       let comparator = Bignum.comparator
     end)
 
-    type 'a t = 'a Map.t [@@deriving sexp, bin_io, stable_witness]
+    module Map = struct
+      include Map
+      module Key = Key
+    end
+
+    type 'a t = 'a Map.t
+    [@@deriving sexp, bin_io, diff ~how:"map" ~stable_version:1, stable_witness]
   end
 end
+
+module Diff = Stable.V1.Diff
 
 let with_comparator x f =
   Incremental.bind (Incremental.freeze (Incremental.map x ~f:Map.comparator_s)) ~f

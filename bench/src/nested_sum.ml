@@ -24,7 +24,7 @@ let initialize ~outer ~inner =
 ;;
 
 module Sum_map_direct = struct
-  (* From the Ocaml manual, chapter 20:
+  (* From the OCaml manual, chapter 20:
 
      "As an optimization, records whose fields all have static type float are
      represented as arrays of floating-point numbers, with tag Double_array_tag."

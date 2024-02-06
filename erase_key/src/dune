@@ -1,3 +1,6 @@
-(library (name opaque_map) (public_name incr_map.erase_key)
- (preprocess (pps ppx_pattern_bind ppx_jane))
+(library
+ (name opaque_map)
+ (public_name incr_map.erase_key)
+ (preprocess
+  (pps ppx_pattern_bind ppx_jane ppx_diff.ppx_diff))
  (libraries core bignum incr_map incremental))
