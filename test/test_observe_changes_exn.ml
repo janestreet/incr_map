@@ -15,11 +15,13 @@ let%expect_test "basic" =
   [%expect {|
     (3 (Right 0))
     (4 (Right 0))
-    (5 (Right 0)) |}];
+    (5 (Right 0))
+    |}];
   set_to [ 3, 1; 5, 0 ];
   [%expect {|
     (3 (Unequal (0 1)))
-    (4 (Left 0)) |}]
+    (4 (Left 0))
+    |}]
 ;;
 
 let%expect_test "banned inside bind" =
@@ -42,5 +44,6 @@ let%expect_test "banned inside bind" =
   [%expect
     {|
     (Failure
-     "[Incr_map.observe_changes_exn] called in scope that is not top-level") |}]
+     "[Incr_map.observe_changes_exn] called in scope that is not top-level")
+    |}]
 ;;

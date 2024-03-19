@@ -41,29 +41,33 @@ let%expect_test "check subrange" =
   Incr.Var.set input_range (Some (Incl 1, Incl 3));
   print_stable ();
   [%expect {|
-             ((1 one)
-              (2 two)
-              (3 three)) |}];
+    ((1 one)
+     (2 two)
+     (3 three))
+    |}];
   Incr.Var.set input_range (Some (Incl 0, Incl 2));
   Incr.Var.set input_map (Map.set ~key:0 ~data:"zero" (Incr.Var.value input_map));
   print_stable ();
   [%expect {|
-             ((0 zero)
-              (1 one)
-              (2 two)) |}];
+    ((0 zero)
+     (1 one)
+     (2 two))
+    |}];
   Incr.Var.set input_range (Some (Incl 4, Incl 17));
   print_stable ();
   [%expect {|
-             ((4 four)
-              (5 five)) |}];
+    ((4 four)
+     (5 five))
+    |}];
   Incr.Var.set input_range None;
   print_stable ();
   [%expect {| () |}];
   Incr.Var.set input_range (Some (Incl 4, Incl 5));
   print_stable ();
   [%expect {|
-             ((4 four)
-              (5 five)) |}];
+    ((4 four)
+     (5 five))
+    |}];
   Incr.Var.set input_range (Some (Incl 5, Incl 4));
   print_stable ();
   [%expect {| () |}];
@@ -76,8 +80,9 @@ let%expect_test "check subrange" =
     (Int.Map.of_alist_exn [ 2, "a"; 3, "b"; 4, "c"; 5, "d"; 6, "e"; 7, "f" ]);
   print_stable ();
   [%expect {|
-             ((4 c)
-              (5 d)) |}]
+    ((4 c)
+     (5 d))
+    |}]
 ;;
 
 module Maybe_bound = struct
@@ -260,62 +265,72 @@ let%expect_test "subrange_by_rank" =
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))
        Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-       Next range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ())) |}];
+       Next range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Incl 1, Excl 3) ~ops:[] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-    Initial range ((Incl 1), (Excl 3)): ((d ()) (f ())) |}];
+    Initial range ((Incl 1), (Excl 3)): ((d ()) (f ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Incl 1, Unbounded) ~ops:[] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-    Initial range ((Incl 1), Unbounded): ((d ()) (f ()) (h ()) (j ()) (l ())) |}];
+    Initial range ((Incl 1), Unbounded): ((d ()) (f ()) (h ()) (j ()) (l ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Excl 1, Incl 3) ~ops:[] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-    Initial range ((Excl 1), (Incl 3)): ((f ()) (h ())) |}];
+    Initial range ((Excl 1), (Incl 3)): ((f ()) (h ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Unbounded, Incl 3) ~ops:[] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-    Initial range (Unbounded, (Incl 3)): ((b ()) (d ()) (f ()) (h ())) |}];
+    Initial range (Unbounded, (Incl 3)): ((b ()) (d ()) (f ()) (h ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Incl 1, Incl 3) ~ops:[ remove "l" ] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))
        Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()))
-       Next range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ())) |}];
+       Next range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Incl 1, Incl 3) ~ops:[ add "a" ] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))
        Next full                      : ((a ()) (b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-       Next range ((Incl 1), (Incl 3)): ((b ()) (d ()) (f ())) |}];
+       Next range ((Incl 1), (Incl 3)): ((b ()) (d ()) (f ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Incl 1, Incl 3) ~ops:[ add "g" ] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))
        Next full                      : ((b ()) (d ()) (f ()) (g ()) (h ()) (j ()) (l ()))
-       Next range ((Incl 1), (Incl 3)): ((d ()) (f ()) (g ())) |}];
+       Next range ((Incl 1), (Incl 3)): ((d ()) (f ()) (g ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Incl 1, Incl 3) ~ops:[ remove "b" ] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))
        Next full                      : ((d ()) (f ()) (h ()) (j ()) (l ()))
-       Next range ((Incl 1), (Incl 3)): ((f ()) (h ()) (j ())) |}];
+       Next range ((Incl 1), (Incl 3)): ((f ()) (h ()) (j ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Incl 1, Incl 3) ~ops:[ remove "d" ] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))
        Next full                      : ((b ()) (f ()) (h ()) (j ()) (l ()))
-       Next range ((Incl 1), (Incl 3)): ((f ()) (h ()) (j ())) |}];
+       Next range ((Incl 1), (Incl 3)): ((f ()) (h ()) (j ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Incl 1, Incl 3) ~ops:[ remove "f"; add "g" ] ();
   [%expect
     {|
@@ -325,35 +340,39 @@ let%expect_test "subrange_by_rank" =
        Next range ((Incl 1), (Incl 3)): ((d ()) (h ()) (j ()))
        Next full                      : ((b ()) (d ()) (g ()) (h ()) (j ()) (l ()))
        Next range ((Incl 1), (Incl 3)): ((d ()) (g ()) (h ()))
-     |}];
+    |}];
   subrange_by_rank_test ~initial_range:(Incl 0, Incl 0) ~ops:[ add "a" ] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 0), (Incl 0)): ((b ()))
        Next full                      : ((a ()) (b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-       Next range ((Incl 0), (Incl 0)): ((a ())) |}];
+       Next range ((Incl 0), (Incl 0)): ((a ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Incl 5, Incl 100) ~ops:[ add "m" ] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 5), (Incl 100)): ((l ()))
        Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()) (m ()))
-       Next range ((Incl 5), (Incl 100)): ((l ()) (m ())) |}];
+       Next range ((Incl 5), (Incl 100)): ((l ()) (m ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Incl 5, Incl 100) ~ops:[ add "a" ] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 5), (Incl 100)): ((l ()))
        Next full                      : ((a ()) (b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-       Next range ((Incl 5), (Incl 100)): ((j ()) (l ())) |}];
+       Next range ((Incl 5), (Incl 100)): ((j ()) (l ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Incl 6, Incl 6) ~ops:[ add "m" ] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 6), (Incl 6)): ()
        Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()) (m ()))
-       Next range ((Incl 6), (Incl 6)): ((m ())) |}];
+       Next range ((Incl 6), (Incl 6)): ((m ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 1, Incl 2)
     ~ops:[ (fun m -> add "c" (remove "d" m)) ]
@@ -363,7 +382,8 @@ let%expect_test "subrange_by_rank" =
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
        Next full                      : ((b ()) (c ()) (f ()) (h ()) (j ()) (l ()))
-       Next range ((Incl 1), (Incl 2)): ((c ()) (f ()))|}];
+       Next range ((Incl 1), (Incl 2)): ((c ()) (f ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 1, Incl 2)
     ~ops:[ (fun m -> add "e" (remove "d" m)) ]
@@ -373,7 +393,8 @@ let%expect_test "subrange_by_rank" =
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
        Next full                      : ((b ()) (e ()) (f ()) (h ()) (j ()) (l ()))
-       Next range ((Incl 1), (Incl 2)): ((e ()) (f ()))|}];
+       Next range ((Incl 1), (Incl 2)): ((e ()) (f ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 1, Incl 2)
     ~ops:[ (fun m -> remove "d" m |> remove "b") ]
@@ -383,7 +404,8 @@ let%expect_test "subrange_by_rank" =
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
        Next full                      : ((f ()) (h ()) (j ()) (l ()))
-       Next range ((Incl 1), (Incl 2)): ((h ()) (j ()))|}];
+       Next range ((Incl 1), (Incl 2)): ((h ()) (j ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 1, Incl 2)
     ~ops:[ (fun m -> add "e" (remove "f" m)) ]
@@ -393,7 +415,8 @@ let%expect_test "subrange_by_rank" =
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
        Next full                      : ((b ()) (d ()) (e ()) (h ()) (j ()) (l ()))
-       Next range ((Incl 1), (Incl 2)): ((d ()) (e ()))|}];
+       Next range ((Incl 1), (Incl 2)): ((d ()) (e ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 1, Incl 2)
     ~ops:[ (fun m -> add "g" (remove "f" m)) ]
@@ -403,7 +426,8 @@ let%expect_test "subrange_by_rank" =
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
        Next full                      : ((b ()) (d ()) (g ()) (h ()) (j ()) (l ()))
-       Next range ((Incl 1), (Incl 2)): ((d ()) (g ()))|}];
+       Next range ((Incl 1), (Incl 2)): ((d ()) (g ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 1, Incl 3)
     ~ops:
@@ -416,47 +440,52 @@ let%expect_test "subrange_by_rank" =
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
     Initial range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))
        Next full                      : ((a ()) (c ()) (e ()) (g ()) (i ()) (k ()))
-       Next range ((Incl 1), (Incl 3)): ((c ()) (e ()) (g ()))|}];
+       Next range ((Incl 1), (Incl 3)): ((c ()) (e ()) (g ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 1, Incl 2)
     ~ops:[ set_range (Incl 1, Incl 3) ]
     ();
   [%expect
     {|
-     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-     Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
-        Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-        Next range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))|}];
+    Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
+       Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+       Next range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 1, Incl 3)
     ~ops:[ set_range (Excl 1, Excl 3) ]
     ();
   [%expect
     {|
-     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-     Initial range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))
-        Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-        Next range ((Excl 1), (Excl 3)): ((f ()))|}];
+    Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range ((Incl 1), (Incl 3)): ((d ()) (f ()) (h ()))
+       Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+       Next range ((Excl 1), (Excl 3)): ((f ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 50, Incl 60)
     ~ops:[ set_range (Incl 1, Incl 60) ]
     ();
   [%expect
     {|
-     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-     Initial range ((Incl 50), (Incl 60)): ()
-        Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-        Next range ((Incl 1), (Incl 60)): ((d ()) (f ()) (h ()) (j ()) (l ()))|}];
+    Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range ((Incl 50), (Incl 60)): ()
+       Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+       Next range ((Incl 1), (Incl 60)): ((d ()) (f ()) (h ()) (j ()) (l ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 1, Incl 2)
     ~ops:[ (fun x -> add "a" x |> set_range (Incl 2, Incl 3)) ]
     ();
   [%expect
     {|
-     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-     Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
-        Next full                      : ((a ()) (b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-        Next range ((Incl 2), (Incl 3)): ((d ()) (f ()))|}];
+    Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
+       Next full                      : ((a ()) (b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+       Next range ((Incl 2), (Incl 3)): ((d ()) (f ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 1, Incl 2)
     ~ops:
@@ -467,34 +496,37 @@ let%expect_test "subrange_by_rank" =
     ();
   [%expect
     {|
-     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-     Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
-        Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-        Next range ((Incl 2), (Incl 3)): ((f ()) (h ()))
-        Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-        Next range ((Incl 3), (Incl 3)): ((h ()))
-        Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-        Next range ((Incl 3), (Incl 4)): ((h ()) (j ()))|}];
+    Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
+       Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+       Next range ((Incl 2), (Incl 3)): ((f ()) (h ()))
+       Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+       Next range ((Incl 3), (Incl 3)): ((h ()))
+       Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+       Next range ((Incl 3), (Incl 4)): ((h ()) (j ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 1, Incl 2)
     ~ops:[ (fun x -> remove "f" x |> set_range (Incl 2, Incl 3)) ]
     ();
   [%expect
     {|
-     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-     Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
-        Next full                      : ((b ()) (d ()) (h ()) (j ()) (l ()))
-        Next range ((Incl 2), (Incl 3)): ((h ()) (j ()))|}];
+    Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range ((Incl 1), (Incl 2)): ((d ()) (f ()))
+       Next full                      : ((b ()) (d ()) (h ()) (j ()) (l ()))
+       Next range ((Incl 2), (Incl 3)): ((h ()) (j ()))
+    |}];
   subrange_by_rank_test
     ~initial_range:(Incl 1, Incl 5)
     ~ops:[ (fun x -> remove "l" x |> set_range (Incl 1, Incl 4)) ]
     ();
   [%expect
     {|
-     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-     Initial range ((Incl 1), (Incl 5)): ((d ()) (f ()) (h ()) (j ()) (l ()))
-        Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()))
-        Next range ((Incl 1), (Incl 4)): ((d ()) (f ()) (h ()) (j ()))|}]
+    Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    Initial range ((Incl 1), (Incl 5)): ((d ()) (f ()) (h ()) (j ()) (l ()))
+       Next full                      : ((b ()) (d ()) (f ()) (h ()) (j ()))
+       Next range ((Incl 1), (Incl 4)): ((d ()) (f ()) (h ()) (j ()))
+    |}]
 ;;
 
 let%expect_test "subrange_by_rank is consistent between lower bounds" =
@@ -503,12 +535,14 @@ let%expect_test "subrange_by_rank is consistent between lower bounds" =
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-    Initial range ((Incl 0), (Incl 100)): ((b ()) (d ()) (f ()) (h ()) (j ()) (l ())) |}];
+    Initial range ((Incl 0), (Incl 100)): ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    |}];
   subrange_by_rank_test ~initial_range:(Unbounded, Incl 100) ~ops:[] ();
   [%expect
     {|
     Initial full                      : ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
-    Initial range (Unbounded, (Incl 100)): ((b ()) (d ()) (f ()) (h ()) (j ()) (l ())) |}];
+    Initial range (Unbounded, (Incl 100)): ((b ()) (d ()) (f ()) (h ()) (j ()) (l ()))
+    |}];
   (* [Map] and [Incr_map] have the same behavior with [Unbounded] lower bound *)
   Int.Map.of_alist_exn [ 1, (); 2, (); 3, () ]
   |> Map.subrange ~lower_bound:Unbounded ~upper_bound:(Incl 30)
@@ -517,7 +551,8 @@ let%expect_test "subrange_by_rank is consistent between lower bounds" =
   [%expect {|
     ((1 ())
      (2 ())
-     (3 ())) |}]
+     (3 ()))
+    |}]
 ;;
 
 (* Naively collect elements between [from] and [to_], inclusive.

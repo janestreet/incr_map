@@ -67,7 +67,8 @@ let%expect_test _ =
        (6 (6 (6)))
        (7 (7 (7)))
        (8 (8 (8)))
-       (9 (9 (9)))))) |}];
+       (9 (9 (9))))))
+    |}];
   Incr.Var.set
     collate_var
     { Incr_map_collate.Collate.filter = (fun ~key:_ ~data:_ -> true)
@@ -105,7 +106,8 @@ let%expect_test _ =
        (6 (6 (3)))
        (7 (7 (2)))
        (8 (8 (1)))
-       (9 (9 (0)))))) |}];
+       (9 (9 (0))))))
+    |}];
   Incr.Var.set
     collate_var
     { Incr_map_collate.Collate.filter = (fun ~key:_ ~data:_ -> true)
@@ -133,7 +135,8 @@ let%expect_test _ =
        (6 (6 (3)))
        (7 (7 (2)))
        (8 (8 (1)))
-       (9 (9 (0)))))) |}];
+       (9 (9 (0))))))
+    |}];
   Incr.Var.set
     collate_var
     { Incr_map_collate.Collate.filter = (fun ~key:_ ~data:_ -> true)
@@ -165,7 +168,8 @@ let%expect_test _ =
        (6 (6 (3)))
        (7 (7 (2)))
        (8 (8 (1)))
-       (9 (9 (0)))))) |}];
+       (9 (9 (0))))))
+    |}];
   Incr.Var.set
     collate_var
     { Incr_map_collate.Collate.filter = (fun ~key:_ ~data -> data % 2 = 0)
@@ -198,5 +202,6 @@ let%expect_test _ =
        (6 (6 (1)))
        (7 (7 ()))
        (8 (8 (0)))
-       (9 (9 ()))))) |}]
+       (9 (9 ())))))
+    |}]
 ;;

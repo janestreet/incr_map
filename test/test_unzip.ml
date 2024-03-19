@@ -43,18 +43,21 @@ module Make_test (S : S) = struct
     dump ();
     [%expect
       {|
-    (((bar 10) (foo 3) (snoo 5)) ->
-     (((bar (100)) (foo ()) (snoo (25))) ((bar 10) (foo 3) (snoo 5)))) |}];
+      (((bar 10) (foo 3) (snoo 5)) ->
+       (((bar (100)) (foo ()) (snoo (25))) ((bar 10) (foo 3) (snoo 5))))
+      |}];
     change (fun m -> Map.set m ~key:"foo" ~data:9);
     [%expect
       {|
-    (((bar 10) (foo 9) (snoo 5)) ->
-     (((bar (100)) (foo (81)) (snoo (25))) ((bar 10) (foo 9) (snoo 5)))) |}];
+      (((bar 10) (foo 9) (snoo 5)) ->
+       (((bar (100)) (foo (81)) (snoo (25))) ((bar 10) (foo 9) (snoo 5))))
+      |}];
     change (fun m -> Map.set m ~key:"bar" ~data:1);
     [%expect
       {|
-    (((bar 1) (foo 9) (snoo 5)) ->
-     (((bar ()) (foo (81)) (snoo (25))) ((bar 1) (foo 9) (snoo 5)))) |}];
+      (((bar 1) (foo 9) (snoo 5)) ->
+       (((bar ()) (foo (81)) (snoo (25))) ((bar 1) (foo 9) (snoo 5))))
+      |}];
     change (fun m -> Map.remove m "snoo");
     [%expect {| (((bar 1) (foo 9)) -> (((bar ()) (foo (81))) ((bar 1) (foo 9)))) |}]
   ;;
@@ -230,3 +233,72 @@ module Unzip = struct
 end
 
 module Not_prime_test = Make_test (Unzip)
+
+let%expect_test "unzip_mapi' where only one side of the split is actually used" =
+  let m = String.Map.of_alist_exn [ "foo", 3; "bar", 10; "snoo", 5 ] |> Incr.Var.create in
+  (* r is intentionally not used *)
+  let l, r =
+    Incr_map.unzip_mapi' ~data_equal:Int.equal (Incr.Var.watch m) ~f:(fun ~key ~data ->
+      let left =
+        Incr.map data ~f:(fun data ->
+          print_s [%message "computing left" (key : string) (data : int)];
+          data)
+      and right =
+        Incr.map data ~f:(fun data ->
+          print_s [%message "computing right" (key : string) (data : int)];
+          data)
+      in
+      left, right)
+  in
+  let observed_l = Incr.observe l in
+  let dump () = Incr.stabilize () in
+  let change f =
+    Incr.Var.set m (f (Incr.Var.value m));
+    dump ()
+  in
+  dump ();
+  [%expect
+    {|
+    ("computing left"
+      (key  snoo)
+      (data 5))
+    ("computing left"
+      (key  foo)
+      (data 3))
+    ("computing left"
+      (key  bar)
+      (data 10))
+    |}];
+  change (fun m -> Map.set m ~key:"foo" ~data:9);
+  [%expect {|
+    ("computing left"
+      (key  foo)
+      (data 9))
+    |}];
+  change (fun m -> Map.set m ~key:"bar" ~data:1);
+  [%expect {|
+    ("computing left"
+      (key  bar)
+      (data 1))
+    |}];
+  change (fun m -> Map.remove m "snoo");
+  [%expect {| |}];
+  let observed_r = Incr.observe r in
+  (* now that [r] is necessary, it should compute the "right" incrementals *)
+  Incr.stabilize ();
+  [%expect
+    {|
+    ("computing right"
+      (key  foo)
+      (data 9))
+    ("computing right"
+      (key  bar)
+      (data 1))
+    |}];
+  (* Keep [observed_l] and [observed_r] alive by using them here. If this isn't done, then
+     there's a chance that a GC would collect the observer, run its finalizer and cause
+     all the nodes in the graph to become unobserved *)
+  let (_ : _) = Incr.Observer.value observed_l in
+  let (_ : _) = Incr.Observer.value observed_r in
+  ()
+;;

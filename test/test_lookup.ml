@@ -26,9 +26,7 @@ let%expect_test "test unnecessary nodes are cleaned" =
   in
   ignore (Incr.Map.Lookup.find lookup 10);
   print_lookup_state lookup;
-  [%expect {|
-    ()
-    |}];
+  [%expect {| () |}];
   Incr.stabilize ();
   print_lookup_state lookup;
   [%expect
@@ -53,7 +51,7 @@ let%expect_test "test unnecessary nodes are cleaned" =
      ((key          9)
       (actual_value xyz)
       (entries (((saved_value (xyz)))))))
-     |}];
+    |}];
   (* Stop looking at some keys. Initially they are still live. *)
   List.iter [ 1; 4; 5 ] ~f:(fun key ->
     Hashtbl.find_and_remove key_observers key
@@ -82,7 +80,7 @@ let%expect_test "test unnecessary nodes are cleaned" =
      ((key          9)
       (actual_value xyz)
       (entries (((saved_value (xyz)))))))
-     |}];
+    |}];
   Incr.stabilize ();
   print_lookup_state lookup;
   [%expect
@@ -106,7 +104,7 @@ let%expect_test "test unnecessary nodes are cleaned" =
      ((key          9)
       (actual_value xyz)
       (entries (((saved_value (xyz)))))))
-     |}]
+    |}]
 ;;
 
 let%expect_test "test cleaned nodes still work" =
@@ -122,8 +120,7 @@ let%expect_test "test cleaned nodes still work" =
   [%test_result: bool] ~expect:false (Incr.is_necessary find_a);
   Incr.stabilize ();
   print_lookup_state lookup;
-  [%expect {|
-    () |}];
+  [%expect {| () |}];
   let find_b = Incr.Map.Lookup.find lookup 1 in
   let obs_a = Incr.observe find_a
   and obs_b = Incr.observe find_b in
@@ -137,7 +134,8 @@ let%expect_test "test cleaned nodes still work" =
       (actual_value world)
       (entries (
         ((saved_value (world)))
-        ((saved_value (world))))))) |}];
+        ((saved_value (world)))))))
+    |}];
   show_raise (fun () ->
     [%test_result: string option]
       ~expect:(Incr.Observer.value_exn obs_b)
@@ -153,7 +151,8 @@ let%expect_test "test cleaned nodes still work" =
     ((
       (key          1)
       (actual_value world)
-      (entries (((saved_value (world))))))) |}];
+      (entries (((saved_value (world)))))))
+    |}];
   let obs_b = Incr.observe find_b in
   Incr.Var.set input_map (Int.Map.of_alist_exn [ 1, "and others" ]);
   Incr.stabilize ();
@@ -165,7 +164,8 @@ let%expect_test "test cleaned nodes still work" =
       (actual_value "and others")
       (entries (
         ((saved_value ("and others")))
-        ((saved_value ("and others"))))))) |}];
+        ((saved_value ("and others")))))))
+    |}];
   show_raise (fun () ->
     [%test_result: string option]
       ~expect:(Incr.Observer.value_exn obs_b)
@@ -212,8 +212,7 @@ let%test_unit "test vs slow lookup" =
 ;;
 
 (* This bug was related to nodes which become necessary after being unnecessary while
-   the related value in the map was changed.
-*)
+   the related value in the map was changed. *)
 let%expect_test "double lookup bug has been fixed" =
   let map_var = Incr.Var.create String.Map.empty in
   let key = "A" in
@@ -231,4 +230,38 @@ let%expect_test "double lookup bug has been fixed" =
   and b = Incr.Observer.value_exn b in
   require [%here] ([%compare.equal: int option] a b);
   [%expect {| |}]
+;;
+
+let%expect_test _ =
+  let map_var = Incr.Var.create String.Map.empty in
+  let key = "A" in
+  Incr.Var.set map_var (Map.add_exn (Incr.Var.latest_value map_var) ~key ~data:1);
+  let lookup =
+    Incr_map.Lookup.create (Incr.Var.watch map_var) ~comparator:String.comparator
+  in
+  let a = Incr_map.Lookup.find lookup key in
+  (* depend on a *)
+  let a_obs = Incr.observe a in
+  Incr.stabilize ();
+  (* remove dependency on a *)
+  Incr.Observer.disallow_future_use a_obs;
+  Incr.stabilize ();
+  (* depend on b *)
+  let b = Incr_map.Lookup.find lookup key in
+  let b_obs = Incr.observe b in
+  Incr.stabilize ();
+  (* remove dependency on a *)
+  Incr.Observer.disallow_future_use b_obs;
+  Incr.stabilize ();
+  (* reintroduce dependency on a *)
+  let a_obs = Incr.observe a in
+  Incr.stabilize ();
+  (* reintroduce dependency on b *)
+  let b_obs = Incr.observe b in
+  Incr.stabilize ();
+  Incr.Var.set map_var (String.Map.singleton "A" 2);
+  Incr.stabilize ();
+  let a = Incr.Observer.value_exn a_obs
+  and b = Incr.Observer.value_exn b_obs in
+  require [%here] ([%equal: int option] a b)
 ;;

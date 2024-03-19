@@ -69,19 +69,22 @@ let%expect_test "index_by" =
     ((
       FOO (
         (1 foo)
-        (2 foo)))) |}];
+        (2 foo))))
+    |}];
   change (add 3 "bar");
   [%expect {|
     ((BAR ((3 bar)))
      (FOO (
        (1 foo)
-       (2 foo)))) |}];
+       (2 foo))))
+    |}];
   change (add 2 "bar");
   [%expect {|
     ((BAR (
        (2 bar)
        (3 bar)))
-     (FOO ((1 foo)))) |}]
+     (FOO ((1 foo))))
+    |}]
 ;;
 
 let shares_per_symbol orders =

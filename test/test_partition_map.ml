@@ -22,26 +22,31 @@ let%test_module _ =
       update_and_test ~f:Fn.id;
       [%expect {|
         (((b N=2))
-         ((a 1))) |}];
+         ((a 1)))
+        |}];
       update_and_test ~f:(fun m -> Map.add_exn m ~key:"c" ~data:3);
       [%expect {|
         (((b N=2))
          ((a 1)
-          (c 3))) |}];
+          (c 3)))
+        |}];
       update_and_test ~f:(fun m -> Map.remove m "b");
       [%expect {|
         (()
          ((a 1)
-          (c 3))) |}];
+          (c 3)))
+        |}];
       update_and_test ~f:(fun m -> Map.set m ~key:"c" ~data:100);
       [%expect {|
         (((c N=100))
-         ((a 1))) |}];
+         ((a 1)))
+        |}];
       update_and_test ~f:(fun m -> Map.set m ~key:"d" ~data:11);
       [%expect {|
         (((c N=100))
          ((a 1)
-          (d 11))) |}]
+          (d 11)))
+        |}]
     ;;
 
     let%test_unit "randomized map changes" =
@@ -88,26 +93,31 @@ let%test_module "partition_mapi'" =
       update_and_test ~f:Fn.id;
       [%expect {|
         (((b N=2))
-         ((a 1))) |}];
+         ((a 1)))
+        |}];
       update_and_test ~f:(fun m -> Map.add_exn m ~key:"c" ~data:3);
       [%expect {|
         (((b N=2))
          ((a 1)
-          (c 3))) |}];
+          (c 3)))
+        |}];
       update_and_test ~f:(fun m -> Map.remove m "b");
       [%expect {|
         (()
          ((a 1)
-          (c 3))) |}];
+          (c 3)))
+        |}];
       update_and_test ~f:(fun m -> Map.set m ~key:"c" ~data:100);
       [%expect {|
         (((c N=100))
-         ((a 1))) |}];
+         ((a 1)))
+        |}];
       update_and_test ~f:(fun m -> Map.set m ~key:"d" ~data:11);
       [%expect {|
         (((c N=100))
          ((a 1)
-          (d 11))) |}]
+          (d 11)))
+        |}]
     ;;
 
     let%test_unit "randomized map changes" =

@@ -203,13 +203,15 @@ let%expect_test "count items via fold" =
   [%expect
     {|
     (((A 1) (B 2) (C 3)) (fold_result 3) (num_filtered_rows 3)
-     (num_unfiltered_rows 3)) |}];
+     (num_unfiltered_rows 3))
+    |}];
   set_collate ~filter:True t;
   print_res t;
   [%expect
     {|
     (((A 1) (B 2) (C 3)) (fold_result 3) (num_filtered_rows 3)
-     (num_unfiltered_rows 3)) |}];
+     (num_unfiltered_rows 3))
+    |}];
   set_collate ~filter:Key_has_vowel t;
   print_res t;
   [%expect {| (((A 1)) (fold_result 1) (num_filtered_rows 1) (num_unfiltered_rows 3)) |}];
@@ -236,7 +238,8 @@ let%expect_test "sum data in filter" =
   [%expect
     {|
     (((A 1) (B 2) (C 3)) (fold_result 6) (num_filtered_rows 3)
-     (num_unfiltered_rows 3)) |}];
+     (num_unfiltered_rows 3))
+    |}];
   set_collate ~filter:Key_has_vowel t;
   print_res t;
   [%expect {| (((A 1)) (fold_result 1) (num_filtered_rows 1) (num_unfiltered_rows 3)) |}];
@@ -253,7 +256,8 @@ let%expect_test "sum data in filter" =
   [%expect
     {|
     (((A 1) (B 2) (C 3) (E 6) (H 12)) (fold_result 24) (num_filtered_rows 5)
-     (num_unfiltered_rows 5)) |}]
+     (num_unfiltered_rows 5))
+    |}]
 ;;
 
 let%expect_test "fold with update" =
@@ -274,7 +278,8 @@ let%expect_test "fold with update" =
   [%expect
     {|
     (((A 1) (B 2) (C 3)) (fold_result 9) (num_filtered_rows 3)
-     (num_unfiltered_rows 3)) |}];
+     (num_unfiltered_rows 3))
+    |}];
   (* Setting a value calls update *)
   modify_map t ~f:(Map.set ~key:"A" ~data:7);
   print_res t;
@@ -283,13 +288,15 @@ let%expect_test "fold with update" =
     (Updating (key A) (old_data 1) (new_data 7))
     (Updating (key A) (old_data 1) (new_data 7))
     (((A 7) (B 2) (C 3)) (fold_result 15) (num_filtered_rows 3)
-     (num_unfiltered_rows 3)) |}];
+     (num_unfiltered_rows 3))
+    |}];
   (* Adding or removing a value does not *)
   modify_map t ~f:(fun map -> Map.remove map "A");
   modify_map t ~f:(fun map -> Map.add_exn map ~key:"D" ~data:0);
   print_res t;
   [%expect
     {|
-      (((B 2) (C 3) (D 0)) (fold_result 8) (num_filtered_rows 3)
-       (num_unfiltered_rows 3)) |}]
+    (((B 2) (C 3) (D 0)) (fold_result 8) (num_filtered_rows 3)
+     (num_unfiltered_rows 3))
+    |}]
 ;;

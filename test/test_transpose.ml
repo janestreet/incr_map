@@ -36,7 +36,8 @@ let%expect_test _ =
   show ();
   [%expect {|
     ((original  ())
-     (tranposed ())) |}];
+     (tranposed ()))
+    |}];
   change "a" 1 (Some "a_1");
   change "b" 1 (Some "b_1");
   show ();
@@ -48,7 +49,8 @@ let%expect_test _ =
      (tranposed ((
        1 (
          (a a_1)
-         (b b_1)))))) |}];
+         (b b_1))))))
+    |}];
   change "c" 2 (Some "c_2");
   change "d" 3 (Some "d_3");
   change "e" 1 (Some "e_1");
@@ -67,5 +69,6 @@ let%expect_test _ =
          (b b_1_prime)
          (e e_1)))
        (2 ((c c_2)))
-       (3 ((d d_3)))))) |}]
+       (3 ((d d_3))))))
+    |}]
 ;;

@@ -34,23 +34,28 @@ let%test_module _ =
       update_and_test ~f:Fn.id;
       [%expect {|
         ((0 ((1 a)))
-         (1 ((2 b)))) |}];
+         (1 ((2 b))))
+        |}];
       update_and_test ~f:(fun m -> Map.add_exn m ~key:(2, 4) ~data:"c");
-      [%expect {|
+      [%expect
+        {|
         ((0 ((1 a)))
          (1 ((2 b)))
-         (2 ((4 c)))) |}];
+         (2 ((4 c))))
+        |}];
       update_and_test ~f:(fun m -> Map.remove m (1, 2));
       [%expect {|
         ((0 ((1 a)))
-         (2 ((4 c)))) |}];
+         (2 ((4 c))))
+        |}];
       update_and_test ~f:(fun m -> Map.set m ~key:(2, 0) ~data:"c");
       [%expect
         {|
         ((0 ((1 a)))
          (2 (
            (0 c)
-           (4 c)))) |}];
+           (4 c))))
+        |}];
       update_and_test ~f:(fun m -> Map.set m ~key:(2, 1) ~data:"asdf");
       [%expect
         {|
@@ -58,7 +63,8 @@ let%test_module _ =
          (2 (
            (0 c)
            (1 asdf)
-           (4 c)))) |}]
+           (4 c))))
+        |}]
     ;;
 
     let all_at_once t =

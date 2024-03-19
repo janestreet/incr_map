@@ -65,32 +65,39 @@ let%test_module _ =
       in
       let update_and_test = update_and_test ~initial_map ~dump:true |> unstage in
       update_and_test ~f:Fn.id;
-      [%expect {|
-    ((sum 3)
-     (map (
-       (a ((a 1)))
-       (b ((b 2)))))) |}];
+      [%expect
+        {|
+        ((sum 3)
+         (map (
+           (a ((a 1)))
+           (b ((b 2))))))
+        |}];
       update_and_test ~f:(fun m ->
         Map.add_exn m ~key:"c" ~data:(String.Map.singleton "c" 4));
       [%expect
         {|
-    ((sum 7)
-     (map (
-       (a ((a 1)))
-       (b ((b 2)))
-       (c ((c 4)))))) |}];
+        ((sum 7)
+         (map (
+           (a ((a 1)))
+           (b ((b 2)))
+           (c ((c 4))))))
+        |}];
       update_and_test ~f:(fun m -> Map.remove m "b");
-      [%expect {|
-    ((sum 5)
-     (map (
-       (a ((a 1)))
-       (c ((c 4)))))) |}];
+      [%expect
+        {|
+        ((sum 5)
+         (map (
+           (a ((a 1)))
+           (c ((c 4))))))
+        |}];
       update_and_test ~f:(fun m -> Map.set m ~key:"c" ~data:(String.Map.singleton "c" 0));
-      [%expect {|
-    ((sum 1)
-     (map (
-       (a ((a 1)))
-       (c ((c 0)))))) |}]
+      [%expect
+        {|
+        ((sum 1)
+         (map (
+           (a ((a 1)))
+           (c ((c 0))))))
+        |}]
     ;;
 
     module Update = struct

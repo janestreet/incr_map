@@ -29,13 +29,9 @@ module Stable = struct
       let comparator = Bignum.comparator
     end)
 
-    module Map = struct
-      include Map
-      module Key = Key
-    end
-
     type 'a t = 'a Map.t
-    [@@deriving sexp, bin_io, diff ~how:"map" ~stable_version:1, stable_witness]
+    [@@deriving
+      sexp, bin_io, diff ~how:"map" ~key:Key.t ~stable_version:1, stable_witness]
   end
 end
 

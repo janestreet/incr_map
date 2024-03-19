@@ -42,7 +42,8 @@ let%expect_test "Simple usage example" =
     ((Even ((b 2)))
      (Odd (
        (a 1)
-       (c 3)))) |}];
+       (c 3))))
+    |}];
   print_changes (fun m -> Map.set m ~key:"a" ~data:2);
   [%expect
     {|
@@ -53,7 +54,8 @@ let%expect_test "Simple usage example" =
       (Odd          (Odd
        (             (
     -   (a 1)
-        (c 3))))      (c 3)))) |}];
+        (c 3))))      (c 3))))
+    |}];
   print_changes (fun m -> Map.add_exn m ~key:"d" ~data:57);
   [%expect
     {|
@@ -61,7 +63,8 @@ let%expect_test "Simple usage example" =
      (Odd                    (Odd
       ((c 3)                  ((c 3)
                            +   (d 57)
-      )))                     ))) |}];
+      )))                     )))
+    |}];
   print_changes (fun m -> Map.add_exn m ~key:"e" ~data:(-1));
   [%expect {| |}];
   print_changes (fun m -> Map.set m ~key:"e" ~data:1);
@@ -72,7 +75,8 @@ let%expect_test "Simple usage example" =
       ((c 3)                  ((c 3)
        (d 57)                  (d 57)
                            +   (e 1)
-      )))                     ))) |}];
+      )))                     )))
+    |}];
   print_changes (fun m -> Map.remove m "b");
   [%expect
     {|
@@ -80,7 +84,8 @@ let%expect_test "Simple usage example" =
        ((a 2)                         ((a 2)
     -   (b 2)
        ))                             ))
-      (Odd ((c 3) (d 57) (e 1))))    (Odd ((c 3) (d 57) (e 1)))) |}];
+      (Odd ((c 3) (d 57) (e 1))))    (Odd ((c 3) (d 57) (e 1))))
+    |}];
   print_changes (fun m -> Map.set m ~key:"a" ~data:5);
   [%expect
     {|
@@ -91,7 +96,8 @@ let%expect_test "Simple usage example" =
                       +   (a 5)
         (c 3)             (c 3)
         (d 57)            (d 57)
-        (e 1))))          (e 1)))) |}];
+        (e 1))))          (e 1))))
+    |}];
   ()
 ;;
 

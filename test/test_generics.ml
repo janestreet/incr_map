@@ -12,5 +12,5 @@ let%expect_test _ =
   let lookup = M.Lookup.create i ~comparator:(Map.comparator Int.Map.empty) in
   let (_ : _) = M.Lookup.find lookup 0 in
   let (_ : _) = Incr_map.Lookup.find lookup 0 in
-  [%expect {||}]
+  [%expect {| |}]
 ;;

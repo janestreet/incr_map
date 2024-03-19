@@ -19,19 +19,23 @@ let%expect_test "unzip_mapi' dropping one map" =
   [%expect {|
     ((bar  10)
      (foo  3)
-     (snoo 5)) |}];
+     (snoo 5))
+    |}];
   change (fun m -> Map.set m ~key:"foo" ~data:9);
   [%expect {|
     ((bar  10)
      (foo  9)
-     (snoo 5)) |}];
+     (snoo 5))
+    |}];
   change (fun m -> Map.set m ~key:"bar" ~data:1);
   [%expect {|
     ((bar  1)
      (foo  9)
-     (snoo 5)) |}];
+     (snoo 5))
+    |}];
   change (fun m -> Map.remove m "snoo");
   [%expect {|
     ((bar 1)
-     (foo 9)) |}]
+     (foo 9))
+    |}]
 ;;

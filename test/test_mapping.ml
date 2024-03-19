@@ -156,23 +156,27 @@ let%expect_test "check filter_mapi' against actual filter_mapi" =
   [%expect {| ((1 (G false))) |}];
   test_with [ 1, false; 2, true ];
   [%expect {|
-        ((1 (G false))
-         (2 (H true))) |}];
+    ((1 (G false))
+     (2 (H true)))
+    |}];
   test_with [ 1, false; 2, false ];
   [%expect {| ((1 (G false))) |}];
   test_with [ 1, false; 2, true ];
   [%expect {|
-        ((1 (G false))
-         (2 (H true))) |}];
+    ((1 (G false))
+     (2 (H true)))
+    |}];
   test_with [ 1, true; 2, true; 3, false ];
   [%expect {|
-        ((1 (G true))
-         (2 (H true))
-         (3 (F false))) |}];
+    ((1 (G true))
+     (2 (H true))
+     (3 (F false)))
+    |}];
   test_with [ 1, true; 2, true ];
   [%expect {|
-        ((1 (G true))
-         (2 (H true))) |}]
+    ((1 (G true))
+     (2 (H true)))
+    |}]
 ;;
 
 let%test_module "random tests on filter and non-filter mapping functions" =

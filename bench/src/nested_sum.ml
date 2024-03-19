@@ -164,29 +164,35 @@ let%expect_test "stats" =
   [%expect {|
     ((recomputed 0)
      (changed    0)
-     (created    0)) |}];
+     (created    0))
+    |}];
   let run = M2.nested_sum_raw () in
   stats ();
   [%expect {|
     ((recomputed 0)
      (changed    0)
-     (created    6)) |}];
+     (created    6))
+    |}];
   run ();
   stats ();
-  [%expect {|
+  [%expect
+    {|
     ((recomputed 2008)
      (changed    2008)
-     (created    2002)) |}];
+     (created    2002))
+    |}];
   run ();
   stats ();
   [%expect {|
     ((recomputed 7)
      (changed    6)
-     (created    0)) |}];
+     (created    0))
+    |}];
   run ();
   stats ();
   [%expect {|
     ((recomputed 7)
      (changed    6)
-     (created    0)) |}]
+     (created    0))
+    |}]
 ;;

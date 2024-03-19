@@ -9,7 +9,7 @@ module type Parametrized = sig
       To get an implementation of [Diffable] interface, you'll need to instantiate
       [Make_concrete].
   *)
-  type ('k, 'v) t [@@deriving sexp, bin_io, compare, equal]
+  type ('k, 'v) t [@@deriving sexp, bin_io, compare, equal, diff]
 
   val empty : _ t
   val fold : ('k, 'v) t -> init:'accum -> f:('accum -> 'k * 'v -> 'accum) -> 'accum

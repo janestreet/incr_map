@@ -55,13 +55,13 @@ let%expect_test "separate -> join" =
               (rejoined_map : int String.Map.t)])
   in
   run_test [];
-  [%expect {|
-    (current_map ()) |}];
+  [%expect {| (current_map ()) |}];
   run_test [ "a", 1 ];
   [%expect {|
     (added_node a)
     (current_map ((a 1)))
-    (added (key a) 1) |}];
+    (added (key a) 1)
+    |}];
   run_test [ "a", 2 ];
   [%expect
     {|
@@ -69,7 +69,8 @@ let%expect_test "separate -> join" =
     (changed
       (key  a)
       (from 1)
-      (into 2)) |}];
+      (into 2))
+    |}];
   run_test [ "b", 3 ];
   [%expect
     {|
@@ -77,7 +78,8 @@ let%expect_test "separate -> join" =
     (added_node b)
     (current_map ((b 3)))
     (removed (key a) 2)
-    (added (key b) 3) |}];
+    (added (key b) 3)
+    |}];
   run_test [ "b", 4 ];
   [%expect
     {|
@@ -85,7 +87,8 @@ let%expect_test "separate -> join" =
     (changed
       (key  b)
       (from 3)
-      (into 4)) |}];
+      (into 4))
+    |}];
   run_test [ "a", 1; "b", 2 ];
   [%expect
     {|
@@ -97,7 +100,8 @@ let%expect_test "separate -> join" =
     (changed
       (key  b)
       (from 4)
-      (into 2)) |}];
+      (into 2))
+    |}];
   run_test [ "a", 10; "b", 20 ];
   [%expect
     {|
@@ -111,7 +115,8 @@ let%expect_test "separate -> join" =
     (changed
       (key  b)
       (from 2)
-      (into 20)) |}];
+      (into 20))
+    |}];
   run_test [ "a", 100; "b", 200 ];
   [%expect
     {|
@@ -125,13 +130,15 @@ let%expect_test "separate -> join" =
     (changed
       (key  b)
       (from 20)
-      (into 200)) |}];
+      (into 200))
+    |}];
   run_test [ "a", 100 ];
   [%expect
     {|
     (removed_node b)
     (current_map ((a 100)))
-    (removed (key b) 200) |}];
+    (removed (key b) 200)
+    |}];
   run_test [ "a", 100; "b", 3 ];
   [%expect
     {|
@@ -139,7 +146,8 @@ let%expect_test "separate -> join" =
     (current_map (
       (a 100)
       (b 3)))
-    (added (key b) 3) |}]
+    (added (key b) 3)
+    |}]
 ;;
 
 let%expect_test "separate -> join (but random)" =
@@ -197,7 +205,7 @@ let%expect_test "test for extra recalculations" =
     Incr.stabilize ()
   in
   run_test [];
-  [%expect {||}];
+  [%expect {| |}];
   run_test [ "a", 1 ];
   [%expect {| Key a initialized to 1 |}];
   run_test [ "a", 2 ];
@@ -205,21 +213,25 @@ let%expect_test "test for extra recalculations" =
   run_test [ "b", 3 ];
   [%expect {|
     Key a invalidated
-    Key b initialized to 3 |}];
+    Key b initialized to 3
+    |}];
   run_test [ "b", 4 ];
   [%expect {| Key b changed to 4 (was 3) |}];
   run_test [ "a", 1; "b", 2 ];
   [%expect {|
     Key b changed to 2 (was 4)
-    Key a initialized to 1 |}];
+    Key a initialized to 1
+    |}];
   run_test [ "a", 10; "b", 20 ];
   [%expect {|
     Key b changed to 20 (was 2)
-    Key a changed to 10 (was 1) |}];
+    Key a changed to 10 (was 1)
+    |}];
   run_test [ "a", 100; "b", 200 ];
   [%expect {|
     Key b changed to 200 (was 20)
-    Key a changed to 100 (was 10) |}];
+    Key a changed to 100 (was 10)
+    |}];
   run_test [ "a", 100 ];
   [%expect {| Key b invalidated |}];
   run_test [ "a", 100; "b", 3 ];

@@ -165,7 +165,8 @@ let%expect_test "adding elements before and after existing elements" =
     (600 6)
     (700 7)
     (800 8)
-    (900 9) |}];
+    (900 9)
+    |}];
   test (List.map one_through_nine ~f:Int.neg);
   [%expect
     {|
@@ -178,7 +179,8 @@ let%expect_test "adding elements before and after existing elements" =
     (-300 -3)
     (-200 -2)
     (-100 -1)
-    (0 0) |}];
+    (0 0)
+    |}];
   test (one_through_nine @ List.map one_through_nine ~f:Int.neg);
   [%expect
     {|
@@ -200,5 +202,6 @@ let%expect_test "adding elements before and after existing elements" =
     (600 6)
     (700 7)
     (800 8)
-    (900 9) |}]
+    (900 9)
+    |}]
 ;;

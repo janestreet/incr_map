@@ -164,7 +164,7 @@ let%expect_test "full range, no sort, no filter" =
       (VOD  (10 2)))
      (num_filtered_rows   3)
      (num_unfiltered_rows 3))
-     |}];
+    |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   print_res t;
   [%expect
@@ -175,7 +175,7 @@ let%expect_test "full range, no sort, no filter" =
       (VOD  (10 2)))
      (num_filtered_rows   4)
      (num_unfiltered_rows 4))
-     |}]
+    |}]
 ;;
 
 let%expect_test "full range, no sort, filter" =
@@ -188,7 +188,7 @@ let%expect_test "full range, no sort, filter" =
       (VOD  (10 2)))
      (num_filtered_rows   3)
      (num_unfiltered_rows 3))
-     |}];
+    |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   modify_map t ~f:(Map.add_exn ~key:"EEE" ~data:(10, 0.0));
   print_res t;
@@ -200,7 +200,7 @@ let%expect_test "full range, no sort, filter" =
       (VOD  (10 2)))
      (num_filtered_rows   4)
      (num_unfiltered_rows 5))
-     |}]
+    |}]
 ;;
 
 let%expect_test "full range, sort, filter" =
@@ -213,7 +213,7 @@ let%expect_test "full range, sort, filter" =
       (GOOG (10 3)))
      (num_filtered_rows   3)
      (num_unfiltered_rows 3))
-     |}];
+    |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   modify_map t ~f:(Map.add_exn ~key:"EEE" ~data:(10, 0.0));
   print_res t;
@@ -225,7 +225,7 @@ let%expect_test "full range, sort, filter" =
       (GOOG (10 3)))
      (num_filtered_rows   4)
      (num_unfiltered_rows 5))
-     |}]
+    |}]
 ;;
 
 let%expect_test "second & third, sort, filter" =
@@ -243,7 +243,7 @@ let%expect_test "second & third, sort, filter" =
       (GOOG (10 3)))
      (num_filtered_rows   3)
      (num_unfiltered_rows 3))
-     |}];
+    |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   modify_map t ~f:(Map.add_exn ~key:"EEE" ~data:(10, 0.0));
   print_res t;
@@ -253,7 +253,7 @@ let%expect_test "second & third, sort, filter" =
       (VOD  (10 2)))
      (num_filtered_rows   4)
      (num_unfiltered_rows 5))
-     |}]
+    |}]
 ;;
 
 let%expect_test "changing range" =
@@ -269,7 +269,7 @@ let%expect_test "changing range" =
       (VOD  (10 2)))
      (num_filtered_rows   5)
      (num_unfiltered_rows 5))
-     |}];
+    |}];
   set_collate ~rank_range:(Between (3, 4)) t;
   print_res t;
   [%expect
@@ -278,7 +278,7 @@ let%expect_test "changing range" =
       (FB   (10 4)))
      (num_filtered_rows   5)
      (num_unfiltered_rows 5))
-     |}]
+    |}]
 ;;
 
 let%expect_test "changing range" =
@@ -307,7 +307,8 @@ let%expect_test "changing range" =
     ((Elements_prior_to_range 2)
      (Rank_range (Between 2 6))
      (Data (Add 500 (buz (10 3))))
-     (Data (Remove 0))) |}]
+     (Data (Remove 0)))
+    |}]
 ;;
 
 let%expect_test "changing sort" =
@@ -320,7 +321,7 @@ let%expect_test "changing sort" =
       (VOD  (10 2)))
      (num_filtered_rows   3)
      (num_unfiltered_rows 3))
-     |}];
+    |}];
   set_collate ~order:Order.By_price t;
   print_res t;
   [%expect
@@ -330,7 +331,7 @@ let%expect_test "changing sort" =
       (GOOG (10 3)))
      (num_filtered_rows   3)
      (num_unfiltered_rows 3))
-     |}];
+    |}];
   set_collate ~order:Order.By_price_reversed t;
   print_res t;
   [%expect
@@ -340,7 +341,7 @@ let%expect_test "changing sort" =
       (AAPL (10 1)))
      (num_filtered_rows   3)
      (num_unfiltered_rows 3))
-     |}]
+    |}]
 ;;
 
 let%expect_test "no sort, no filter, key range" =
@@ -352,7 +353,7 @@ let%expect_test "no sort, no filter, key range" =
       (VOD  (10 2)))
      (num_filtered_rows   3)
      (num_unfiltered_rows 3))
-     |}];
+    |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   print_res t;
   [%expect
@@ -361,7 +362,7 @@ let%expect_test "no sort, no filter, key range" =
       (VOD  (10 2)))
      (num_filtered_rows   4)
      (num_unfiltered_rows 4))
-     |}]
+    |}]
 ;;
 
 let%expect_test "sort, no filter, key range" =
@@ -373,7 +374,7 @@ let%expect_test "sort, no filter, key range" =
       (GOOG (10 3)))
      (num_filtered_rows   3)
      (num_unfiltered_rows 3))
-     |}];
+    |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   print_res t;
   [%expect
@@ -383,7 +384,7 @@ let%expect_test "sort, no filter, key range" =
       (FB   (10 4)))
      (num_filtered_rows   4)
      (num_unfiltered_rows 4))
-     |}]
+    |}]
 ;;
 
 let%expect_test "no sort, no filter, key range + rank range" =
@@ -393,14 +394,16 @@ let%expect_test "no sort, no filter, key range + rank range" =
     {|
     (((GOOG (10 3)))
      (num_filtered_rows   3)
-     (num_unfiltered_rows 3)) |}];
+     (num_unfiltered_rows 3))
+    |}];
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   print_res t;
   [%expect
     {|
     (((GOOG (10 3)))
      (num_filtered_rows   4)
-     (num_unfiltered_rows 4)) |}]
+     (num_unfiltered_rows 4))
+    |}]
 ;;
 
 let%expect_test "reversed key sort" =
@@ -412,7 +415,8 @@ let%expect_test "reversed key sort" =
       (GOOG (10 3))
       (AAPL (10 1)))
      (num_filtered_rows   3)
-     (num_unfiltered_rows 3)) |}]
+     (num_unfiltered_rows 3))
+    |}]
 ;;
 
 let%expect_test "sort by key & value" =
@@ -428,7 +432,8 @@ let%expect_test "sort by key & value" =
       (GOOG (10 3))
       (FB   (10 3)))
      (num_filtered_rows   5)
-     (num_unfiltered_rows 5)) |}]
+     (num_unfiltered_rows 5))
+    |}]
 ;;
 
 let%expect_test "sort by key, update values" =
@@ -449,7 +454,8 @@ let%expect_test "sort by key, update values" =
       (GOOG (10 3))
       (AAPL (10 4)))
      (num_filtered_rows   3)
-     (num_unfiltered_rows 3)) |}];
+     (num_unfiltered_rows 3))
+    |}];
   modify_map t ~f:(Map.set ~key:"AAPL" ~data:(10, 1.0));
   print_res t;
   [%expect
@@ -458,7 +464,8 @@ let%expect_test "sort by key, update values" =
       (GOOG (10 3))
       (AAPL (10 1)))
      (num_filtered_rows   3)
-     (num_unfiltered_rows 3)) |}];
+     (num_unfiltered_rows 3))
+    |}];
   modify_map t ~f:(Map.set ~key:"AAPL" ~data:(10, 4.0));
   print_res t;
   [%expect
@@ -467,7 +474,8 @@ let%expect_test "sort by key, update values" =
       (GOOG (10 3))
       (AAPL (10 4)))
      (num_filtered_rows   3)
-     (num_unfiltered_rows 3)) |}]
+     (num_unfiltered_rows 3))
+    |}]
 ;;
 
 let%expect_test "update values so that they compare equal" =
@@ -486,7 +494,8 @@ let%expect_test "update values so that they compare equal" =
     (((VOD  (10 2))
       (GOOG (10 3)))
      (num_filtered_rows   3)
-     (num_unfiltered_rows 3)) |}];
+     (num_unfiltered_rows 3))
+    |}];
   (* Modify to something that compares equal *)
   modify_map t ~f:(Map.set ~key:"VOD" ~data:(11, 2.0));
   print_res t;
@@ -495,7 +504,8 @@ let%expect_test "update values so that they compare equal" =
     (((VOD  (11 2))
       (GOOG (10 3)))
      (num_filtered_rows   3)
-     (num_unfiltered_rows 3)) |}];
+     (num_unfiltered_rows 3))
+    |}];
   (* Add entries with values that compares equal (but not keys, we don't want
      duplicates!) *)
   modify_map t ~f:(Map.set ~key:"AAA" ~data:(10, 2.0));
@@ -507,7 +517,8 @@ let%expect_test "update values so that they compare equal" =
       (ZZZ  (10 2))
       (GOOG (10 3)))
      (num_filtered_rows   5)
-     (num_unfiltered_rows 5)) |}];
+     (num_unfiltered_rows 5))
+    |}];
   (* Modify to bigger value *)
   modify_map t ~f:(Map.set ~key:"VOD" ~data:(11, 2.5));
   print_res t;
@@ -516,7 +527,8 @@ let%expect_test "update values so that they compare equal" =
     (((VOD  (11 2.5))
       (GOOG (10 3)))
      (num_filtered_rows   5)
-     (num_unfiltered_rows 5)) |}];
+     (num_unfiltered_rows 5))
+    |}];
   (* Move GOOG to ensure it gets compared to the new value of VOD *)
   modify_map t ~f:(Map.set ~key:"GOOG" ~data:(10, 2.3));
   print_res t;
@@ -524,7 +536,8 @@ let%expect_test "update values so that they compare equal" =
     {|
     (((VOD (11 2.5)))
      (num_filtered_rows   5)
-     (num_unfiltered_rows 5)) |}]
+     (num_unfiltered_rows 5))
+    |}]
 ;;
 
 let%expect_test "don't trigger rebalance" =
@@ -539,7 +552,8 @@ let%expect_test "don't trigger rebalance" =
      (key_range           All_rows)
      (rank_range          All_rows)
      (num_before_range    0)
-     (num_unfiltered_rows 2)) |}];
+     (num_unfiltered_rows 2))
+    |}];
   modify_map t ~f:(Map.add_exn ~key:"AA" ~data:(0, 50.));
   modify_map t ~f:(Map.add_exn ~key:"AAA" ~data:(0, 75.));
   modify_map t ~f:(Map.add_exn ~key:"AAAA" ~data:(0, 87.));
@@ -596,7 +610,8 @@ let%expect_test "don't trigger rebalance" =
      (key_range           All_rows)
      (rank_range          All_rows)
      (num_before_range    0)
-     (num_unfiltered_rows 35)) |}];
+     (num_unfiltered_rows 35))
+    |}];
   (* But now it does *)
   modify_map t ~f:(Map.add_exn ~key:!next_key ~data:(0, 0.));
   print_res ~full_sexp:true t;
@@ -643,7 +658,8 @@ let%expect_test "don't trigger rebalance" =
      (key_range           All_rows)
      (rank_range          All_rows)
      (num_before_range    0)
-     (num_unfiltered_rows 36)) |}]
+     (num_unfiltered_rows 36))
+    |}]
 ;;
 
 let%expect_test "diffs" =
@@ -661,7 +677,8 @@ let%expect_test "diffs" =
      (Num_filtered_rows   4)
      (Data (Add 200 (BB (0 200))))
      (Data (Add 50 (AA (0 50))))
-     (Data (Add 0 (A (0 1))))) |}];
+     (Data (Add 0 (A (0 1)))))
+    |}];
   let patched = Concrete.update res1 update in
   require_equal [%here] (module Concrete) res2 patched;
   print_s [%message "" ~orig:(res2 : Concrete.t) ~patched:(patched : Concrete.t)];
@@ -688,7 +705,8 @@ let%expect_test "diffs" =
        (key_range           All_rows)
        (rank_range          All_rows)
        (num_before_range    0)
-       (num_unfiltered_rows 4)))) |}]
+       (num_unfiltered_rows 4))))
+    |}]
 ;;
 
 let%expect_test "duplicates in diff" =
@@ -760,7 +778,8 @@ let%expect_test "duplicates in diff" =
          (key_range           All_rows)
          (rank_range          All_rows)
          (num_before_range    0)
-         (num_unfiltered_rows 10))))) |}];
+         (num_unfiltered_rows 10)))))
+    |}];
   let t2' = Concrete.update t1 (d1 @ d2) in
   print_s [%message "t2s" ([ t2; t2' ] : Concrete.t list)];
   [%expect
@@ -778,7 +797,8 @@ let%expect_test "duplicates in diff" =
          (key_range           All_rows)
          (rank_range          All_rows)
          (num_before_range    0)
-         (num_unfiltered_rows 10))))) |}]
+         (num_unfiltered_rows 10)))))
+    |}]
 ;;
 
 let%test_module "new API" =
@@ -871,7 +891,8 @@ let%test_module "new API" =
         {|
         Updated: By_symbol
         Updated: By_symbol, None
-        Updated: By_symbol, None, (All_rows All_rows) |}];
+        Updated: By_symbol, None, (All_rows All_rows)
+        |}];
       (* Change range *)
       set_collate t ~rank_range:(Between (1, 2));
       Incr.stabilize ();
@@ -879,7 +900,8 @@ let%test_module "new API" =
         {|
         Found  : By_symbol
         Found  : By_symbol, None
-        Updated: By_symbol, None, (All_rows (Between (1 2))) |}];
+        Updated: By_symbol, None, (All_rows (Between (1 2)))
+        |}];
       (* Change range again. Now the (order, filter, range) cache is full. *)
       set_collate t ~rank_range:(Between (2, 3));
       Incr.stabilize ();
@@ -887,7 +909,8 @@ let%test_module "new API" =
         {|
         Found  : By_symbol
         Found  : By_symbol, None
-        Updated: By_symbol, None, (All_rows (Between (2 3))) |}];
+        Updated: By_symbol, None, (All_rows (Between (2 3)))
+        |}];
       (* (1,2) is still in the cache. *)
       set_collate t ~rank_range:(Between (1, 2));
       Incr.stabilize ();
@@ -895,7 +918,8 @@ let%test_module "new API" =
         {|
         Found  : By_symbol
         Found  : By_symbol, None
-        Found  : By_symbol, None, (All_rows (Between (1 2))) |}];
+        Found  : By_symbol, None, (All_rows (Between (1 2)))
+        |}];
       (* Adding a 4th range... *)
       set_collate t ~rank_range:(Between (3, 4));
       Incr.stabilize ();
@@ -903,7 +927,8 @@ let%test_module "new API" =
         {|
         Found  : By_symbol
         Found  : By_symbol, None
-        Updated: By_symbol, None, (All_rows (Between (3 4))) |}];
+        Updated: By_symbol, None, (All_rows (Between (3 4)))
+        |}];
       set_collate t ~rank_range:All_rows;
       (* [All_rows] was evicted from the cache, so this will add it again. *)
       Incr.stabilize ();
@@ -911,7 +936,8 @@ let%test_module "new API" =
         {|
         Found  : By_symbol
         Found  : By_symbol, None
-        Updated: By_symbol, None, (All_rows All_rows) |}]
+        Updated: By_symbol, None, (All_rows All_rows)
+        |}]
     ;;
 
     let%expect_test "shallow cache is evicted while value is still in use by deeper cache"
@@ -932,7 +958,8 @@ let%test_module "new API" =
         {|
         Updated: By_symbol
         Updated: By_symbol, None
-        Updated: By_symbol, None, (All_rows All_rows) |}];
+        Updated: By_symbol, None, (All_rows All_rows)
+        |}];
       (* Change range *)
       set_collate t ~rank_range:(Between (1, 2));
       Incr.stabilize ();
@@ -940,7 +967,8 @@ let%test_module "new API" =
         {|
         Found  : By_symbol
         Found  : By_symbol, None
-        Updated: By_symbol, None, (All_rows (Between (1 2))) |}];
+        Updated: By_symbol, None, (All_rows (Between (1 2)))
+        |}];
       (* Change range again. Now the (order, filter, range) cache is full. *)
       set_collate t ~rank_range:(Between (2, 3));
       Incr.stabilize ();
@@ -948,7 +976,8 @@ let%test_module "new API" =
         {|
         Found  : By_symbol
         Found  : By_symbol, None
-        Updated: By_symbol, None, (All_rows (Between (2 3))) |}];
+        Updated: By_symbol, None, (All_rows (Between (2 3)))
+        |}];
       (* This will evict [By_symbol] from the cache. *)
       set_collate t ~order:By_price ~rank_range:(Between (1, 2));
       Incr.stabilize ();
@@ -956,7 +985,8 @@ let%test_module "new API" =
         {|
         Updated: By_price
         Updated: By_price, None
-        Updated: By_price, None, (All_rows (Between (1 2))) |}];
+        Updated: By_price, None, (All_rows (Between (1 2)))
+        |}];
       (* As you can see, [By_symbol] is gone from the cache. *)
       set_collate t ~order:By_symbol ~filter:True;
       Incr.stabilize ();
@@ -964,7 +994,8 @@ let%test_module "new API" =
         {|
         Updated: By_symbol
         Updated: By_symbol, True
-        Updated: By_symbol, True, (All_rows (Between (1 2))) |}];
+        Updated: By_symbol, True, (All_rows (Between (1 2)))
+        |}];
       (* The old value of (order, filter, range) is still present in the cache, but we
          don't want to use it, as this would mean having two copies of the "sort by
          symbol" intermediate computation (the one created just above, and the one kept
@@ -982,7 +1013,8 @@ let%test_module "new API" =
         Updated: By_symbol, None, (All_rows (Between (2 3)))
         (((VOD (10 2)))
          (num_filtered_rows   3)
-         (num_unfiltered_rows 3)) |}];
+         (num_unfiltered_rows 3))
+        |}];
       set_collate t ~rank_range:All_rows
     ;;
   end)

@@ -965,9 +965,9 @@ module Generic = struct
       with_comparator map (fun comparator ->
         map
         |> unzip_mapi_with_comparator' ~instrumentation ?cutoff ?data_equal ~comparator ~f
-        |> Tuple2.uncurry Incremental.both)
+        |> Incremental.return (Incremental.state map))
     in
-    Incremental.map ~f:fst pair, Incremental.map ~f:snd pair
+    Incremental.bind ~f:fst pair, Incremental.bind ~f:snd pair
   ;;
 
   let keys ?(instrumentation = no_instrumentation) map =

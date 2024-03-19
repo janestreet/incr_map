@@ -33,7 +33,7 @@ type ('k, 'filter, 'order) t = ('k, 'filter, 'order) Stable.V1.t =
   ; key_range : 'k Which_range.t
   ; rank_range : int Which_range.t
   }
-[@@deriving sexp_of]
+[@@deriving equal, sexp_of]
 
 let default ~filter ~order =
   { filter; order; key_range = All_rows; rank_range = All_rows }

@@ -103,7 +103,8 @@ let%expect_test "test specialized_initial" =
   [%expect {|
     (6 (
       (a 1)
-      (b 2))) |}]
+      (b 2)))
+    |}]
 ;;
 
 let%expect_test "filter-reuse" =
@@ -144,22 +145,24 @@ let%expect_test "filter-reuse" =
       (a  2)
       (aa 1)
       (ab 4)
-      (b  3))) |}];
+      (b  3)))
+    |}];
   Incr.Var.set extra "a";
   dump ();
   [%expect {|
     (a (
       (a  2)
       (aa 1)
-      (ab 4))) |}];
+      (ab 4)))
+    |}];
   Incr.Var.set extra "aa";
   dump ();
-  [%expect {|
-    (aa ((aa 1))) |}];
+  [%expect {| (aa ((aa 1))) |}];
   Incr.Var.set extra "b";
   dump ();
   [%expect {|
     (b (
       (ab 4)
-      (b  3))) |}]
+      (b  3)))
+    |}]
 ;;

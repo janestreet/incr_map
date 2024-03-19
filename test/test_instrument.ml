@@ -35,13 +35,15 @@ let%expect_test _ =
   [%expect {|
     starting!
     finishing!
-    (3 ((a 1) (b 2))) |}];
+    (3 ((a 1) (b 2)))
+    |}];
   change (fun m -> Map.set m ~key:"c" ~data:4);
   dump ();
   [%expect {|
     starting!
     finishing!
-    (7 ((a 1) (b 2) (c 4))) |}];
+    (7 ((a 1) (b 2) (c 4)))
+    |}];
   (* This doesn't trigger the instrumentation because of cutoff *)
   change (fun m -> m);
   dump ();

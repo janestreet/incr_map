@@ -50,20 +50,21 @@ let%expect_test "rekey should order adds and removes properly" =
     print_s [%sexp (Incr.Observer.value_exn result_obs : int Int.Map.t)]
   in
   stabilize_and_print ();
-  [%expect {|
-    () |}];
+  [%expect {| () |}];
   set_to [ 3, 0; 4, 1; 5, 2 ];
   stabilize_and_print ();
   [%expect {|
     ((0 0)
      (1 1)
-     (2 2)) |}];
+     (2 2))
+    |}];
   set_to [ 0, 0; 1, 1; 2, 2 ];
   stabilize_and_print ();
   [%expect {|
     ((0 0)
      (1 1)
-     (2 2)) |}]
+     (2 2))
+    |}]
 ;;
 
 let%expect_test "rekey should order adds and removes properly (part 2)" =
@@ -84,17 +85,18 @@ let%expect_test "rekey should order adds and removes properly (part 2)" =
     print_s [%sexp (Incr.Observer.value_exn result_obs : int Int.Map.t)]
   in
   stabilize_and_print ();
-  [%expect {|
-    () |}];
+  [%expect {| () |}];
   set_to [ 3, 0; 4, 0; 5, 0 ];
   stabilize_and_print ();
   [%expect {|
     ((0 0)
      (1 0)
-     (2 0)) |}];
+     (2 0))
+    |}];
   set_to [ 3, 1; 5, 0 ];
   stabilize_and_print ();
   [%expect {|
     ((1 1)
-     (2 0)) |}]
+     (2 0))
+    |}]
 ;;

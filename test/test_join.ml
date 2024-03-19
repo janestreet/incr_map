@@ -32,8 +32,7 @@ let%expect_test "check join against slow implementation" =
   let one_incr = Incr.Var.watch one_var in
   set_map [ 1, one_incr ];
   test_now ();
-  [%expect {|
-        ((1 one)) |}];
+  [%expect {| ((1 one)) |}];
   let one_incr =
     let new_one_incr = Incr.map ~f:Fn.id one_incr in
     assert (not (phys_same one_incr new_one_incr));
@@ -52,8 +51,9 @@ let%expect_test "check join against slow implementation" =
   set_map [ 1, one_incr; 2, two_incr ];
   test_now ();
   [%expect {|
-        ((1 one)
-         (2 two)) |}];
+    ((1 one)
+     (2 two))
+    |}];
   let test_with =
     let vars = ref Int.Map.empty
     and incrs = ref Int.Map.empty
@@ -79,28 +79,33 @@ let%expect_test "check join against slow implementation" =
   [%expect {| ((1 one)) |}];
   test_with [ 1, "two"; 3, "three" ];
   [%expect {|
-        ((1 two)
-         (3 three)) |}];
+    ((1 two)
+     (3 three))
+    |}];
   test_with [ 1, "one"; 2, "two" ];
   [%expect {|
-        ((1 one)
-         (2 two)) |}];
+    ((1 one)
+     (2 two))
+    |}];
   test_with [ 1, "five"; 3, "three"; 4, "four" ];
   [%expect {|
-        ((1 five)
-         (3 three)
-         (4 four)) |}];
+    ((1 five)
+     (3 three)
+     (4 four))
+    |}];
   test_with [];
   [%expect {| () |}];
   test_with [ 1, "five"; 3, "three"; 4, "four" ];
   [%expect {|
-        ((1 five)
-         (3 three)
-         (4 four)) |}];
+    ((1 five)
+     (3 three)
+     (4 four))
+    |}];
   test_with [ 1, "one"; 2, "two" ];
   [%expect {|
-        ((1 one)
-         (2 two)) |}]
+    ((1 one)
+     (2 two))
+    |}]
 ;;
 
 let%test_module "random tests" =
