@@ -1,3 +1,8 @@
+## Release v0.17.0
+- New functions introduced:
+  - `Incr_map.merge_disjoint` merges two maps with disjoint keys
+  - `Incr_map.observe_changes_exn` observes changes in a map across stabilizations
+
 ## Release v0.16.0
 
 Incr_map
