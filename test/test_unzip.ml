@@ -23,10 +23,10 @@ module Make_test (S : S) = struct
         ~data_equal_right:Int.equal
         (Incr.Var.watch m)
         ~f:(fun ~key:_ ~data:x ->
-        ( (let%map x = x in
-           let y = x * x in
-           if y > 10 then Some y else None)
-        , x ))
+          ( (let%map x = x in
+             let y = x * x in
+             if y > 10 then Some y else None)
+          , x ))
     in
     let fm = Incr.both l r |> Incr.observe in
     let dump () =
@@ -67,44 +67,44 @@ module Make_test (S : S) = struct
       ~sexp_of:[%sexp_of: (int, int) Map_operations.t list]
       (Map_operations.quickcheck_generator Int.quickcheck_generator)
       ~f:(fun operations ->
-      let m = Incr.Var.create Int.Map.empty in
-      let watch_m = Incr.Var.watch m
-      and f ~key ~data =
-        ( (let%map data = data in
-           let y = data * data in
-           Option.some_if (key + y > 33) y)
-        , data )
-      in
-      let incr_left, incr_right =
-        S.unzip_mapi'
-          watch_m
-          ~data_equal:[%equal: int]
-          ~data_equal_left:[%equal: int option]
-          ~data_equal_right:[%equal: int]
-          ~f
-      and slow_left, slow_right =
-        let paired =
-          Incr.Map.mapi' watch_m ~f:(fun ~key ~data ->
-            let left, right = f ~key ~data in
-            Incr.both left right)
+        let m = Incr.Var.create Int.Map.empty in
+        let watch_m = Incr.Var.watch m
+        and f ~key ~data =
+          ( (let%map data = data in
+             let y = data * data in
+             Option.some_if (key + y > 33) y)
+          , data )
         in
-        Incr.Map.map paired ~f:fst, Incr.Map.map paired ~f:snd
-      in
-      let incr_left = Incr.observe incr_left
-      and incr_right = Incr.observe incr_right
-      and slow_left = Incr.observe slow_left
-      and slow_right = Incr.observe slow_right in
-      Map_operations.run_operations operations ~into:m ~after_stabilize:(fun () ->
-        [%test_result: int option Int.Map.t]
-          ~expect:(Incr.Observer.value_exn slow_left)
-          (Incr.Observer.value_exn incr_left);
-        [%test_result: int Int.Map.t]
-          ~expect:(Incr.Observer.value_exn slow_right)
-          (Incr.Observer.value_exn incr_right));
-      Incr.Observer.disallow_future_use incr_left;
-      Incr.Observer.disallow_future_use incr_right;
-      Incr.Observer.disallow_future_use slow_left;
-      Incr.Observer.disallow_future_use slow_right)
+        let incr_left, incr_right =
+          S.unzip_mapi'
+            watch_m
+            ~data_equal:[%equal: int]
+            ~data_equal_left:[%equal: int option]
+            ~data_equal_right:[%equal: int]
+            ~f
+        and slow_left, slow_right =
+          let paired =
+            Incr.Map.mapi' watch_m ~f:(fun ~key ~data ->
+              let left, right = f ~key ~data in
+              Incr.both left right)
+          in
+          Incr.Map.map paired ~f:fst, Incr.Map.map paired ~f:snd
+        in
+        let incr_left = Incr.observe incr_left
+        and incr_right = Incr.observe incr_right
+        and slow_left = Incr.observe slow_left
+        and slow_right = Incr.observe slow_right in
+        Map_operations.run_operations operations ~into:m ~after_stabilize:(fun () ->
+          [%test_result: int option Int.Map.t]
+            ~expect:(Incr.Observer.value_exn slow_left)
+            (Incr.Observer.value_exn incr_left);
+          [%test_result: int Int.Map.t]
+            ~expect:(Incr.Observer.value_exn slow_right)
+            (Incr.Observer.value_exn incr_right));
+        Incr.Observer.disallow_future_use incr_left;
+        Incr.Observer.disallow_future_use incr_right;
+        Incr.Observer.disallow_future_use slow_left;
+        Incr.Observer.disallow_future_use slow_right)
   ;;
 
   let%bench_module "unzip_mapi'" =
@@ -135,7 +135,12 @@ module Make_test (S : S) = struct
             data + 20 )
         in
         let left, right =
-          unzip_mapi' ?cutoff:None ?data_equal:(Some Int.equal) (Incr.Var.watch var) ~f
+          unzip_mapi'
+            ?comparator:None
+            ?cutoff:None
+            ?data_equal:(Some Int.equal)
+            (Incr.Var.watch var)
+            ~f
         in
         let left = Incr.observe left
         and right = Incr.observe right in
@@ -154,9 +159,9 @@ module Make_test (S : S) = struct
           benchmark_unzip_mapi' (Incr.Map.unzip_mapi' ?instrumentation:None) ~operations
       ;;
 
-      let slow_unzip_mapi' ?cutoff ?data_equal input ~f =
+      let slow_unzip_mapi' ?comparator ?cutoff ?data_equal input ~f =
         let both =
-          Incr_map.mapi' ?cutoff ?data_equal input ~f:(fun ~key ~data ->
+          Incr_map.mapi' ?comparator ?cutoff ?data_equal input ~f:(fun ~key ~data ->
             let a, b = f ~key ~data in
             Incr.both a b)
         in
@@ -192,13 +197,13 @@ module Unzip_mapi_prime = struct
     let left =
       let%map a_left = a_left
       and b_left = b_left in
-      require [%here] (Map.equal data_equal_left a_left b_left);
+      require (Map.equal data_equal_left a_left b_left);
       a_left
     in
     let right =
       let%map a_right = a_right
       and b_right = b_right in
-      require [%here] (Map.equal data_equal_right a_right b_right);
+      require (Map.equal data_equal_right a_right b_right);
       a_right
     in
     left, right
@@ -219,13 +224,13 @@ module Unzip = struct
     let left =
       let%map a_left = a_left
       and b_left = b_left in
-      require [%here] (Map.equal data_equal_left a_left b_left);
+      require (Map.equal data_equal_left a_left b_left);
       a_left
     in
     let right =
       let%map a_right = a_right
       and b_right = b_right in
-      require [%here] (Map.equal data_equal_right a_right b_right);
+      require (Map.equal data_equal_right a_right b_right);
       a_right
     in
     left, right
@@ -270,13 +275,15 @@ let%expect_test "unzip_mapi' where only one side of the split is actually used" 
       (data 10))
     |}];
   change (fun m -> Map.set m ~key:"foo" ~data:9);
-  [%expect {|
+  [%expect
+    {|
     ("computing left"
       (key  foo)
       (data 9))
     |}];
   change (fun m -> Map.set m ~key:"bar" ~data:1);
-  [%expect {|
+  [%expect
+    {|
     ("computing left"
       (key  bar)
       (data 1))
@@ -298,7 +305,7 @@ let%expect_test "unzip_mapi' where only one side of the split is actually used" 
   (* Keep [observed_l] and [observed_r] alive by using them here. If this isn't done, then
      there's a chance that a GC would collect the observer, run its finalizer and cause
      all the nodes in the graph to become unobserved *)
-  let (_ : _) = Incr.Observer.value observed_l in
-  let (_ : _) = Incr.Observer.value observed_r in
+  let _ : _ = Incr.Observer.value observed_l in
+  let _ : _ = Incr.Observer.value observed_r in
   ()
 ;;

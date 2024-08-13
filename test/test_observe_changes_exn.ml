@@ -12,13 +12,15 @@ let%expect_test "basic" =
     Incr.stabilize ()
   in
   set_to [ 3, 0; 4, 0; 5, 0 ];
-  [%expect {|
+  [%expect
+    {|
     (3 (Right 0))
     (4 (Right 0))
     (5 (Right 0))
     |}];
   set_to [ 3, 1; 5, 0 ];
-  [%expect {|
+  [%expect
+    {|
     (3 (Unequal (0 1)))
     (4 (Left 0))
     |}]
@@ -40,7 +42,7 @@ let%expect_test "banned inside bind" =
     else return ()
   in
   let (_ : unit Incr.Observer.t) = Incr.observe result in
-  Expect_test_helpers_core.require_does_raise [%here] (fun () -> Incr.stabilize ());
+  Expect_test_helpers_core.require_does_raise (fun () -> Incr.stabilize ());
   [%expect
     {|
     (Failure

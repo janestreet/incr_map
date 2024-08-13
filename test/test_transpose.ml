@@ -31,10 +31,11 @@ let%expect_test _ =
           ~original:(Incr.Var.value m_v : V.t K2.Map.t K1.Map.t)
           ~tranposed:
             (Incr.Observer.value m_transposed_o |> Or_error.ok_exn
-              : V.t K1.Map.t K2.Map.t)]
+             : V.t K1.Map.t K2.Map.t)]
   in
   show ();
-  [%expect {|
+  [%expect
+    {|
     ((original  ())
      (tranposed ()))
     |}];

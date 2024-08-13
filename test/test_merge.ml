@@ -109,7 +109,7 @@ let%test_module "random tests" =
             Map.symmetric_diff old_map new_map ~data_equal:phys_equal
             |> Sequence.to_list
             |> List.map ~f:(fun (key, value) ->
-                 key, symdiff_element_to_key_change_state value)
+              key, symdiff_element_to_key_change_state value)
             |> Int.Map.of_alist_exn
           in
           let symdiff_map1, symdiff_map2 =

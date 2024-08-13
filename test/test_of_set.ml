@@ -29,9 +29,9 @@ let%test_unit "correctness" =
            Quickcheck.Generator.bool
            Quickcheck.Generator.small_positive_int)
         ~f:(fun (add, key) ->
-        let change = if add then Set.add else Set.remove in
-        current_set := change !current_set key;
-        update_and_check !current_set));
+          let change = if add then Set.add else Set.remove in
+          current_set := change !current_set key;
+          update_and_check !current_set));
     with_init_value init (fun update_and_check ->
       Quickcheck.test
         ~examples:[ [] ]

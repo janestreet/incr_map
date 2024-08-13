@@ -15,15 +15,15 @@ end
 
 module Custom_tuple_comparator = struct
   include Comparator.Derived2 (struct
-    type ('a, 'b) t = 'a * 'b
+      type ('a, 'b) t = 'a * 'b
 
-    let[@inline always] compare compare_k compare_v (k1, v1) (k2, v2) =
-      let cmp_v = compare_v v1 v2 in
-      if cmp_v <> 0 then cmp_v else compare_k k1 k2
-    ;;
+      let[@inline always] compare compare_k compare_v (k1, v1) (k2, v2) =
+        let cmp_v = compare_v v1 v2 in
+        if cmp_v <> 0 then cmp_v else compare_k k1 k2
+      ;;
 
-    let sexp_of_t = Tuple2.sexp_of_t
-  end)
+      let sexp_of_t = Tuple2.sexp_of_t
+    end)
 end
 
 module Range_memoize_bucket = struct

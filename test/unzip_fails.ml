@@ -16,25 +16,29 @@ let%expect_test "unzip_mapi' dropping one map" =
     dump ()
   in
   dump ();
-  [%expect {|
+  [%expect
+    {|
     ((bar  10)
      (foo  3)
      (snoo 5))
     |}];
   change (fun m -> Map.set m ~key:"foo" ~data:9);
-  [%expect {|
+  [%expect
+    {|
     ((bar  10)
      (foo  9)
      (snoo 5))
     |}];
   change (fun m -> Map.set m ~key:"bar" ~data:1);
-  [%expect {|
+  [%expect
+    {|
     ((bar  1)
      (foo  9)
      (snoo 5))
     |}];
   change (fun m -> Map.remove m "snoo");
-  [%expect {|
+  [%expect
+    {|
     ((bar 1)
      (foo 9))
     |}]

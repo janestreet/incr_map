@@ -10,7 +10,7 @@ module Compare : sig
     | Reversed
     | Custom_by_value of { compare : 'v -> 'v -> int }
     | Custom_by_key_and_value of { compare : 'k * 'v -> 'k * 'v -> int }
-        (** Partial orders are supported in Custom_by_*, i.e. returning 0 shouldn't cause
+    (** Partial orders are supported in Custom_by_*, i.e. returning 0 shouldn't cause
         issues. Rows will be then sorted by key. *)
   [@@deriving sexp_of]
 end

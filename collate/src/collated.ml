@@ -10,7 +10,7 @@ module Parametrized = struct
         { data : ('k * 'v) Opaque_map.Stable.V1.t
         ; num_filtered_rows : int
         ; key_range : 'k Collate.Stable.Which_range.V1.t
-            (** Ranges that this value was computed for *)
+        (** Ranges that this value was computed for *)
         ; rank_range : int Collate.Stable.Which_range.V1.t
         ; num_before_range : int
         ; num_unfiltered_rows : int
@@ -82,8 +82,8 @@ include Parametrized
 module type Concrete = Collated_intf.Concrete with type ('k, 'v) parametrized = ('k, 'v) t
 
 module Make_concrete
-  (Key : Collated_intf.Bin_comp_sexp)
-  (Value : Collated_intf.Bin_comp_sexp) =
+    (Key : Collated_intf.Bin_comp_sexp)
+    (Value : Collated_intf.Bin_comp_sexp) =
 struct
   module Key = Key
   module Value = Value

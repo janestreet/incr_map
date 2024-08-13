@@ -65,21 +65,24 @@ let%expect_test "index_by" =
   change (add 1 "foo");
   [%expect {| ((FOO ((1 foo)))) |}];
   change (add 2 "foo");
-  [%expect {|
+  [%expect
+    {|
     ((
       FOO (
         (1 foo)
         (2 foo))))
     |}];
   change (add 3 "bar");
-  [%expect {|
+  [%expect
+    {|
     ((BAR ((3 bar)))
      (FOO (
        (1 foo)
        (2 foo))))
     |}];
   change (add 2 "bar");
-  [%expect {|
+  [%expect
+    {|
     ((BAR (
        (2 bar)
        (3 bar)))

@@ -9,11 +9,7 @@ end
 let check_invariants input_map derived_map =
   let input_list = Map.to_alist input_map in
   let derived_list = Map.data derived_map in
-  Expect_test_helpers_base.require_compare_equal
-    [%here]
-    (module Out)
-    input_list
-    derived_list;
+  Expect_test_helpers_base.require_compare_equal (module Out) input_list derived_list;
   assert ([%equal: Out.t] input_list derived_list);
   let (_ : _ String.Map.t) =
     (* The keys of the derived map should serialized to unique values. If that
@@ -148,7 +144,7 @@ let%expect_test "adding elements before and after existing elements" =
     observer
     |> Incr.Observer.value_exn
     |> Map.iteri ~f:(fun ~key ~data ->
-         print_s [%sexp (key : Opaque_map.Key.t), (data : int)])
+      print_s [%sexp (key : Opaque_map.Key.t), (data : int)])
   in
   test [];
   [%expect {| (0 0) |}];

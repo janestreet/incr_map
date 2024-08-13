@@ -1,6 +1,6 @@
 (executables
  (modes byte exe)
  (names html_table)
- (libraries core_unix.command_unix incr_map_benchmarks)
+ (libraries core_unix.command_unix core incr_map_benchmarks)
  (preprocess
   (pps ppx_jane)))

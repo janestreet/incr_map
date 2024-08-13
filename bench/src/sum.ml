@@ -65,9 +65,9 @@ let%bench_fun "incr_map" =
     let i = Random.int len in
     let change = Random.float 1.0 in
     inputs
-      := Map.update !inputs i ~f:(function
-           | None -> change
-           | Some x -> x +. change);
+    := Map.update !inputs i ~f:(function
+         | None -> change
+         | Some x -> x +. change);
     Incr.stabilize ();
     ignore (Obs.value_exn sum : float)
 ;;

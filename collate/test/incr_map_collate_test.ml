@@ -680,7 +680,7 @@ let%expect_test "diffs" =
      (Data (Add 0 (A (0 1)))))
     |}];
   let patched = Concrete.update res1 update in
-  require_equal [%here] (module Concrete) res2 patched;
+  require_equal (module Concrete) res2 patched;
   print_s [%message "" ~orig:(res2 : Concrete.t) ~patched:(patched : Concrete.t)];
   [%expect
     {|

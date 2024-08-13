@@ -19,8 +19,9 @@ depends: [
   "ppx_diff"
   "ppx_jane"
   "ppx_pattern_bind"
+  "ppx_stable_witness"
   "streamable"
-  "dune"             {>= "3.11.0"}
+  "dune"               {>= "3.11.0"}
 ]
 available: arch != "arm32" & arch != "x86_32"
 synopsis: "Helpers for incremental operations on map like data structures"

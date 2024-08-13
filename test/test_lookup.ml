@@ -12,8 +12,8 @@ let%expect_test "test unnecessary nodes are cleaned" =
   in
   let lookup =
     Incr.Map.Lookup.create
+      (module Int)
       (Incr.Var.watch input_map)
-      ~comparator:Int.comparator
       ~data_equal:String.equal
   in
   let key_observers =
@@ -111,8 +111,8 @@ let%expect_test "test cleaned nodes still work" =
   let input_map = Incr.Var.create (Int.Map.of_alist_exn [ 1, "hello" ]) in
   let lookup =
     Incr.Map.Lookup.create
+      (module Int)
       (Incr.Var.watch input_map)
-      ~comparator:Int.comparator
       ~data_equal:String.equal
   in
   let find_a = Incr.Map.Lookup.find lookup 1 in
@@ -180,8 +180,8 @@ let%test_unit "test vs slow lookup" =
   let input_map = Incr.Var.create Int.Map.empty in
   let lookup =
     Incr.Map.Lookup.create
+      (module Int)
       (Incr.Var.watch input_map)
-      ~comparator:Int.comparator
       ~data_equal:String.equal
   in
   let find_nodes =
@@ -217,9 +217,7 @@ let%expect_test "double lookup bug has been fixed" =
   let map_var = Incr.Var.create String.Map.empty in
   let key = "A" in
   Incr.Var.set map_var (Map.add_exn (Incr.Var.latest_value map_var) ~key ~data:1);
-  let lookup =
-    Incr_map.Lookup.create (Incr.Var.watch map_var) ~comparator:String.comparator
-  in
+  let lookup = Incr_map.Lookup.create (module String) (Incr.Var.watch map_var) in
   let incr1 = Incr_map.Lookup.find lookup key in
   let incr2 = Incr_map.Lookup.find lookup key in
   let a = Incr.observe incr1 in
@@ -228,7 +226,7 @@ let%expect_test "double lookup bug has been fixed" =
   Incr.stabilize ();
   let a = Incr.Observer.value_exn a
   and b = Incr.Observer.value_exn b in
-  require [%here] ([%compare.equal: int option] a b);
+  require ([%compare.equal: int option] a b);
   [%expect {| |}]
 ;;
 
@@ -236,9 +234,7 @@ let%expect_test _ =
   let map_var = Incr.Var.create String.Map.empty in
   let key = "A" in
   Incr.Var.set map_var (Map.add_exn (Incr.Var.latest_value map_var) ~key ~data:1);
-  let lookup =
-    Incr_map.Lookup.create (Incr.Var.watch map_var) ~comparator:String.comparator
-  in
+  let lookup = Incr_map.Lookup.create (module String) (Incr.Var.watch map_var) in
   let a = Incr_map.Lookup.find lookup key in
   (* depend on a *)
   let a_obs = Incr.observe a in
@@ -263,5 +259,41 @@ let%expect_test _ =
   Incr.stabilize ();
   let a = Incr.Observer.value_exn a_obs
   and b = Incr.Observer.value_exn b_obs in
-  require [%here] ([%equal: int option] a b)
+  require ([%equal: int option] a b)
+;;
+
+let%expect_test "re-linking lookup nodes that become necessary after being removed from \
+                 the map are correctly recomputed"
+  =
+  let key_a = "A" in
+  let map_var = Incr.Var.create (String.Map.singleton key_a 1) in
+  let incr_map_lookup = Incr_map.Lookup.create (module String) (Incr.Var.watch map_var) in
+  let direct_lookup key = Map.find (Incr.Var.latest_value map_var) key in
+  let _ =
+    (* keep the [incr_map_lookup] necessary *)
+    Incr.observe (Incr_map.Lookup.find incr_map_lookup "")
+  in
+  let a = Incr_map.Lookup.find incr_map_lookup key_a in
+  let observer_a_1 = Incr.observe a in
+  (* observe a and see we receive the true value *)
+  Incr.stabilize ();
+  require
+    ([%equal: int option] (Incr.Observer.value_exn observer_a_1) (direct_lookup key_a));
+  [%expect {| |}];
+  Incr.Observer.disallow_future_use observer_a_1;
+  (* remove the dependency from a *)
+  Incr.stabilize ();
+  Incr.Var.set map_var String.Map.empty;
+  (* clear the value at key_a while a is not observed *)
+  Incr.stabilize ();
+  let observer_a_2 = Incr.observe a in
+  Incr.stabilize ();
+  (* re-observe a and correctly receive the new value *)
+  require_equal
+    (module struct
+      type t = int option [@@deriving sexp_of, equal]
+    end)
+    (Incr.Observer.value_exn observer_a_2)
+    (direct_lookup key_a);
+  [%expect {| |}]
 ;;

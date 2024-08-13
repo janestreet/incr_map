@@ -31,7 +31,7 @@ let unordered_fold_with_extra
   in
   let%map a = a
   and b = b in
-  require [%here] (acc_equal a b);
+  require (acc_equal a b);
   a
 ;;
 
@@ -100,7 +100,8 @@ let%expect_test "test specialized_initial" =
   in
   dump ();
   assert !specialized_initial_is_called;
-  [%expect {|
+  [%expect
+    {|
     (6 (
       (a 1)
       (b 2)))
@@ -140,7 +141,8 @@ let%expect_test "filter-reuse" =
     print_s ([%sexp_of: string * int String.Map.t] (Incr.Var.value extra, value sum_o))
   in
   dump ();
-  [%expect {|
+  [%expect
+    {|
     ("" (
       (a  2)
       (aa 1)
@@ -149,7 +151,8 @@ let%expect_test "filter-reuse" =
     |}];
   Incr.Var.set extra "a";
   dump ();
-  [%expect {|
+  [%expect
+    {|
     (a (
       (a  2)
       (aa 1)
@@ -160,7 +163,8 @@ let%expect_test "filter-reuse" =
   [%expect {| (aa ((aa 1))) |}];
   Incr.Var.set extra "b";
   dump ();
-  [%expect {|
+  [%expect
+    {|
     (b (
       (ab 4)
       (b  3)))

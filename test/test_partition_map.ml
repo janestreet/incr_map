@@ -20,29 +20,34 @@ let%test_module _ =
             (Incr.Observer.value_exn observer : string String.Map.t * int String.Map.t)]
       in
       update_and_test ~f:Fn.id;
-      [%expect {|
+      [%expect
+        {|
         (((b N=2))
          ((a 1)))
         |}];
       update_and_test ~f:(fun m -> Map.add_exn m ~key:"c" ~data:3);
-      [%expect {|
+      [%expect
+        {|
         (((b N=2))
          ((a 1)
           (c 3)))
         |}];
       update_and_test ~f:(fun m -> Map.remove m "b");
-      [%expect {|
+      [%expect
+        {|
         (()
          ((a 1)
           (c 3)))
         |}];
       update_and_test ~f:(fun m -> Map.set m ~key:"c" ~data:100);
-      [%expect {|
+      [%expect
+        {|
         (((c N=100))
          ((a 1)))
         |}];
       update_and_test ~f:(fun m -> Map.set m ~key:"d" ~data:11);
-      [%expect {|
+      [%expect
+        {|
         (((c N=100))
          ((a 1)
           (d 11)))
@@ -91,29 +96,34 @@ let%test_module "partition_mapi'" =
             (Incr.Observer.value_exn observer : string String.Map.t * int String.Map.t)]
       in
       update_and_test ~f:Fn.id;
-      [%expect {|
+      [%expect
+        {|
         (((b N=2))
          ((a 1)))
         |}];
       update_and_test ~f:(fun m -> Map.add_exn m ~key:"c" ~data:3);
-      [%expect {|
+      [%expect
+        {|
         (((b N=2))
          ((a 1)
           (c 3)))
         |}];
       update_and_test ~f:(fun m -> Map.remove m "b");
-      [%expect {|
+      [%expect
+        {|
         (()
          ((a 1)
           (c 3)))
         |}];
       update_and_test ~f:(fun m -> Map.set m ~key:"c" ~data:100);
-      [%expect {|
+      [%expect
+        {|
         (((c N=100))
          ((a 1)))
         |}];
       update_and_test ~f:(fun m -> Map.set m ~key:"d" ~data:11);
-      [%expect {|
+      [%expect
+        {|
         (((c N=100))
          ((a 1)
           (d 11)))

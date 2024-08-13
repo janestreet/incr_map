@@ -32,14 +32,16 @@ let%expect_test _ =
   in
   let change f = Incr.Var.set map (f (Incr.Var.value map)) in
   dump ();
-  [%expect {|
+  [%expect
+    {|
     starting!
     finishing!
     (3 ((a 1) (b 2)))
     |}];
   change (fun m -> Map.set m ~key:"c" ~data:4);
   dump ();
-  [%expect {|
+  [%expect
+    {|
     starting!
     finishing!
     (7 ((a 1) (b 2) (c 4)))

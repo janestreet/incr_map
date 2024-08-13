@@ -10,7 +10,7 @@ let unordered_fold (type a) ~data_equal ?specialized_initial m ~(init : a) ~add 
   in
   let%map a = a
   and b = b in
-  require [%here] (data_equal a b);
+  require (data_equal a b);
   a
 ;;
 
@@ -183,13 +183,13 @@ let%test_module "random tests" =
             symmetric_diff
             ~init:(0, 0, 0)
             ~f:(fun (add_count, remove_count, update_count) (_, diff) ->
-            match diff with
-            | `Left _ -> add_count, remove_count + 1, update_count
-            | `Right _ -> add_count + 1, remove_count, update_count
-            | `Unequal _ ->
-              if use_update
-              then add_count, remove_count, update_count + 1
-              else add_count + 1, remove_count + 1, update_count)
+              match diff with
+              | `Left _ -> add_count, remove_count + 1, update_count
+              | `Right _ -> add_count + 1, remove_count, update_count
+              | `Unequal _ ->
+                if use_update
+                then add_count, remove_count, update_count + 1
+                else add_count + 1, remove_count + 1, update_count)
         in
         [%test_result: int * int * int] ~expect (!add_count, !remove_count, !update_count)
       in

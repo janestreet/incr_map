@@ -2,10 +2,10 @@ open! Core
 open Import
 
 module M (M : sig
-  val n : int
-  val left_changes : int
-  val right_changes : int
-end) =
+    val n : int
+    val left_changes : int
+    val right_changes : int
+  end) =
 struct
   let m_0 = Int.Map.of_alist_exn (List.init M.n ~f:(fun x -> x, x))
 
@@ -45,37 +45,37 @@ struct
 end
 
 module _ = M (struct
-  let n = 10_000
-  let left_changes = 0
-  let right_changes = 100
-end)
+    let n = 10_000
+    let left_changes = 0
+    let right_changes = 100
+  end)
 
 module _ = M (struct
-  let n = 10_000
-  let left_changes = 1
-  let right_changes = 1_000
-end)
+    let n = 10_000
+    let left_changes = 1
+    let right_changes = 1_000
+  end)
 
 module _ = M (struct
-  let n = 10_000
-  let left_changes = 100
-  let right_changes = 0
-end)
+    let n = 10_000
+    let left_changes = 100
+    let right_changes = 0
+  end)
 
 module _ = M (struct
-  let n = 10_000
-  let left_changes = 100
-  let right_changes = 100
-end)
+    let n = 10_000
+    let left_changes = 100
+    let right_changes = 100
+  end)
 
 module _ = M (struct
-  let n = 10_000
-  let left_changes = 1_000
-  let right_changes = 1
-end)
+    let n = 10_000
+    let left_changes = 1_000
+    let right_changes = 1
+  end)
 
 module _ = M (struct
-  let n = 10_000
-  let left_changes = 10_000
-  let right_changes = 10_000
-end)
+    let n = 10_000
+    let left_changes = 10_000
+    let right_changes = 10_000
+  end)

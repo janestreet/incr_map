@@ -1,5 +1,6 @@
 (library
  (name opaque_map_test)
- (libraries bignum core expect_test_helpers_core incr_map_test opaque_map)
+ (libraries bignum core expect_test_helpers_core.expect_test_helpers_base
+   expect_test_helpers_core incr_map_test opaque_map)
  (preprocess
   (pps ppx_jane)))

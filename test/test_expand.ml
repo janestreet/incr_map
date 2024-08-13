@@ -32,7 +32,8 @@ let%test_module _ =
         print_s [%sexp (Incr.Observer.value_exn observer : string Int.Map.t Int.Map.t)]
       in
       update_and_test ~f:Fn.id;
-      [%expect {|
+      [%expect
+        {|
         ((0 ((1 a)))
          (1 ((2 b))))
         |}];
@@ -44,7 +45,8 @@ let%test_module _ =
          (2 ((4 c))))
         |}];
       update_and_test ~f:(fun m -> Map.remove m (1, 2));
-      [%expect {|
+      [%expect
+        {|
         ((0 ((1 a)))
          (2 ((4 c))))
         |}];
@@ -86,10 +88,10 @@ let%test_module _ =
       Quickcheck.test
         (Map_operations.tuple_key_quickcheck_generator String.quickcheck_generator)
         ~f:(fun operations ->
-        Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
-          [%test_result: string Int.Map.t Int.Map.t]
-            ~expect:(all_at_once (Incr.Var.latest_value var))
-            (Incremental.Observer.value_exn observer)))
+          Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
+            [%test_result: string Int.Map.t Int.Map.t]
+              ~expect:(all_at_once (Incr.Var.latest_value var))
+              (Incremental.Observer.value_exn observer)))
     ;;
 
     let%test_unit "expand collapse compose" =
@@ -106,10 +108,10 @@ let%test_module _ =
       Quickcheck.test
         (Map_operations.tuple_key_quickcheck_generator String.quickcheck_generator)
         ~f:(fun operations ->
-        Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
-          [%test_result: string Key.Map.t]
-            ~expect:(Incr.Var.latest_value var)
-            (Incremental.Observer.value_exn observer)))
+          Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
+            [%test_result: string Key.Map.t]
+              ~expect:(Incr.Var.latest_value var)
+              (Incremental.Observer.value_exn observer)))
     ;;
   end)
 ;;

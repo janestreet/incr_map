@@ -23,11 +23,11 @@ type 'a t = 'a Map.M(Key).t [@@deriving sexp, compare, equal, bin_io]
 module Stable = struct
   module V1 = struct
     include Comparable.Stable.V1.With_stable_witness.Make (struct
-      type t = Bignum.Stable.V3.t [@@deriving bin_io, sexp, compare, stable_witness]
-      type comparator_witness = Bignum.comparator_witness
+        type t = Bignum.Stable.V3.t [@@deriving bin_io, sexp, compare, stable_witness]
+        type comparator_witness = Bignum.comparator_witness
 
-      let comparator = Bignum.comparator
-    end)
+        let comparator = Bignum.comparator
+      end)
 
     type 'a t = 'a Map.t [@@deriving sexp, bin_io, diff ~stable_version:1, stable_witness]
   end
@@ -160,10 +160,10 @@ let erase_key_incrementally
           acc.key_to_bignum
           ~init
           ~f:(fun ~key ~data:prev_bignum (key_to_bignum, out) ->
-          let prev_res = Map.find_exn acc.out prev_bignum in
-          let k = !i in
-          i := k + separation;
-          Map.add_exn key_to_bignum ~key ~data:k, Map.add_exn out ~key:k ~data:prev_res)
+            let prev_res = Map.find_exn acc.out prev_bignum in
+            let k = !i in
+            i := k + separation;
+            Map.add_exn key_to_bignum ~key ~data:k, Map.add_exn out ~key:k ~data:prev_res)
       in
       of_maps acc.comparator ~key_to_bignum ~out
     ;;

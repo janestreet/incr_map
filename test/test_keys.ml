@@ -24,18 +24,18 @@ let%test_unit "correctness" =
           * [%custom Quickcheck.Generator.small_positive_int]
           * [%custom Quickcheck.Generator.small_positive_int]]
         ~f:(fun (add, key, data) ->
-        let updated_map =
-          match add with
-          | true -> Map.set !current_set ~key ~data
-          | false -> Map.remove !current_set key
-        in
-        current_set := updated_map;
-        update_and_check updated_map));
+          let updated_map =
+            match add with
+            | true -> Map.set !current_set ~key ~data
+            | false -> Map.remove !current_set key
+          in
+          current_set := updated_map;
+          update_and_check updated_map));
     with_init_value init (fun update_and_check ->
       Quickcheck.test
         ~examples:[ [] ]
         ~trials:100
         [%quickcheck.generator: [%custom Quickcheck.Generator.small_positive_int] list]
         ~f:(fun l ->
-        l |> List.mapi ~f:Tuple2.create |> Int.Map.of_alist_exn |> update_and_check)))
+          l |> List.mapi ~f:Tuple2.create |> Int.Map.of_alist_exn |> update_and_check)))
 ;;

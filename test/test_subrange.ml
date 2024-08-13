@@ -40,7 +40,8 @@ let%expect_test "check subrange" =
   [%expect {| () |}];
   Incr.Var.set input_range (Some (Incl 1, Incl 3));
   print_stable ();
-  [%expect {|
+  [%expect
+    {|
     ((1 one)
      (2 two)
      (3 three))
@@ -48,14 +49,16 @@ let%expect_test "check subrange" =
   Incr.Var.set input_range (Some (Incl 0, Incl 2));
   Incr.Var.set input_map (Map.set ~key:0 ~data:"zero" (Incr.Var.value input_map));
   print_stable ();
-  [%expect {|
+  [%expect
+    {|
     ((0 zero)
      (1 one)
      (2 two))
     |}];
   Incr.Var.set input_range (Some (Incl 4, Incl 17));
   print_stable ();
-  [%expect {|
+  [%expect
+    {|
     ((4 four)
      (5 five))
     |}];
@@ -64,7 +67,8 @@ let%expect_test "check subrange" =
   [%expect {| () |}];
   Incr.Var.set input_range (Some (Incl 4, Incl 5));
   print_stable ();
-  [%expect {|
+  [%expect
+    {|
     ((4 four)
      (5 five))
     |}];
@@ -79,7 +83,8 @@ let%expect_test "check subrange" =
     input_map
     (Int.Map.of_alist_exn [ 2, "a"; 3, "b"; 4, "c"; 5, "d"; 6, "e"; 7, "f" ]);
   print_stable ();
-  [%expect {|
+  [%expect
+    {|
     ((4 c)
      (5 d))
     |}]
@@ -187,26 +192,25 @@ end
 
 let%expect_test "quickcheck ops test" =
   Expect_test_helpers_core.quickcheck
-    [%here]
     ~shrinker:Test_case.quickcheck_shrinker
     ~sexp_of:[%sexp_of: Test_case.t]
     Test_case.quickcheck_generator
     ~f:(fun { operations; initial_state; range } ->
-    let data = Incr.Var.create (initial_state, range) in
-    let incr = Incr.Var.watch data in
-    let map_incr = Incr.map incr ~f:fst in
-    let range_incr = Incr.map incr ~f:snd |> Incr.map ~f:Option.some in
-    let expect_submap, submap = setup_subrange map_incr range_incr in
-    let check () =
-      Incr.stabilize ();
-      [%test_result: int Int.Map.t]
-        ~expect:(Incr.Observer.value_exn expect_submap)
-        (Incr.Observer.value_exn submap)
-    in
-    check ();
-    List.iter operations ~f:(fun op ->
-      Incr.Var.set data (apply_op (Incr.Var.value data) op);
-      check ()));
+      let data = Incr.Var.create (initial_state, range) in
+      let incr = Incr.Var.watch data in
+      let map_incr = Incr.map incr ~f:fst in
+      let range_incr = Incr.map incr ~f:snd |> Incr.map ~f:Option.some in
+      let expect_submap, submap = setup_subrange map_incr range_incr in
+      let check () =
+        Incr.stabilize ();
+        [%test_result: int Int.Map.t]
+          ~expect:(Incr.Observer.value_exn expect_submap)
+          (Incr.Observer.value_exn submap)
+      in
+      check ();
+      List.iter operations ~f:(fun op ->
+        Incr.Var.set data (apply_op (Incr.Var.value data) op);
+        check ()));
   [%expect {| |}]
 ;;
 
@@ -548,7 +552,8 @@ let%expect_test "subrange_by_rank is consistent between lower bounds" =
   |> Map.subrange ~lower_bound:Unbounded ~upper_bound:(Incl 30)
   |> Int.Map.sexp_of_t sexp_of_unit
   |> print_s;
-  [%expect {|
+  [%expect
+    {|
     ((1 ())
      (2 ())
      (3 ()))

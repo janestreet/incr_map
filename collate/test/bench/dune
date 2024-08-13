@@ -1,6 +1,7 @@
 (executables
  (modes byte exe)
  (names incr_map_collate_bench)
- (libraries core_unix.command_unix core incr_map_collate incr_map_test)
+ (libraries core_unix.command_unix core incr_map_collate incr_map_test
+   incremental)
  (preprocess
   (pps ppx_jane)))

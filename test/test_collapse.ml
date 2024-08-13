@@ -21,7 +21,7 @@ let%test_module _ =
       let var =
         [ 0, [ 1, "a" ]; 1, [ 2, "b" ] ]
         |> List.map ~f:(fun (outer_key, inner_alist) ->
-             outer_key, Int.Map.of_alist_exn inner_alist)
+          outer_key, Int.Map.of_alist_exn inner_alist)
         |> Int.Map.of_alist_exn
         |> Incr.Var.create
       in
@@ -34,23 +34,27 @@ let%test_module _ =
         print_s [%sexp (Incr.Observer.value_exn observer : string Collapsed.Map.t)]
       in
       update_and_test ~f:Fn.id;
-      [%expect {|
+      [%expect
+        {|
         (((0 1) a)
          ((1 2) b))
         |}];
       update_and_test ~f:(fun m -> Map.add_exn m ~key:2 ~data:(Int.Map.singleton 4 "c"));
-      [%expect {|
+      [%expect
+        {|
         (((0 1) a)
          ((1 2) b)
          ((2 4) c))
         |}];
       update_and_test ~f:(fun m -> Map.remove m 1);
-      [%expect {|
+      [%expect
+        {|
         (((0 1) a)
          ((2 4) c))
         |}];
       update_and_test ~f:(fun m -> Map.set m ~key:2 ~data:(Int.Map.singleton 0 "c"));
-      [%expect {|
+      [%expect
+        {|
         (((0 1) a)
          ((2 0) c))
         |}];
@@ -58,7 +62,8 @@ let%test_module _ =
         Map.update m 2 ~f:(function
           | None -> assert false
           | Some m -> Map.add_exn m ~key:1 ~data:"asdf"));
-      [%expect {|
+      [%expect
+        {|
         (((0 1) a)
          ((2 0) c)
          ((2 1) asdf))
@@ -85,14 +90,14 @@ let%test_module _ =
       Quickcheck.test
         (Map_operations.nested_quickcheck_generator String.quickcheck_generator)
         ~f:(fun operations ->
-        Map_operations.nested_run_operations
-          operations
-          ~inner_map_comparator:(module Int)
-          ~into:var
-          ~after_stabilize:(fun () ->
-            [%test_result: string Collapsed.Map.t]
-              ~expect:(all_at_once (Incr.Var.latest_value var))
-              (Incremental.Observer.value_exn observer)))
+          Map_operations.nested_run_operations
+            operations
+            ~inner_map_comparator:(module Int)
+            ~into:var
+            ~after_stabilize:(fun () ->
+              [%test_result: string Collapsed.Map.t]
+                ~expect:(all_at_once (Incr.Var.latest_value var))
+                (Incremental.Observer.value_exn observer)))
     ;;
 
     let%test_unit "collapse expand compose" =
@@ -107,16 +112,16 @@ let%test_module _ =
       Quickcheck.test
         (Map_operations.nested_quickcheck_generator String.quickcheck_generator)
         ~f:(fun operations ->
-        Map_operations.nested_run_operations
-          operations
-          ~inner_map_comparator:(module Int)
-          ~into:var
-          ~after_stabilize:(fun () ->
-            [%test_result: string Int.Map.t Int.Map.t]
-            (* NB: outer keys that map to an empty inner map will be dropped by this
+          Map_operations.nested_run_operations
+            operations
+            ~inner_map_comparator:(module Int)
+            ~into:var
+            ~after_stabilize:(fun () ->
+              [%test_result: string Int.Map.t Int.Map.t]
+              (* NB: outer keys that map to an empty inner map will be dropped by this
                    operation. *)
-              ~expect:(Map.filter (Incr.Var.latest_value var) ~f:(Fn.non Map.is_empty))
-              (Incremental.Observer.value_exn observer)))
+                ~expect:(Map.filter (Incr.Var.latest_value var) ~f:(Fn.non Map.is_empty))
+                (Incremental.Observer.value_exn observer)))
     ;;
   end)
 ;;

@@ -89,35 +89,40 @@ let%bench_fun "50 (just stabilize)" = sequence_without_change Recombine 50
 let%expect_test "stats" =
   let stats = unstage (Stats.reporter ()) in
   stats ();
-  [%expect {|
+  [%expect
+    {|
     ((recomputed 0)
      (changed    0)
      (created    0))
     |}];
   let run = sequence_raw Recombine 50 in
   stats ();
-  [%expect {|
+  [%expect
+    {|
     ((recomputed 0)
      (changed    0)
      (created    151))
     |}];
   run ();
   stats ();
-  [%expect {|
+  [%expect
+    {|
     ((recomputed 151)
      (changed    151)
      (created    0))
     |}];
   run ();
   stats ();
-  [%expect {|
+  [%expect
+    {|
     ((recomputed 151)
      (changed    151)
      (created    0))
     |}];
   run ();
   stats ();
-  [%expect {|
+  [%expect
+    {|
     ((recomputed 151)
      (changed    151)
      (created    0))

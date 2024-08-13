@@ -9,7 +9,7 @@ let%expect_test _ =
   let i = I.return (Map.singleton (module Int) 0 "hello") in
   let (_ : _) = M.mapi i ~f:(fun ~key:_ ~data -> data) in
   let (_ : _) = Incr_map.mapi i ~f:(fun ~key:_ ~data -> data) in
-  let lookup = M.Lookup.create i ~comparator:(Map.comparator Int.Map.empty) in
+  let lookup = M.Lookup.create (module Int) i in
   let (_ : _) = M.Lookup.find lookup 0 in
   let (_ : _) = Incr_map.Lookup.find lookup 0 in
   [%expect {| |}]

@@ -17,10 +17,10 @@ let%expect_test "separate -> join" =
     in
     Map.symmetric_diff old_ new_ ~data_equal:phys_equal
     |> Sequence.iter ~f:(fun (key, change) ->
-         match change with
-         | `Left _ -> print_s [%message "removed_node" ~_:(key : string)]
-         | `Right _ -> print_s [%message "added_node" ~_:(key : string)]
-         | `Unequal _ -> failwith "Should not remake a node for a key"));
+      match change with
+      | `Left _ -> print_s [%message "removed_node" ~_:(key : string)]
+      | `Right _ -> print_s [%message "added_node" ~_:(key : string)]
+      | `Unequal _ -> failwith "Should not remake a node for a key"));
   let rejoined_map =
     Incr.observe (Incr.Map.join (Incr.Observer.observing separated_map))
   in
@@ -34,18 +34,17 @@ let%expect_test "separate -> join" =
     print_s [%message "current_map" ~_:(new_ : int String.Map.t)];
     Map.symmetric_diff old_ new_ ~data_equal:Int.equal
     |> Sequence.iter ~f:(fun (key, change) ->
-         match change with
-         | `Left x -> print_s [%message "removed" (key : string) ~_:(x : int)]
-         | `Right x -> print_s [%message "added" (key : string) ~_:(x : int)]
-         | `Unequal (from, into) ->
-           print_s [%message "changed" (key : string) (from : int) (into : int)]));
+      match change with
+      | `Left x -> print_s [%message "removed" (key : string) ~_:(x : int)]
+      | `Right x -> print_s [%message "added" (key : string) ~_:(x : int)]
+      | `Unequal (from, into) ->
+        print_s [%message "changed" (key : string) (from : int) (into : int)]));
   let run_test alist =
     Incr.Var.set input_original_map (String.Map.of_alist_exn alist);
     Incr.stabilize ();
     let original_map = Incr.Observer.value_exn original_map
     and rejoined_map = Incr.Observer.value_exn rejoined_map in
     require
-      [%here]
       ([%compare.equal: int String.Map.t] original_map rejoined_map)
       ~if_false_then_print_s:
         (lazy
@@ -57,7 +56,8 @@ let%expect_test "separate -> join" =
   run_test [];
   [%expect {| (current_map ()) |}];
   run_test [ "a", 1 ];
-  [%expect {|
+  [%expect
+    {|
     (added_node a)
     (current_map ((a 1)))
     (added (key a) 1)
@@ -168,7 +168,6 @@ let%expect_test "separate -> join (but random)" =
     let original_map = Incr.Observer.value_exn original_map
     and rejoined_map = Incr.Observer.value_exn rejoined_map in
     require
-      [%here]
       ([%compare.equal: float Int.Map.t] original_map rejoined_map)
       ~if_false_then_print_s:
         (lazy
@@ -211,24 +210,28 @@ let%expect_test "test for extra recalculations" =
   run_test [ "a", 2 ];
   [%expect {| Key a changed to 2 (was 1) |}];
   run_test [ "b", 3 ];
-  [%expect {|
+  [%expect
+    {|
     Key a invalidated
     Key b initialized to 3
     |}];
   run_test [ "b", 4 ];
   [%expect {| Key b changed to 4 (was 3) |}];
   run_test [ "a", 1; "b", 2 ];
-  [%expect {|
+  [%expect
+    {|
     Key b changed to 2 (was 4)
     Key a initialized to 1
     |}];
   run_test [ "a", 10; "b", 20 ];
-  [%expect {|
+  [%expect
+    {|
     Key b changed to 20 (was 2)
     Key a changed to 10 (was 1)
     |}];
   run_test [ "a", 100; "b", 200 ];
-  [%expect {|
+  [%expect
+    {|
     Key b changed to 200 (was 20)
     Key a changed to 100 (was 10)
     |}];
