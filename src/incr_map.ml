@@ -389,7 +389,7 @@ module Generic = struct
         empty, empty, empty
       | Some x -> x
     in
-    let apply_right output (key, diff_element) =
+    let local_ apply_right output (key, diff_element) =
       f ~old_output ~key ~output ~diff_element:(`Right diff_element)
     in
     if phys_equal old_left_map new_left_map
@@ -410,56 +410,58 @@ module Generic = struct
           old_left_map
           new_left_map
           ~data_equal:data_equal_left
-          ~f:(fun (output, right_diffs) (left_key, left_diff_element) ->
-            let rec loop
-              compare
-              ~old_output
-              ~output
-              right_diffs
-              left_key
-              left_diff_element
-              ~f
-              =
-              let[@inline] apply_left output =
-                f
-                  ~old_output
-                  ~key:left_key
-                  ~output
-                  ~diff_element:(`Left left_diff_element)
-              in
-              let[@inline] apply_right output (key, diff_element) =
-                f ~old_output ~key ~output ~diff_element:(`Right diff_element)
-              in
-              match right_diffs with
-              | None -> apply_left output, right_diffs
-              | Some (((right_key, right_diff_element) as hd), tl) ->
-                (match compare left_key right_key with
-                 | 0 ->
-                   ( f
+          ~f:
+            (local_
+            fun (output, right_diffs) (left_key, left_diff_element) ->
+              let rec local_ loop
+                compare
+                ~old_output
+                ~output
+                right_diffs
+                left_key
+                left_diff_element
+                ~f
+                =
+                let[@inline] apply_left output =
+                  f
+                    ~old_output
+                    ~key:left_key
+                    ~output
+                    ~diff_element:(`Left left_diff_element)
+                in
+                let[@inline] apply_right output (key, diff_element) =
+                  f ~old_output ~key ~output ~diff_element:(`Right diff_element)
+                in
+                match right_diffs with
+                | None -> apply_left output, right_diffs
+                | Some (((right_key, right_diff_element) as hd), tl) ->
+                  (match compare left_key right_key with
+                   | 0 ->
+                     ( f
+                         ~old_output
+                         ~key:left_key
+                         ~output
+                         ~diff_element:(`Both (left_diff_element, right_diff_element))
+                     , Sequence.next tl )
+                   | x when x > 0 ->
+                     (loop [@tailcall])
+                       compare
                        ~old_output
-                       ~key:left_key
-                       ~output
-                       ~diff_element:(`Both (left_diff_element, right_diff_element))
-                   , Sequence.next tl )
-                 | x when x > 0 ->
-                   (loop [@tailcall])
-                     compare
-                     ~old_output
-                     ~output:(apply_right output hd)
-                     (Sequence.next tl)
-                     left_key
-                     left_diff_element
-                     ~f
-                 | _ -> apply_left output, right_diffs)
-            in
-            loop
-              comparator.compare
-              ~old_output
-              ~output
-              right_diffs
-              left_key
-              left_diff_element
-              ~f [@nontail])
+                       ~output:(apply_right output hd)
+                       (Sequence.next tl)
+                       left_key
+                       left_diff_element
+                       ~f
+                   | _ -> apply_left output, right_diffs)
+              in
+              loop
+                comparator.compare
+                ~old_output
+                ~output
+                right_diffs
+                left_key
+                left_diff_element
+                ~f [@nontail])
       in
       Option.value_map right_diffs ~default:output ~f:(fun (hd, tl) ->
         Sequence.fold ~init:(apply_right output hd) tl ~f:apply_right) [@nontail])
@@ -1754,21 +1756,21 @@ module Generic = struct
       | ( ((Maybe_bound.Incl l | Maybe_bound.Excl l) as lb)
         , ((Maybe_bound.Incl u | Maybe_bound.Excl u) as ub) ) ->
         let%map key_range = find_key_range (Incremental.both l u)
-        and lb = lb
-        and ub = ub in
+        and lb
+        and ub in
         (match key_range with
          | Some (begin_key, Some end_key) -> Some (begin_key >>> lb, end_key >>> ub)
          | Some (begin_key, None) -> Some (begin_key >>> lb, Unbounded)
          | None -> None)
       | ((Maybe_bound.Incl l | Maybe_bound.Excl l) as lb), Maybe_bound.Unbounded ->
         let%map key_range = find_key_range (Incremental.both l l)
-        and lb = lb in
+        and lb in
         (match key_range with
          | Some (key, _) -> Some (key >>> lb, Unbounded)
          | None -> None)
       | Maybe_bound.Unbounded, ((Maybe_bound.Incl u | Maybe_bound.Excl u) as ub) ->
         let%map key_range = find_key_range (Incremental.both u u)
-        and ub = ub in
+        and ub in
         (match key_range with
          | Some (key, _) -> Some (Unbounded, key >>> ub)
          (* In this case, the upper bound was larger than the number of elements in the

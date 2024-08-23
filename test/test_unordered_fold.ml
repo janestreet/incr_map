@@ -5,11 +5,10 @@ open! Import
 let unordered_fold (type a) ~data_equal ?specialized_initial m ~(init : a) ~add ~remove =
   let a = Incr.Map.unordered_fold ~data_equal ?specialized_initial m ~init ~add ~remove in
   let b =
-    let%map m = m in
+    let%map m in
     Map.fold ~init ~f:add m
   in
-  let%map a = a
-  and b = b in
+  let%map a and b in
   require (data_equal a b);
   a
 ;;

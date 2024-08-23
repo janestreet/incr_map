@@ -17,8 +17,7 @@ let%test_unit "merge_both_some" =
         Incr_map.merge_both_some watch_m1 watch_m2 ~f:(fun ~key:_ v1 v2 -> v1 + v2)
       in
       let slow =
-        let%map watch_m1 = watch_m1
-        and watch_m2 = watch_m2 in
+        let%map watch_m1 and watch_m2 in
         Map.merge watch_m1 watch_m2 ~f:(fun ~key:_ -> function
           | `Left _ | `Right _ -> None
           | `Both (a, b) -> Some (a + b))

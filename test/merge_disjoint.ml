@@ -36,8 +36,7 @@ let%test_unit "merge_disjoint" =
       in
       let fast = Incr_map.merge_disjoint watch_m1 watch_m2 in
       let slow =
-        let%map watch_m1 = watch_m1
-        and watch_m2 = watch_m2 in
+        let%map watch_m1 and watch_m2 in
         Map.merge watch_m1 watch_m2 ~f:(fun ~key:_ -> function
           | `Left x | `Right x -> Some x
           | `Both _ -> assert false)

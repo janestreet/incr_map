@@ -31,7 +31,7 @@ let%test_module "random tests" =
     (* [incr_map_merge'] is the second [Incr.Map] function being tested *)
     let incr_map_merge' map1 map2 =
       Incr.Map.merge' map1 map2 ~f:(fun ~key diff ->
-        let%map diff = diff in
+        let%map diff in
         f ~incr_counters:true ~key diff)
     ;;
 

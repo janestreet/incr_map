@@ -18,7 +18,7 @@ let%test_module _ =
     ;;
 
     let sum_nested_maps_all_at_once map =
-      let%map map = map in
+      let%map map in
       Map.fold
         ~init:0
         ~f:(fun ~key:_ ~data:inner_map acc ->

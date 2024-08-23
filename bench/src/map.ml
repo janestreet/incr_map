@@ -88,7 +88,7 @@ module _ = M (struct
 
     let f map =
       Incr_map.mapi' map ~f:(fun ~key ~data ->
-        let%map data = data in
+        let%map data in
         key + data)
       >>| Map.length
     ;;

@@ -23,7 +23,7 @@ module Make_test (S : S) = struct
         ~data_equal_right:Int.equal
         (Incr.Var.watch m)
         ~f:(fun ~key:_ ~data:x ->
-          ( (let%map x = x in
+          ( (let%map x in
              let y = x * x in
              if y > 10 then Some y else None)
           , x ))
@@ -70,7 +70,7 @@ module Make_test (S : S) = struct
         let m = Incr.Var.create Int.Map.empty in
         let watch_m = Incr.Var.watch m
         and f ~key ~data =
-          ( (let%map data = data in
+          ( (let%map data in
              let y = data * data in
              Option.some_if (key + y > 33) y)
           , data )
@@ -128,10 +128,10 @@ module Make_test (S : S) = struct
       let benchmark_unzip_mapi' unzip_mapi' ~operations =
         let var = Incr.Var.create Int.Map.empty
         and f ~key ~data =
-          ( (let%map data = data in
+          ( (let%map data in
              let y = data * data in
              Option.some_if (key + y > 33) y)
-          , let%map data = data in
+          , let%map data in
             data + 20 )
         in
         let left, right =
@@ -195,14 +195,12 @@ module Unzip_mapi_prime = struct
       Incr.Map.map paired ~f:fst, Incr.Map.map paired ~f:snd
     in
     let left =
-      let%map a_left = a_left
-      and b_left = b_left in
+      let%map a_left and b_left in
       require (Map.equal data_equal_left a_left b_left);
       a_left
     in
     let right =
-      let%map a_right = a_right
-      and b_right = b_right in
+      let%map a_right and b_right in
       require (Map.equal data_equal_right a_right b_right);
       a_right
     in
@@ -222,14 +220,12 @@ module Unzip = struct
     let a_left, a_right = Incr.Map.unzip m in
     let b_left, b_right = Incr.Map.map m ~f:fst, Incr.Map.map m ~f:snd in
     let left =
-      let%map a_left = a_left
-      and b_left = b_left in
+      let%map a_left and b_left in
       require (Map.equal data_equal_left a_left b_left);
       a_left
     in
     let right =
-      let%map a_right = a_right
-      and b_right = b_right in
+      let%map a_right and b_right in
       require (Map.equal data_equal_right a_right b_right);
       a_right
     in
