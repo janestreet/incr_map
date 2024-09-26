@@ -85,10 +85,10 @@ module Incr_collated_map = struct
     let open Incremental.Let_syntax in
     match t with
     | Original m ->
-      let%map m = m in
+      let%map m in
       fun key -> Map.rank m key
     | Sorted (m, key_comparator) ->
-      let%map m = m in
+      let%map m in
       fun key ->
         let compare = key_comparator.compare in
         Map.to_sequence m
@@ -296,7 +296,7 @@ let do_key_range_restrict
        | Between (k, _) | From k ->
          let closest =
            let%map key = k
-           and map = map in
+           and map in
            Map.closest_key map `Less_or_equal_to key
          in
          (match%pattern_bind closest with
@@ -307,8 +307,7 @@ let do_key_range_restrict
        | All_rows | To _ -> none
        | Between (k, _) | From k ->
          let v =
-           let%map orig_map = orig_map
-           and k = k in
+           let%map orig_map and k in
            Map.find orig_map k
          in
          (match%pattern_bind v with
@@ -316,8 +315,8 @@ let do_key_range_restrict
           | Some v ->
             let closest =
               let%map key = k
-              and v = v
-              and map = map in
+              and v
+              and map in
               Map.closest_key map `Less_or_equal_to (key, v)
             in
             (match%pattern_bind closest with
@@ -328,14 +327,13 @@ let do_key_range_restrict
   match data with
   | Original data ->
     let lookup k =
-      let%map k = k in
+      let%map k in
       Maybe_bound.Incl k
     in
     Original (resolve_range_and_do data ~lookup), count_before
   | Sorted (data, key_cmp) ->
     let lookup k =
-      let%map orig_map = orig_map
-      and k = k in
+      let%map orig_map and k in
       match Map.find orig_map k with
       | None -> Maybe_bound.Unbounded
       | Some v -> Maybe_bound.Incl (k, v)
@@ -411,13 +409,13 @@ let do_range_restrict orig_data data ~key_range ~rank_range =
   let data, count_before_range_rank = do_rank_range_restrict_and_rank data ~rank_range in
   let data = do_to_pos_map data in
   let collated =
-    let%map data = data
+    let%map data
     and num_unfiltered_rows = orig_data >>| Map.length
-    and num_filtered_rows = num_filtered_rows
-    and key_range = key_range
-    and rank_range = rank_range
-    and count_before_key_rank = count_before_key_rank
-    and count_before_range_rank = count_before_range_rank in
+    and num_filtered_rows
+    and key_range
+    and rank_range
+    and count_before_key_rank
+    and count_before_range_rank in
     let num_before_range = count_before_key_rank + count_before_range_rank in
     Collated.Private.create
       ~data
@@ -451,32 +449,32 @@ let collate_and_maybe_fold
     let orig_data = data in
     match operation_order with
     | `Filter_first ->
-      let%bind filter = filter in
+      let%bind filter in
       let predicate = filter_to_predicate filter in
       let data = do_filter data ~predicate in
       let fold_result =
         do_fold (Original data) ~incremental_state ~in_scope:(fun f -> f ()) ~fold_action
       in
-      let%bind order = order in
+      let%bind order in
       let compare = order_to_compare order in
       let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
       let data = do_sort data ~map_comparator ~custom_comparator in
       let%mapn out = do_range_restrict orig_data data ~key_range ~rank_range
-      and fold_result = fold_result in
+      and fold_result in
       out, fold_result
     | `Sort_first ->
-      let%bind order = order in
+      let%bind order in
       let compare = order_to_compare order in
       let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
       let data = do_sort data ~map_comparator ~custom_comparator in
-      let%bind filter = filter in
+      let%bind filter in
       let predicate = filter_to_predicate filter in
       let data = do_filter_sorted data ~predicate in
       let fold_result =
         do_fold data ~incremental_state ~in_scope:(fun f -> f ()) ~fold_action
       in
       let%mapn out = do_range_restrict orig_data data ~key_range ~rank_range
-      and fold_result = fold_result in
+      and fold_result in
       out, fold_result
   in
   { collated; key_rank; fold_result }
@@ -572,8 +570,7 @@ module With_caching = struct
 
            We also keep a cache of a few least recently used buckets.
         *)
-        let%map key_range = key_range
-        and rank_range = rank_range in
+        let%map key_range and rank_range in
         Range_memoize_bucket.create
           ~bucket_size:range_memoize_bucket_size
           ~key_range
@@ -582,9 +579,7 @@ module With_caching = struct
       let orig_data = data in
       let scope = Incremental.Scope.current incremental_state () in
       let in_scope f = Incremental.Scope.within incremental_state scope ~f in
-      let%bind order = order
-      and filter = filter
-      and range_bucket = range_bucket in
+      let%bind order and filter and range_bucket in
       (* This line causes the computation below to always be executed. This is fine,
          as it consists only of cache lookups, which are cheap. And we want to execute
          them to get more accurate LRU caches & hooks behaviour. *)

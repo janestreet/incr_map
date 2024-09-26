@@ -6,11 +6,10 @@ open Import
 let filter_mapi ~data_equal m ~f =
   let a = Incr.Map.filter_mapi ~data_equal m ~f in
   let b =
-    let%map m = m in
+    let%map m in
     Map.filter_mapi ~f:(fun ~key ~data -> f ~key ~data) m
   in
-  let%map a = a
-  and b = b in
+  let%map a and b in
   require (Map.equal data_equal a b);
   a
 ;;

@@ -15,7 +15,7 @@ let%test_unit "rekey random test" =
           ~f:(fun ~key ~data:_ -> Int.to_string key)
       in
       let slow =
-        let%map watch_m = watch_m in
+        let%map watch_m in
         watch_m
         |> Map.to_alist
         |> List.map ~f:(fun (k, v) -> Int.to_string k, v)

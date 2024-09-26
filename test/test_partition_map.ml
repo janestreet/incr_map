@@ -79,7 +79,7 @@ let%test_module "partition_mapi'" =
     ;;
 
     let incr_f ~key ~data =
-      let%map data = data in
+      let%map data in
       f ~key ~data
     ;;
 

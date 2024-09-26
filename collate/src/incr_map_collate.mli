@@ -42,7 +42,7 @@ type ('k, 'v, 'fold_result, 'w) t
     require users to provide ['filter] and ['order] opaque types in [Collate.t], and
     ways to convert them to predicate & compare here.
 
-    It is done this way for better interaction with [Incr]. We belive that most users
+    It is done this way for better interaction with [Incr]. We believe that most users
     would have such types, being simple algebraic data types, anyways. You can always
     set e.g. [filter_to_predicate=Fn.id], and just pass the functions directly, but be
     prepared to explore the fascinating world of functions' physical equality. *)

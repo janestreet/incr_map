@@ -448,6 +448,14 @@ module type S_gen = sig
     -> comparator:('combined_key, 'combined_cmp) Comparator.Module.t
     -> ('combined_key, 'v, 'combined_cmp) Map.t Incr.t
 
+  val collapse_by_loosened_requirements
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
+    -> ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t Incr.t
+    -> merge_keys:('outer_key -> 'inner_key -> 'combined_key)
+    -> comparator:('combined_key, 'combined_cmp) Comparator.Module.t
+    -> ('combined_key, 'v, 'combined_cmp) Map.t Incr.t
+
   val expand
     :  ?instrumentation:Instrumentation.t
     -> ?data_equal:('v -> 'v -> bool)
@@ -1191,6 +1199,31 @@ module type Incr_map = sig
       [ ~comparator:(module Combined_key) ]
       but make sure that the module implements the [Comparator.S] signature. *)
   val collapse_by
+    :  ?instrumentation:Instrumentation.t
+    -> ?data_equal:('v -> 'v -> bool)
+    -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t
+         , 'w )
+         Incremental.t
+    -> merge_keys:('outer_key -> 'inner_key -> 'combined_key)
+    -> comparator:('combined_key, 'combined_cmp) Comparator.Module.t
+    -> (('combined_key, 'v, 'combined_cmp) Map.t, 'w) Incremental.t
+
+  (** Just like [collapse_by] but instead of the user-upheld invariant being 
+
+      > a merged-key being equal to another merged-key implies that the
+      > outer-keys and inner-keys which were used to build the merged keys also
+      > compare to be equal to one another
+
+      the invariant is instead 
+
+      > the input map must contain no duplicate combined keys at any point in time
+
+      This invariant is easier to uphold, but is slightly slower, as 
+      [collapse_by_loosened_requirements] needs to do some extra bookkeeping.
+      In addition, this function makes no attempt at enforcing this invariant;
+      if the input does contain duplicate combined keys, the resulting map may
+      contain incorrect data. *)
+  val collapse_by_loosened_requirements
     :  ?instrumentation:Instrumentation.t
     -> ?data_equal:('v -> 'v -> bool)
     -> ( ('outer_key, ('inner_key, 'v, 'inner_cmp) Map.t, 'outer_cmp) Map.t

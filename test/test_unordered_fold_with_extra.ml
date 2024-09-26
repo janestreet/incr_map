@@ -25,12 +25,10 @@ let unordered_fold_with_extra
       ~extra_changed
   in
   let b =
-    let%map m = m
-    and extra = extra in
+    let%map m and extra in
     Map.fold m ~init ~f:(fun ~key ~data acc -> add ~key ~data acc extra)
   in
-  let%map a = a
-  and b = b in
+  let%map a and b in
   require (acc_equal a b);
   a
 ;;

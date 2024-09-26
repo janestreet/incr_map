@@ -25,16 +25,14 @@ module Make_test (S : S) = struct
         ~data_equal_right:Int.equal
         (Incr.Var.watch var)
         ~f:(fun ~key:_ ~data:x ->
-          ( (let%map x = x in
+          ( (let%map x in
              let y = x * x in
              if y > 10 then Some y else None)
           , Incr.map x ~f:Int.to_string
           , x ))
     in
     let obs =
-      (let%map l = l
-       and m = m
-       and r = r in
+      (let%map l and m and r in
        l, m, r)
       |> Incr.observe
     in
@@ -88,7 +86,7 @@ module Make_test (S : S) = struct
       ~f:(fun operations ->
         let var = Incr.Var.create Int.Map.empty in
         let f ~key ~data =
-          ( (let%map data = data in
+          ( (let%map data in
              let y = data * data in
              Option.some_if (key + y > 33) y)
           , data >>| Int.to_string
@@ -106,9 +104,7 @@ module Make_test (S : S) = struct
           let paired =
             Incr.Map.mapi' (Incr.Var.watch var) ~f:(fun ~key ~data ->
               let left, middle, right = f ~key ~data in
-              let%map left = left
-              and middle = middle
-              and right = right in
+              let%map left and middle and right in
               left, middle, right)
           in
           ( Incr.Map.map paired ~f:Tuple3.get1
@@ -150,9 +146,7 @@ module Unzip_mapi_prime = struct
       let paired =
         Incr.Map.mapi' m ~f:(fun ~key ~data ->
           let left, middle, right = f ~key ~data in
-          let%map left = left
-          and middle = middle
-          and right = right in
+          let%map left and middle and right in
           left, middle, right)
       in
       ( Incr.Map.map paired ~f:Tuple3.get1
@@ -160,20 +154,17 @@ module Unzip_mapi_prime = struct
       , Incr.Map.map paired ~f:Tuple3.get3 )
     in
     let left =
-      let%map a_left = a_left
-      and b_left = b_left in
+      let%map a_left and b_left in
       require (Map.equal data_equal_left a_left b_left);
       a_left
     in
     let middle =
-      let%map a_middle = a_middle
-      and b_middle = b_middle in
+      let%map a_middle and b_middle in
       require (Map.equal data_equal_middle a_middle b_middle);
       a_middle
     in
     let right =
-      let%map a_right = a_right
-      and b_right = b_right in
+      let%map a_right and b_right in
       require (Map.equal data_equal_right a_right b_right);
       a_right
     in

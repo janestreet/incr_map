@@ -44,7 +44,7 @@ module Generic = struct
           | `Unequal (_old, new_value) -> Map.set acc ~key ~data:new_value))
   ;;
 
-  let unordered_fold
+  let unordered_fold_with_comparator
     ~instrumentation
     ?(data_equal = phys_equal)
     ?update
@@ -57,18 +57,19 @@ module Generic = struct
     ~remove
     =
     let update =
-      let default ~key ~old_data ~new_data acc =
-        add ~key ~data:new_data (remove ~key ~data:old_data acc)
+      let default ~cmp ~key ~old_data ~new_data acc =
+        add ~cmp ~key ~data:new_data (remove ~cmp ~key ~data:old_data acc)
       in
       Option.value update ~default
     in
     with_old ~instrumentation map ~f:(fun ~old new_in ->
+      let cmp = Map.comparator new_in in
       let acc =
         match old with
         | None ->
           (match specialized_initial with
-           | None -> Map.fold ~init ~f:add new_in
-           | Some initial -> initial ~init new_in)
+           | None -> Map.fold ~init ~f:(add ~cmp) new_in
+           | Some initial -> initial ~cmp ~init new_in)
         | Some (old_in, old_out) ->
           if revert_to_init_when_empty && Map.length new_in = 0
           then init
@@ -80,14 +81,47 @@ module Generic = struct
               ~data_equal
               ~f:(fun acc (key, change) ->
                 match change with
-                | `Left old -> remove ~key ~data:old acc
-                | `Right new_ -> add ~key ~data:new_ acc
-                | `Unequal (old, new_) -> update ~key ~old_data:old ~new_data:new_ acc)
+                | `Left old -> remove ~cmp ~key ~data:old acc
+                | `Right new_ -> add ~cmp ~key ~data:new_ acc
+                | `Unequal (old, new_) ->
+                  update ~cmp ~key ~old_data:old ~new_data:new_ acc)
       in
       finalize acc)
   ;;
 
-  let unordered_fold_nested_maps
+  let unordered_fold
+    ~instrumentation
+    ?data_equal
+    ?update
+    ?specialized_initial
+    ?finalize
+    ?revert_to_init_when_empty
+    map
+    ~init
+    ~add
+    ~remove
+    =
+    let add ~cmp:_ = add in
+    let remove ~cmp:_ = remove in
+    let update = Option.map update ~f:(fun update ~cmp:_ -> update) in
+    let specialized_initial =
+      Option.map specialized_initial ~f:(fun specialized_initial ~cmp:_ ->
+        specialized_initial)
+    in
+    unordered_fold_with_comparator
+      ~instrumentation
+      ?data_equal
+      ?update
+      ?specialized_initial
+      ?finalize
+      ?revert_to_init_when_empty
+      map
+      ~init
+      ~add
+      ~remove
+  ;;
+
+  let unordered_fold_nested_maps_with_comparators
     ~instrumentation
     ?(data_equal = phys_equal)
     ?revert_to_init_when_empty
@@ -101,33 +135,72 @@ module Generic = struct
       match update with
       | Some update -> update
       | None ->
-        fun ~outer_key ~inner_key ~old_data ~new_data acc ->
+        fun ~outer_cmp ~inner_cmp ~outer_key ~inner_key ~old_data ~new_data acc ->
           add
+            ~outer_cmp
+            ~inner_cmp
             ~outer_key
             ~inner_key
             ~data:new_data
-            (remove ~outer_key ~inner_key ~data:old_data acc)
+            (remove ~outer_cmp ~inner_cmp ~outer_key ~inner_key ~data:old_data acc)
     in
-    unordered_fold
+    unordered_fold_with_comparator
       incr_map
       ~instrumentation
       ?revert_to_init_when_empty
       ~init
-      ~update:(fun ~key:outer_key ~old_data:old_inner_map ~new_data:new_inner_map acc ->
+      ~update:
+        (fun
+          ~cmp:outer_cmp
+          ~key:outer_key
+          ~old_data:old_inner_map
+          ~new_data:new_inner_map
+          acc
+        ->
+        let inner_cmp = Map.comparator new_inner_map in
         (Map.fold_symmetric_diff old_inner_map new_inner_map ~data_equal)
           ~init:acc
           ~f:(fun acc (inner_key, diff) ->
             match diff with
-            | `Left data_removed -> remove ~outer_key ~inner_key ~data:data_removed acc
-            | `Right data_added -> add ~outer_key ~inner_key ~data:data_added acc
+            | `Left data_removed ->
+              remove ~outer_cmp ~inner_cmp ~outer_key ~inner_key ~data:data_removed acc
+            | `Right data_added ->
+              add ~outer_cmp ~inner_cmp ~outer_key ~inner_key ~data:data_added acc
             | `Unequal (old_data, new_data) ->
-              update ~outer_key ~inner_key ~old_data ~new_data acc) [@nontail])
-      ~add:(fun ~key:outer_key ~data:inner_map acc ->
+              update ~outer_cmp ~inner_cmp ~outer_key ~inner_key ~old_data ~new_data acc) [@nontail
+                                                                                          ])
+      ~add:(fun ~cmp:outer_cmp ~key:outer_key ~data:inner_map acc ->
+        let inner_cmp = Map.comparator inner_map in
         Map.fold inner_map ~init:acc ~f:(fun ~key:inner_key ~data acc ->
-          add ~outer_key ~inner_key ~data acc))
-      ~remove:(fun ~key:outer_key ~data:inner_map acc ->
+          add ~outer_cmp ~inner_cmp ~outer_key ~inner_key ~data acc))
+      ~remove:(fun ~cmp:outer_cmp ~key:outer_key ~data:inner_map acc ->
+        let inner_cmp = Map.comparator inner_map in
         Map.fold inner_map ~init:acc ~f:(fun ~key:inner_key ~data acc ->
-          remove ~outer_key ~inner_key ~data acc))
+          remove ~outer_cmp ~inner_cmp ~outer_key ~inner_key ~data acc))
+  ;;
+
+  let unordered_fold_nested_maps
+    ~instrumentation
+    ?data_equal
+    ?revert_to_init_when_empty
+    ?update
+    incr_map
+    ~init
+    ~add
+    ~remove
+    =
+    let add ~outer_cmp:_ ~inner_cmp:_ = add in
+    let remove ~outer_cmp:_ ~inner_cmp:_ = remove in
+    let update = Option.map update ~f:(fun update ~outer_cmp:_ ~inner_cmp:_ -> update) in
+    unordered_fold_nested_maps_with_comparators
+      ~instrumentation
+      ?data_equal
+      ?revert_to_init_when_empty
+      ?update
+      incr_map
+      ~init
+      ~add
+      ~remove
   ;;
 
   let with_comparator' ~comparator get_comparator x f =
@@ -1754,21 +1827,21 @@ module Generic = struct
       | ( ((Maybe_bound.Incl l | Maybe_bound.Excl l) as lb)
         , ((Maybe_bound.Incl u | Maybe_bound.Excl u) as ub) ) ->
         let%map key_range = find_key_range (Incremental.both l u)
-        and lb = lb
-        and ub = ub in
+        and lb
+        and ub in
         (match key_range with
          | Some (begin_key, Some end_key) -> Some (begin_key >>> lb, end_key >>> ub)
          | Some (begin_key, None) -> Some (begin_key >>> lb, Unbounded)
          | None -> None)
       | ((Maybe_bound.Incl l | Maybe_bound.Excl l) as lb), Maybe_bound.Unbounded ->
         let%map key_range = find_key_range (Incremental.both l l)
-        and lb = lb in
+        and lb in
         (match key_range with
          | Some (key, _) -> Some (key >>> lb, Unbounded)
          | None -> None)
       | Maybe_bound.Unbounded, ((Maybe_bound.Incl u | Maybe_bound.Excl u) as ub) ->
         let%map key_range = find_key_range (Incremental.both u u)
-        and ub = ub in
+        and ub in
         (match key_range with
          | Some (key, _) -> Some (Unbounded, key >>> ub)
          (* In this case, the upper bound was larger than the number of elements in the
@@ -1857,6 +1930,48 @@ module Generic = struct
         Map.add_exn acc ~key:(merge_keys outer_key inner_key) ~data)
       ~remove:(fun ~outer_key ~inner_key ~data:_ acc ->
         Map.remove acc (merge_keys outer_key inner_key))
+  ;;
+
+  let collapse_by_loosened_requirements
+    (type outer_key outer_cmp inner_key inner_cmp combined_key combined_cmp)
+    ?(instrumentation = no_instrumentation)
+    ?data_equal
+    (map_incr :
+      ((outer_key, (inner_key, _, inner_cmp) Map.t, outer_cmp) Map.t, _) Incremental.t)
+    ~(merge_keys : outer_key -> inner_key -> combined_key)
+    ~(comparator : (combined_key, combined_cmp) Comparator.Module.t)
+    =
+    unordered_fold_nested_maps_with_comparators
+      ~instrumentation
+      ?data_equal
+      map_incr
+      ~init:(Map.empty comparator)
+      ~revert_to_init_when_empty:true
+      ~update:
+        (fun
+          ~outer_cmp:_ ~inner_cmp:_ ~outer_key ~inner_key ~old_data:_ ~new_data acc ->
+        Map.set
+          acc
+          ~key:(merge_keys outer_key inner_key)
+          ~data:(outer_key, inner_key, new_data))
+      ~add:(fun ~outer_cmp:_ ~inner_cmp:_ ~outer_key ~inner_key ~data acc ->
+        Map.set
+          acc
+          ~key:(merge_keys outer_key inner_key)
+          ~data:(outer_key, inner_key, data))
+      ~remove:(fun ~outer_cmp ~inner_cmp ~outer_key ~inner_key ~data:_ acc ->
+        let merged_keys = merge_keys outer_key inner_key in
+        Map.change acc merged_keys ~f:(function
+          | None -> None
+          | Some ((prev_outer_key, prev_inner_key, _) as prev) ->
+            if outer_cmp.compare prev_outer_key outer_key = 0
+               && inner_cmp.compare prev_inner_key inner_key = 0
+            then None
+            else
+              (* if the outer and inner keys aren't the same, then that's because the same
+              merged-key has been added in the meantime, so we don't need to remove anything *)
+              Some prev))
+    |> map ~f:(fun (_, _, data) -> data)
   ;;
 
   let collapse
