@@ -182,115 +182,112 @@ let%expect_test "check filter_mapi' against actual filter_mapi" =
     |}]
 ;;
 
-let%test_module "random tests on filter and non-filter mapping functions" =
-  (module struct
-    module Filtering_or_not = struct
-      type t =
-        | Just_mapping
-        | Filter_mapping
-      [@@deriving enumerate]
-    end
-
-    type filtering_or_not = Filtering_or_not.t =
+module%test [@name "random tests on filter and non-filter mapping functions"] _ = struct
+  module Filtering_or_not = struct
+    type t =
       | Just_mapping
       | Filter_mapping
+    [@@deriving enumerate]
+  end
 
-    (* [f_count] is a counter used to keep track of how many times [f] is called by
+  type filtering_or_not = Filtering_or_not.t =
+    | Just_mapping
+    | Filter_mapping
+
+  (* [f_count] is a counter used to keep track of how many times [f] is called by
        [Incr.Map.filter_mapi] / [Incr.Map.filter_mapi'] *)
-    let f_count = ref 0
+  let f_count = ref 0
 
-    (* [f] is the argument given to the [Just_mapping] functions *)
-    let f key data = sprintf "%d: %f" key data
+  (* [f] is the argument given to the [Just_mapping] functions *)
+  let f key data = sprintf "%d: %f" key data
 
-    (* [f] is the argument given to the [Filter_mapping] functions:
+  (* [f] is the argument given to the [Filter_mapping] functions:
        [Map.filter_mapi] and [Incr.Map.filter_mapi], [Incr.Map.filter_mapi'] *)
-    let f_opt key data =
-      if key % 2 = 0 && Float.O.(data > 0.5) then None else Some (f key data)
-    ;;
+  let f_opt key data =
+    if key % 2 = 0 && Float.O.(data > 0.5) then None else Some (f key data)
+  ;;
 
-    (* [incr_map_mapping_i], [incr_map_mapping_i'_with_map], and
+  (* [incr_map_mapping_i], [incr_map_mapping_i'_with_map], and
        [incr_map_mapping_i'_with_bind] are different versions of the [Incr.Map] function
        being tested.  *)
-    let incr_map_mapping_i map = function
-      | Just_mapping ->
-        Incr.Map.mapi map ~f:(fun ~key ~data ->
+  let incr_map_mapping_i map = function
+    | Just_mapping ->
+      Incr.Map.mapi map ~f:(fun ~key ~data ->
+        incr f_count;
+        f key data)
+    | Filter_mapping ->
+      Incr.Map.filter_mapi map ~f:(fun ~key ~data ->
+        incr f_count;
+        f_opt key data)
+  ;;
+
+  let incr_map_mapping_i'_with_map ?cutoff map = function
+    | Just_mapping ->
+      Incr.Map.mapi' ?cutoff map ~f:(fun ~key ~data:value_incr ->
+        Incr.map value_incr ~f:(fun data ->
           incr f_count;
-          f key data)
-      | Filter_mapping ->
-        Incr.Map.filter_mapi map ~f:(fun ~key ~data ->
+          f key data))
+    | Filter_mapping ->
+      Incr.Map.filter_mapi' ?cutoff map ~f:(fun ~key ~data:value_incr ->
+        Incr.map value_incr ~f:(fun data ->
           incr f_count;
-          f_opt key data)
-    ;;
+          f_opt key data))
+  ;;
 
-    let incr_map_mapping_i'_with_map ?cutoff map = function
-      | Just_mapping ->
-        Incr.Map.mapi' ?cutoff map ~f:(fun ~key ~data:value_incr ->
-          Incr.map value_incr ~f:(fun data ->
-            incr f_count;
-            f key data))
-      | Filter_mapping ->
-        Incr.Map.filter_mapi' ?cutoff map ~f:(fun ~key ~data:value_incr ->
-          Incr.map value_incr ~f:(fun data ->
-            incr f_count;
-            f_opt key data))
-    ;;
+  let incr_map_mapping_i'_with_bind ?cutoff map = function
+    | Just_mapping ->
+      Incr.Map.mapi' ?cutoff map ~f:(fun ~key ~data:value_incr ->
+        Incr.bind value_incr ~f:(fun data ->
+          incr f_count;
+          Incr.return (f key data)))
+    | Filter_mapping ->
+      Incr.Map.filter_mapi' ?cutoff map ~f:(fun ~key ~data:value_incr ->
+        Incr.bind value_incr ~f:(fun data ->
+          incr f_count;
+          Incr.return (f_opt key data)))
+  ;;
 
-    let incr_map_mapping_i'_with_bind ?cutoff map = function
-      | Just_mapping ->
-        Incr.Map.mapi' ?cutoff map ~f:(fun ~key ~data:value_incr ->
-          Incr.bind value_incr ~f:(fun data ->
-            incr f_count;
-            Incr.return (f key data)))
-      | Filter_mapping ->
-        Incr.Map.filter_mapi' ?cutoff map ~f:(fun ~key ~data:value_incr ->
-          Incr.bind value_incr ~f:(fun data ->
-            incr f_count;
-            Incr.return (f_opt key data)))
-    ;;
+  (* [map_mapping_i] is the equivalent [Map] function that we test against *)
+  let map_mapping_i map = function
+    | Just_mapping -> Map.mapi map ~f:(fun ~key ~data -> f key data)
+    | Filter_mapping -> Map.filter_mapi map ~f:(fun ~key ~data -> f_opt key data)
+  ;;
 
-    (* [map_mapping_i] is the equivalent [Map] function that we test against *)
-    let map_mapping_i map = function
-      | Just_mapping -> Map.mapi map ~f:(fun ~key ~data -> f key data)
-      | Filter_mapping -> Map.filter_mapi map ~f:(fun ~key ~data -> f_opt key data)
-    ;;
-
-    (* Stabilize and test the result as follows:
+  (* Stabilize and test the result as follows:
        - reset the counters to 0
        - call [Incr.stabilize ()]
        - check the value of [result_incr]
        - check the counter values
-    *)
-    let stabilize_and_test_result ~map_obs ~result_obs ~old_map ~new_map ~mapping =
-      let reset_counter () = f_count := 0 in
-      let test_value () =
-        (* Since [result_incr] was obtained as [incr_map_mapping_i_fn map_incr], check
+  *)
+  let stabilize_and_test_result ~map_obs ~result_obs ~old_map ~new_map ~mapping =
+    let reset_counter () = f_count := 0 in
+    let test_value () =
+      (* Since [result_incr] was obtained as [incr_map_mapping_i_fn map_incr], check
            that the value of [result_incr] is equal to the result of applying the
            equivalent function [map_mapping_i] directly to the value of [map_incr]
-        *)
-        [%test_result: string Int.Map.t]
-          (Incr.Observer.value_exn result_obs)
-          ~expect:(map_mapping_i (Incr.Observer.value_exn map_obs) mapping)
+      *)
+      [%test_result: string Int.Map.t]
+        (Incr.Observer.value_exn result_obs)
+        ~expect:(map_mapping_i (Incr.Observer.value_exn map_obs) mapping)
+    in
+    let test_counter ~old_map ~new_map =
+      (* It is expected that [f] is called exactly once for each new or changed entry *)
+      let expect =
+        let symmetric_diff = Map.symmetric_diff old_map new_map ~data_equal:phys_equal in
+        Sequence.fold symmetric_diff ~init:0 ~f:(fun acc (_, diff) ->
+          match diff with
+          | `Left _ -> acc
+          | `Right _ | `Unequal _ -> acc + 1)
       in
-      let test_counter ~old_map ~new_map =
-        (* It is expected that [f] is called exactly once for each new or changed entry *)
-        let expect =
-          let symmetric_diff =
-            Map.symmetric_diff old_map new_map ~data_equal:phys_equal
-          in
-          Sequence.fold symmetric_diff ~init:0 ~f:(fun acc (_, diff) ->
-            match diff with
-            | `Left _ -> acc
-            | `Right _ | `Unequal _ -> acc + 1)
-        in
-        [%test_result: int] !f_count ~expect
-      in
-      reset_counter ();
-      Incr.stabilize ();
-      test_value ();
-      test_counter ~old_map ~new_map
-    ;;
+      [%test_result: int] !f_count ~expect
+    in
+    reset_counter ();
+    Incr.stabilize ();
+    test_value ();
+    test_counter ~old_map ~new_map
+  ;;
 
-    (* [Incr.Map.filter_mapi] and [Incr.Map.filter_mapi'] are tested as follows:
+  (* [Incr.Map.filter_mapi] and [Incr.Map.filter_mapi'] are tested as follows:
 
        First, create [map_incr] of type [float Int.Map.t Incr.t] with initial value [map].
 
@@ -301,233 +298,232 @@ let%test_module "random tests on filter and non-filter mapping functions" =
 
        Every [stabilize_every_n] steps, stabilize and check the result (see
        [stabilize_and_test_result] for details).
-    *)
-    let test_mapping_i map ~steps ~stabilize_every_n ~incr_map_mapping_i_fn =
-      List.iter Filtering_or_not.all ~f:(fun mapping ->
-        let map_var = Incr.Var.create map in
-        let map_incr = Incr.Var.watch map_var in
-        let map_obs = Incr.observe map_incr in
-        let result_incr = incr_map_mapping_i_fn map_incr mapping in
-        let result_obs = Incr.observe result_incr in
-        stabilize_and_test_result
-          ~map_obs
-          ~result_obs
-          ~old_map:Int.Map.empty
-          ~new_map:map
-          ~mapping;
-        let old_map = ref map in
-        List.fold (List.range 0 steps) ~init:map ~f:(fun map i ->
-          let map = Rand_map_helper.rand_modify_map map in
-          if i % stabilize_every_n = 0
-          then (
-            Incr.Var.set map_var map;
-            stabilize_and_test_result
-              ~map_obs
-              ~result_obs
-              ~old_map:!old_map
-              ~new_map:map
-              ~mapping;
-            old_map := map);
-          map)
-        |> fun _map -> ())
-    ;;
+  *)
+  let test_mapping_i map ~steps ~stabilize_every_n ~incr_map_mapping_i_fn =
+    List.iter Filtering_or_not.all ~f:(fun mapping ->
+      let map_var = Incr.Var.create map in
+      let map_incr = Incr.Var.watch map_var in
+      let map_obs = Incr.observe map_incr in
+      let result_incr = incr_map_mapping_i_fn map_incr mapping in
+      let result_obs = Incr.observe result_incr in
+      stabilize_and_test_result
+        ~map_obs
+        ~result_obs
+        ~old_map:Int.Map.empty
+        ~new_map:map
+        ~mapping;
+      let old_map = ref map in
+      List.fold (List.range 0 steps) ~init:map ~f:(fun map i ->
+        let map = Rand_map_helper.rand_modify_map map in
+        if i % stabilize_every_n = 0
+        then (
+          Incr.Var.set map_var map;
+          stabilize_and_test_result
+            ~map_obs
+            ~result_obs
+            ~old_map:!old_map
+            ~new_map:map
+            ~mapping;
+          old_map := map);
+        map)
+      |> fun _map -> ())
+  ;;
 
-    let%test_unit "mapping_i rand test: start with empty map, stabilize every step" =
-      test_mapping_i
-        Int.Map.empty
-        ~steps:100
-        ~stabilize_every_n:1
-        ~incr_map_mapping_i_fn:incr_map_mapping_i
-    ;;
+  let%test_unit "mapping_i rand test: start with empty map, stabilize every step" =
+    test_mapping_i
+      Int.Map.empty
+      ~steps:100
+      ~stabilize_every_n:1
+      ~incr_map_mapping_i_fn:incr_map_mapping_i
+  ;;
 
-    let%test_unit "mapping_i rand test: start with non-empty map, stabilize every step" =
-      let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
-      test_mapping_i
-        start_map
-        ~steps:100
-        ~stabilize_every_n:1
-        ~incr_map_mapping_i_fn:incr_map_mapping_i
-    ;;
+  let%test_unit "mapping_i rand test: start with non-empty map, stabilize every step" =
+    let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
+    test_mapping_i
+      start_map
+      ~steps:100
+      ~stabilize_every_n:1
+      ~incr_map_mapping_i_fn:incr_map_mapping_i
+  ;;
 
-    let%test_unit "mapping_i rand test: start with empty map, stabilize every 10 steps" =
-      test_mapping_i
-        Int.Map.empty
-        ~steps:100
-        ~stabilize_every_n:10
-        ~incr_map_mapping_i_fn:incr_map_mapping_i
-    ;;
+  let%test_unit "mapping_i rand test: start with empty map, stabilize every 10 steps" =
+    test_mapping_i
+      Int.Map.empty
+      ~steps:100
+      ~stabilize_every_n:10
+      ~incr_map_mapping_i_fn:incr_map_mapping_i
+  ;;
 
-    let%test_unit "mapping_i' with map rand test: start with empty map, stabilize every \
-                   step"
-      =
-      test_mapping_i
-        Int.Map.empty
-        ~steps:100
-        ~stabilize_every_n:1
-        ~incr_map_mapping_i_fn:incr_map_mapping_i'_with_map
-    ;;
+  let%test_unit "mapping_i' with map rand test: start with empty map, stabilize every \
+                 step"
+    =
+    test_mapping_i
+      Int.Map.empty
+      ~steps:100
+      ~stabilize_every_n:1
+      ~incr_map_mapping_i_fn:incr_map_mapping_i'_with_map
+  ;;
 
-    let%test_unit "mapping_i' with map rand test: start with non-empty map, stabilize \
-                   every step"
-      =
-      let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
-      test_mapping_i
-        start_map
-        ~steps:100
-        ~stabilize_every_n:1
-        ~incr_map_mapping_i_fn:incr_map_mapping_i'_with_map
-    ;;
+  let%test_unit "mapping_i' with map rand test: start with non-empty map, stabilize \
+                 every step"
+    =
+    let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
+    test_mapping_i
+      start_map
+      ~steps:100
+      ~stabilize_every_n:1
+      ~incr_map_mapping_i_fn:incr_map_mapping_i'_with_map
+  ;;
 
-    let%test_unit "mapping_i' with map rand test: start with empty map, stabilize every \
-                   10 steps"
-      =
-      test_mapping_i
-        Int.Map.empty
-        ~steps:100
-        ~stabilize_every_n:10
-        ~incr_map_mapping_i_fn:incr_map_mapping_i'_with_map
-    ;;
+  let%test_unit "mapping_i' with map rand test: start with empty map, stabilize every 10 \
+                 steps"
+    =
+    test_mapping_i
+      Int.Map.empty
+      ~steps:100
+      ~stabilize_every_n:10
+      ~incr_map_mapping_i_fn:incr_map_mapping_i'_with_map
+  ;;
 
-    let%test_unit "mapping_i' with bind rand test: start with empty map, stabilize every \
-                   step"
-      =
-      test_mapping_i
-        Int.Map.empty
-        ~steps:100
-        ~stabilize_every_n:1
-        ~incr_map_mapping_i_fn:incr_map_mapping_i'_with_bind
-    ;;
+  let%test_unit "mapping_i' with bind rand test: start with empty map, stabilize every \
+                 step"
+    =
+    test_mapping_i
+      Int.Map.empty
+      ~steps:100
+      ~stabilize_every_n:1
+      ~incr_map_mapping_i_fn:incr_map_mapping_i'_with_bind
+  ;;
 
-    let%test_unit "mapping_i' with bind rand test: start with empty map, stabilize every \
-                   10 steps"
-      =
-      test_mapping_i
-        Int.Map.empty
-        ~steps:100
-        ~stabilize_every_n:10
-        ~incr_map_mapping_i_fn:incr_map_mapping_i'_with_bind
-    ;;
+  let%test_unit "mapping_i' with bind rand test: start with empty map, stabilize every \
+                 10 steps"
+    =
+    test_mapping_i
+      Int.Map.empty
+      ~steps:100
+      ~stabilize_every_n:10
+      ~incr_map_mapping_i_fn:incr_map_mapping_i'_with_bind
+  ;;
 
-    (* [incr_map_mapping_i'_with_map_and_cutoff] and
+  (* [incr_map_mapping_i'_with_map_and_cutoff] and
        [incr_map_mapping_i'_with_bind_and_cutoff] are two more versions of the
        [Incr.Map] function being tested, but they are passed an additional [cutoff]
        argument equal to [Incr.Cutoff.always].
-    *)
-    let incr_map_mapping_i'_with_map_and_cutoff map =
-      incr_map_mapping_i'_with_map ~cutoff:Incr.Cutoff.always map
-    ;;
+  *)
+  let incr_map_mapping_i'_with_map_and_cutoff map =
+    incr_map_mapping_i'_with_map ~cutoff:Incr.Cutoff.always map
+  ;;
 
-    let incr_map_mapping_i'_with_bind_and_cutoff map =
-      incr_map_mapping_i'_with_bind ~cutoff:Incr.Cutoff.always map
-    ;;
+  let incr_map_mapping_i'_with_bind_and_cutoff map =
+    incr_map_mapping_i'_with_bind ~cutoff:Incr.Cutoff.always map
+  ;;
 
-    (* [stabilize_and_test_result_with_cutoff] is like [stabilize_and_test_result] but
+  (* [stabilize_and_test_result_with_cutoff] is like [stabilize_and_test_result] but
        expects different values for the counter and [result_incr] due to the cutoff.
-    *)
-    let stabilize_and_test_result_with_cutoff ~initial_result ~result_obs =
-      let reset_counter () = f_count := 0 in
-      let test_value () =
-        (* Check that the value of [result_incr] is equal to the initial result value,
+  *)
+  let stabilize_and_test_result_with_cutoff ~initial_result ~result_obs =
+    let reset_counter () = f_count := 0 in
+    let test_value () =
+      (* Check that the value of [result_incr] is equal to the initial result value,
            since any changes in [map_incr] should have been cut off and not propagated to
            [result_incr]
-        *)
-        [%test_result: string Int.Map.t]
-          ~expect:initial_result
-          (Incr.Observer.value_exn result_obs)
-      in
-      let test_counter () =
-        (* It is expected that [f] is not called at all due to the cutoff. *)
-        [%test_result: int] !f_count ~expect:0
-      in
-      reset_counter ();
-      Incr.stabilize ();
-      test_value ();
-      test_counter ()
-    ;;
+      *)
+      [%test_result: string Int.Map.t]
+        ~expect:initial_result
+        (Incr.Observer.value_exn result_obs)
+    in
+    let test_counter () =
+      (* It is expected that [f] is not called at all due to the cutoff. *)
+      [%test_result: int] !f_count ~expect:0
+    in
+    reset_counter ();
+    Incr.stabilize ();
+    test_value ();
+    test_counter ()
+  ;;
 
-    (* [test_mapping_i_with_cutoff] is similar to [test_filter_mapi] but tests a
+  (* [test_mapping_i_with_cutoff] is similar to [test_filter_mapi] but tests a
        [Incr.Map.filter_mapi'] function with a [cutoff] argument equal to
        [Incr.Cutoff.always]
-    *)
-    let test_mapping_i_with_cutoff map ~steps ~incr_map_mapping_i_fn_with_cutoff =
-      List.iter Filtering_or_not.all ~f:(fun mapping ->
-        let map_var = Incr.Var.create map in
-        let map_incr = Incr.Var.watch map_var in
-        let map_obs = Incr.observe map_incr in
-        let result_incr = incr_map_mapping_i_fn_with_cutoff map_incr mapping in
-        let result_obs = Incr.observe result_incr in
-        stabilize_and_test_result
-          ~map_obs
-          ~result_obs
-          ~old_map:Int.Map.empty
-          ~new_map:map
-          ~mapping;
-        (* When a new entry is added, the [cutoff] has no impact on the result so
+  *)
+  let test_mapping_i_with_cutoff map ~steps ~incr_map_mapping_i_fn_with_cutoff =
+    List.iter Filtering_or_not.all ~f:(fun mapping ->
+      let map_var = Incr.Var.create map in
+      let map_incr = Incr.Var.watch map_var in
+      let map_obs = Incr.observe map_incr in
+      let result_incr = incr_map_mapping_i_fn_with_cutoff map_incr mapping in
+      let result_obs = Incr.observe result_incr in
+      stabilize_and_test_result
+        ~map_obs
+        ~result_obs
+        ~old_map:Int.Map.empty
+        ~new_map:map
+        ~mapping;
+      (* When a new entry is added, the [cutoff] has no impact on the result so
            we use the same [stabilize_and_test_result] as before. *)
-        let old_map = ref map in
-        List.fold
-          (List.range 0 (steps / 2))
-          ~init:map
-          ~f:(fun map _i ->
-            let map = Rand_map_helper.rand_add_to_map map in
-            Incr.Var.set map_var map;
-            stabilize_and_test_result
-              ~map_obs
-              ~result_obs
-              ~old_map:!old_map
-              ~new_map:map
-              ~mapping;
-            old_map := map;
-            map)
-        |> fun map ->
-        (* When an entry is removed, the [cutoff] has no impact on the result so
+      let old_map = ref map in
+      List.fold
+        (List.range 0 (steps / 2))
+        ~init:map
+        ~f:(fun map _i ->
+          let map = Rand_map_helper.rand_add_to_map map in
+          Incr.Var.set map_var map;
+          stabilize_and_test_result
+            ~map_obs
+            ~result_obs
+            ~old_map:!old_map
+            ~new_map:map
+            ~mapping;
+          old_map := map;
+          map)
+      |> fun map ->
+      (* When an entry is removed, the [cutoff] has no impact on the result so
            we use the same [stabilize_and_test_result] as before. *)
-        let old_map = ref map in
-        List.fold
-          (List.range 0 (steps / 4))
-          ~init:map
-          ~f:(fun map _i ->
-            let map = Rand_map_helper.rand_remove_from_map map in
-            Incr.Var.set map_var map;
-            stabilize_and_test_result
-              ~map_obs
-              ~result_obs
-              ~old_map:!old_map
-              ~new_map:map
-              ~mapping;
-            old_map := map;
-            map)
-        |> fun map ->
-        let initial_result = map_mapping_i map mapping in
-        (* When the data for an existing key is changed in [map_var], the [cutoff] kicks in
+      let old_map = ref map in
+      List.fold
+        (List.range 0 (steps / 4))
+        ~init:map
+        ~f:(fun map _i ->
+          let map = Rand_map_helper.rand_remove_from_map map in
+          Incr.Var.set map_var map;
+          stabilize_and_test_result
+            ~map_obs
+            ~result_obs
+            ~old_map:!old_map
+            ~new_map:map
+            ~mapping;
+          old_map := map;
+          map)
+      |> fun map ->
+      let initial_result = map_mapping_i map mapping in
+      (* When the data for an existing key is changed in [map_var], the [cutoff] kicks in
            to prevent the new data from propagating forward, so we expect [f] to not be
            called and the [result_incr] to not be updated.
            We check this using [stabilize_and_test_result_with_cutoff]. *)
-        List.fold
-          (List.range 0 (steps / 4))
-          ~init:map
-          ~f:(fun map _i ->
-            let map = Rand_map_helper.rand_replace_in_map map in
-            Incr.Var.set map_var map;
-            stabilize_and_test_result_with_cutoff ~initial_result ~result_obs;
-            map)
-        |> fun _map -> ())
-    ;;
+      List.fold
+        (List.range 0 (steps / 4))
+        ~init:map
+        ~f:(fun map _i ->
+          let map = Rand_map_helper.rand_replace_in_map map in
+          Incr.Var.set map_var map;
+          stabilize_and_test_result_with_cutoff ~initial_result ~result_obs;
+          map)
+      |> fun _map -> ())
+  ;;
 
-    let%test_unit "mapping_i' with map and cutoff rand test" =
-      let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
-      test_mapping_i_with_cutoff
-        start_map
-        ~steps:100
-        ~incr_map_mapping_i_fn_with_cutoff:incr_map_mapping_i'_with_map_and_cutoff
-    ;;
+  let%test_unit "mapping_i' with map and cutoff rand test" =
+    let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
+    test_mapping_i_with_cutoff
+      start_map
+      ~steps:100
+      ~incr_map_mapping_i_fn_with_cutoff:incr_map_mapping_i'_with_map_and_cutoff
+  ;;
 
-    let%test_unit "mapping_i' with bind and cutoff rand test" =
-      let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
-      test_mapping_i_with_cutoff
-        start_map
-        ~steps:100
-        ~incr_map_mapping_i_fn_with_cutoff:incr_map_mapping_i'_with_bind_and_cutoff
-    ;;
-  end)
-;;
+  let%test_unit "mapping_i' with bind and cutoff rand test" =
+    let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
+    test_mapping_i_with_cutoff
+      start_map
+      ~steps:100
+      ~incr_map_mapping_i_fn_with_cutoff:incr_map_mapping_i'_with_bind_and_cutoff
+  ;;
+end
