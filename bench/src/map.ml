@@ -19,58 +19,56 @@ struct
   let name = S.name
   let f = S.f
 
-  let%bench_module ("" [@name_suffix name]) =
-    (module struct
-      (* Build a map from scratch, one [Map.set] per element, stabilizing along the way. *)
-      let%bench_fun ("make" [@indexed size = [ 1000; 100_000 ]]) =
-        fun () ->
+  module%bench [@name_suffix name] _ = struct
+    (* Build a map from scratch, one [Map.set] per element, stabilizing along the way. *)
+    let%bench_fun ("make" [@indexed size = [ 1000; 100_000 ]]) =
+      fun () ->
+      let open Infix in
+      let input = Incr.Var.create Int.Map.empty in
+      let output = f (Incr.Var.watch input) |> Incr.observe in
+      for i = 1 to size do
+        input := Map.set !input ~key:i ~data:i;
+        Incr.stabilize ();
+        assert (Incr.Observer.value_exn output = i)
+      done
+    ;;
+
+    (* Take a map as input, update one key (1, specifically), and stabilize *)
+    let%bench_fun "update" =
+      let input = force input in
+      let size = Map.length input in
+      let input = Incr.Var.create input in
+      let output = f (Incr.Var.watch input) |> Incr.observe in
+      Incr.stabilize ();
+      fun () ->
         let open Infix in
-        let input = Incr.Var.create Int.Map.empty in
-        let output = f (Incr.Var.watch input) |> Incr.observe in
-        for i = 1 to size do
-          input := Map.set !input ~key:i ~data:i;
-          Incr.stabilize ();
-          assert (Incr.Observer.value_exn output = i)
-        done
-      ;;
-
-      (* Take a map as input, update one key (1, specifically), and stabilize *)
-      let%bench_fun "update" =
-        let input = force input in
-        let size = Map.length input in
-        let input = Incr.Var.create input in
-        let output = f (Incr.Var.watch input) |> Incr.observe in
+        input
+        := Map.update !input 1 ~f:(function
+             | None -> 0
+             | Some i -> i + 1);
         Incr.stabilize ();
-        fun () ->
-          let open Infix in
-          input
-          := Map.update !input 1 ~f:(function
-               | None -> 0
-               | Some i -> i + 1);
-          Incr.stabilize ();
-          assert (Incr.Observer.value_exn output = size)
-      ;;
+        assert (Incr.Observer.value_exn output = size)
+    ;;
 
-      (* Add, stabilize, remove, to existing input map. *)
-      let%bench_fun "add/remove" =
-        let input = force input in
-        let unused = Map.max_elt_exn input |> fst |> Int.succ in
-        let size = Map.length input in
-        let input = Incr.Var.create input in
-        let output = f (Incr.Var.watch input) |> Incr.observe in
+    (* Add, stabilize, remove, to existing input map. *)
+    let%bench_fun "add/remove" =
+      let input = force input in
+      let unused = Map.max_elt_exn input |> fst |> Int.succ in
+      let size = Map.length input in
+      let input = Incr.Var.create input in
+      let output = f (Incr.Var.watch input) |> Incr.observe in
+      Incr.stabilize ();
+      let size' = size + 1 in
+      fun () ->
+        let open Infix in
+        input := Map.add_exn !input ~key:unused ~data:0;
         Incr.stabilize ();
-        let size' = size + 1 in
-        fun () ->
-          let open Infix in
-          input := Map.add_exn !input ~key:unused ~data:0;
-          Incr.stabilize ();
-          assert (Incr.Observer.value_exn output = size');
-          input := Map.remove !input unused;
-          Incr.stabilize ();
-          assert (Incr.Observer.value_exn output = size)
-      ;;
-    end)
-  ;;
+        assert (Incr.Observer.value_exn output = size');
+        input := Map.remove !input unused;
+        Incr.stabilize ();
+        assert (Incr.Observer.value_exn output = size)
+    ;;
+  end
 end
 
 module _ = M (struct

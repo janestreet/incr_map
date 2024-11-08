@@ -78,40 +78,38 @@ struct
       ignore (Obs.value_exn sum : float)
   ;;
 
-  let%bench_module ("" [@name_suffix suffix]) =
-    (module struct
-      let%bench_fun "incr" = nested_sum_raw ()
+  module%bench [@name_suffix suffix] _ = struct
+    let%bench_fun "incr" = nested_sum_raw ()
 
-      (* Compute the outer sum incrementally using [sum_map], but do the inner sum
+    (* Compute the outer sum incrementally using [sum_map], but do the inner sum
          all-at-once. *)
-      let%bench_fun "out" =
-        let open Infix in
-        let input = Var.create (initialize ~outer ~inner) in
-        let inner_summed =
-          Incr_map.mapi (Var.watch input) ~f:(fun ~key:_ ~data ->
-            Sum_map_direct.sum data ~get:Fn.id)
-        in
-        let sum = Incr.observe (sum_map inner_summed) in
-        fun () ->
-          let o = Random.int outer in
-          let i = Random.int inner in
-          input := set_el !input o i (Random.float 1.0);
-          Incr.stabilize ();
-          ignore (Obs.value_exn sum : float)
-      ;;
+    let%bench_fun "out" =
+      let open Infix in
+      let input = Var.create (initialize ~outer ~inner) in
+      let inner_summed =
+        Incr_map.mapi (Var.watch input) ~f:(fun ~key:_ ~data ->
+          Sum_map_direct.sum data ~get:Fn.id)
+      in
+      let sum = Incr.observe (sum_map inner_summed) in
+      fun () ->
+        let o = Random.int outer in
+        let i = Random.int inner in
+        input := set_el !input o i (Random.float 1.0);
+        Incr.stabilize ();
+        ignore (Obs.value_exn sum : float)
+    ;;
 
-      (* Does the nested sum in an all-at-once way, using ordinary map folds *)
-      let%bench_fun "ord" =
-        let input = ref (initialize ~outer ~inner) in
-        let sum () = Sum_map_direct.sum !input ~get:(Sum_map_direct.sum ~get:Fn.id) in
-        fun () ->
-          let o = Random.int outer in
-          let i = Random.int inner in
-          input := set_el !input o i (Random.float 1.0);
-          ignore (sum ())
-      ;;
-    end)
-  ;;
+    (* Does the nested sum in an all-at-once way, using ordinary map folds *)
+    let%bench_fun "ord" =
+      let input = ref (initialize ~outer ~inner) in
+      let sum () = Sum_map_direct.sum !input ~get:(Sum_map_direct.sum ~get:Fn.id) in
+      fun () ->
+        let o = Random.int outer in
+        let i = Random.int inner in
+        input := set_el !input o i (Random.float 1.0);
+        ignore (sum ())
+    ;;
+  end
 end
 
 module _ = M (struct
@@ -173,30 +171,30 @@ let%expect_test "stats" =
     {|
     ((recomputed 0)
      (changed    0)
-     (created    6))
+     (created    4))
     |}];
   run ();
   stats ();
   [%expect
     {|
-    ((recomputed 2008)
-     (changed    2008)
-     (created    2002))
+    ((recomputed 2004)
+     (changed    2004)
+     (created    2000))
     |}];
   run ();
   stats ();
   [%expect
     {|
-    ((recomputed 7)
-     (changed    6)
+    ((recomputed 6)
+     (changed    5)
      (created    0))
     |}];
   run ();
   stats ();
   [%expect
     {|
-    ((recomputed 7)
-     (changed    6)
+    ((recomputed 6)
+     (changed    5)
      (created    0))
     |}]
 ;;

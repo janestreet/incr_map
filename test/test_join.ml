@@ -114,9 +114,8 @@ let%expect_test "check join against slow implementation" =
     |}]
 ;;
 
-let%test_module "random tests" =
-  (module struct
-    (* [Incr.Map.join] is tested as follows:
+module%test [@name "random tests"] _ = struct
+  (* [Incr.Map.join] is tested as follows:
 
        First, create [map_of_incrs_incr] of type [float Incr.t Int.Map.t Incr.t] with
        initial values equal to those in [map].
@@ -131,47 +130,46 @@ let%test_module "random tests" =
        Every [stabilize_every_n] steps, check the result as follows:
        - call [Incr.stabilize ()]
        - check the value of [result_incr]
-    *)
-    let test_join map ~steps ~stabilize_every_n =
-      let map_of_vars_var = Incr.Var.create (Map.map map ~f:Incr.Var.create) in
-      let map_of_vars_incr = Incr.Var.watch map_of_vars_var in
-      let map_of_incrs_incr = Incr.map map_of_vars_incr ~f:(Map.map ~f:Incr.Var.watch) in
-      let result_incr = Incr.Map.join map_of_incrs_incr in
-      let result_obs = Incr.observe result_incr in
-      (* Since [result_incr] was obtained as [Incr.Map.join map_of_incrs_incr], check the
+  *)
+  let test_join map ~steps ~stabilize_every_n =
+    let map_of_vars_var = Incr.Var.create (Map.map map ~f:Incr.Var.create) in
+    let map_of_vars_incr = Incr.Var.watch map_of_vars_var in
+    let map_of_incrs_incr = Incr.map map_of_vars_incr ~f:(Map.map ~f:Incr.Var.watch) in
+    let result_incr = Incr.Map.join map_of_incrs_incr in
+    let result_obs = Incr.observe result_incr in
+    (* Since [result_incr] was obtained as [Incr.Map.join map_of_incrs_incr], check the
          value of [result_incr] against the data values in [map_of_incrs_incr] *)
-      let test_value () =
-        Incr.stabilize ();
-        [%test_result: float Int.Map.t]
-          (Incr.Observer.value_exn result_obs)
-          ~expect:(Map.map (Incr.Var.value map_of_vars_var) ~f:Incr.Var.value)
+    let test_value () =
+      Incr.stabilize ();
+      [%test_result: float Int.Map.t]
+        (Incr.Observer.value_exn result_obs)
+        ~expect:(Map.map (Incr.Var.value map_of_vars_var) ~f:Incr.Var.value)
+    in
+    let stabilize_and_test_result () =
+      Incr.stabilize ();
+      test_value ()
+    in
+    stabilize_and_test_result ();
+    List.iter (List.range 0 steps) ~f:(fun i ->
+      let map_of_vars =
+        Rand_map_helper.rand_modify_map_of_vars (Incr.Var.value map_of_vars_var)
       in
-      let stabilize_and_test_result () =
-        Incr.stabilize ();
-        test_value ()
-      in
-      stabilize_and_test_result ();
-      List.iter (List.range 0 steps) ~f:(fun i ->
-        let map_of_vars =
-          Rand_map_helper.rand_modify_map_of_vars (Incr.Var.value map_of_vars_var)
-        in
-        if i % stabilize_every_n = 0
-        then (
-          Incr.Var.set map_of_vars_var map_of_vars;
-          stabilize_and_test_result ()))
-    ;;
+      if i % stabilize_every_n = 0
+      then (
+        Incr.Var.set map_of_vars_var map_of_vars;
+        stabilize_and_test_result ()))
+  ;;
 
-    let%test_unit "rand test: start with empty map, stabilize every step" =
-      test_join Int.Map.empty ~steps:100 ~stabilize_every_n:1
-    ;;
+  let%test_unit "rand test: start with empty map, stabilize every step" =
+    test_join Int.Map.empty ~steps:100 ~stabilize_every_n:1
+  ;;
 
-    let%test_unit "rand test: start with non-empty map, stabilize every step" =
-      let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
-      test_join start_map ~steps:100 ~stabilize_every_n:1
-    ;;
+  let%test_unit "rand test: start with non-empty map, stabilize every step" =
+    let start_map = Rand_map_helper.init_rand_map ~from:0 ~to_:30 in
+    test_join start_map ~steps:100 ~stabilize_every_n:1
+  ;;
 
-    let%test_unit "rand test: start with empty map, stabilize every 10 steps" =
-      test_join Int.Map.empty ~steps:100 ~stabilize_every_n:10
-    ;;
-  end)
-;;
+  let%test_unit "rand test: start with empty map, stabilize every 10 steps" =
+    test_join Int.Map.empty ~steps:100 ~stabilize_every_n:10
+  ;;
+end

@@ -19,29 +19,27 @@ struct
   let m_right = negate_k_elements M.right_changes
   let suffix = sprintf "(%d, %d)" M.left_changes M.right_changes
 
-  let%bench_module ("" [@name_suffix suffix]) =
-    (module struct
-      let%bench_fun "merge-sum" =
-        let left = Var.create m_0 in
-        let right = Var.create m_0 in
-        let sum =
-          Incr_map.merge (Var.watch left) (Var.watch right) ~f:(fun ~key:_ -> function
-            | `Left x | `Right x -> Some x
-            | `Both (x, y) -> Some (x + y))
-        in
-        let sum = Incr.observe sum in
-        fun () ->
-          Var.set left m_left;
-          Var.set right m_right;
-          Incr.stabilize ();
-          ignore (Obs.value_exn sum : int Int.Map.t);
-          Var.set left m_0;
-          Var.set right m_0;
-          Incr.stabilize ();
-          ignore (Obs.value_exn sum : int Int.Map.t)
-      ;;
-    end)
-  ;;
+  module%bench [@name_suffix suffix] _ = struct
+    let%bench_fun "merge-sum" =
+      let left = Var.create m_0 in
+      let right = Var.create m_0 in
+      let sum =
+        Incr_map.merge (Var.watch left) (Var.watch right) ~f:(fun ~key:_ -> function
+          | `Left x | `Right x -> Some x
+          | `Both (x, y) -> Some (x + y))
+      in
+      let sum = Incr.observe sum in
+      fun () ->
+        Var.set left m_left;
+        Var.set right m_right;
+        Incr.stabilize ();
+        ignore (Obs.value_exn sum : int Int.Map.t);
+        Var.set left m_0;
+        Var.set right m_0;
+        Incr.stabilize ();
+        ignore (Obs.value_exn sum : int Int.Map.t)
+    ;;
+  end
 end
 
 module _ = M (struct

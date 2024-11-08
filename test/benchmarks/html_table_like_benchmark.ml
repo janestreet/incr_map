@@ -201,54 +201,49 @@ let for_perf_cmd =
   Command.basic for_perf ~summary:"Look into the ml file for a description."
 ;;
 
-let%bench_module "inline_benchmarks" =
-  (module struct
-    let setup
-      ?(scroll_weight = 0.)
-      ?(page_move_weight = 0.)
-      ?(top_bottom_move_weight = 0.)
-      ?(cell_update_weight = 0.)
-      ?(cell_update_batch_size = 0)
-      ()
-      =
-      let t =
-        create
-          ~num_rows:global_num_rows
-          ~range_length:global_range_length
-          ~string_length:global_string_length
-          ~scroll_length:global_scroll_length
-      in
-      let action_generator =
-        create_action_generator
-          t
-          ~scroll_weight
-          ~page_move_weight
-          ~top_bottom_move_weight
-          ~cell_update_weight
-          ~cell_update_batch_size
-      in
-      t, action_generator
-    ;;
+module%bench [@name "inline_benchmarks"] _ = struct
+  let setup
+    ?(scroll_weight = 0.)
+    ?(page_move_weight = 0.)
+    ?(top_bottom_move_weight = 0.)
+    ?(cell_update_weight = 0.)
+    ?(cell_update_batch_size = 0)
+    ()
+    =
+    let t =
+      create
+        ~num_rows:global_num_rows
+        ~range_length:global_range_length
+        ~string_length:global_string_length
+        ~scroll_length:global_scroll_length
+    in
+    let action_generator =
+      create_action_generator
+        t
+        ~scroll_weight
+        ~page_move_weight
+        ~top_bottom_move_weight
+        ~cell_update_weight
+        ~cell_update_batch_size
+    in
+    t, action_generator
+  ;;
 
-    let benchmark (t, action_generator) num_actions =
-      let seed = `Deterministic global_seed_for_benchmarks in
-      let actions = Quickcheck.random_sequence ~seed action_generator in
-      let actions = Sequence.take actions num_actions |> Sequence.force_eagerly in
-      fun () ->
-        Sequence.iter actions ~f:(fun action ->
-          let (_ : string Int.Map.t) = handle_action t action in
-          ())
-    ;;
+  let benchmark (t, action_generator) num_actions =
+    let seed = `Deterministic global_seed_for_benchmarks in
+    let actions = Quickcheck.random_sequence ~seed action_generator in
+    let actions = Sequence.take actions num_actions |> Sequence.force_eagerly in
+    fun () ->
+      Sequence.iter actions ~f:(fun action ->
+        let (_ : string Int.Map.t) = handle_action t action in
+        ())
+  ;;
 
-    let%bench_fun "scroll" = benchmark (setup ~scroll_weight:1. ()) 350
-    let%bench_fun "page-move" = benchmark (setup ~page_move_weight:1. ()) 70
+  let%bench_fun "scroll" = benchmark (setup ~scroll_weight:1. ()) 350
+  let%bench_fun "page-move" = benchmark (setup ~page_move_weight:1. ()) 70
+  let%bench_fun "top-bottom-jumping" = benchmark (setup ~top_bottom_move_weight:1. ()) 500
 
-    let%bench_fun "top-bottom-jumping" =
-      benchmark (setup ~top_bottom_move_weight:1. ()) 500
-    ;;
-
-    let%bench_fun "cell-update" =
-      benchmark (setup ~cell_update_weight:1. ~cell_update_batch_size:50 ()) 10
-    ;;
-  end)
-;;
+  let%bench_fun "cell-update" =
+    benchmark (setup ~cell_update_weight:1. ~cell_update_batch_size:50 ()) 10
+  ;;
+end
