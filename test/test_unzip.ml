@@ -107,77 +107,70 @@ module Make_test (S : S) = struct
         Incr.Observer.disallow_future_use slow_right)
   ;;
 
-  let%bench_module "unzip_mapi'" =
-    (module struct
-      let test_data ~size ~operations =
-        (* It is important this is deterministic *)
-        Quickcheck.random_value
-          ~seed:
-            (`Deterministic
-              (sprintf
-                 "%i-%i-%i-hello world, do not forget your towel"
-                 42
-                 size
-                 operations))
-          (Map_operations.quickcheck_generator
-             Int.quickcheck_generator
-             ~keys_size:size
-             ~operations)
-      ;;
+  module%bench Unzip_mapi = struct
+    let test_data ~size ~operations =
+      (* It is important this is deterministic *)
+      Quickcheck.random_value
+        ~seed:
+          (`Deterministic
+            (sprintf "%i-%i-%i-hello world, do not forget your towel" 42 size operations))
+        (Map_operations.quickcheck_generator
+           Int.quickcheck_generator
+           ~keys_size:size
+           ~operations)
+    ;;
 
-      let benchmark_unzip_mapi' unzip_mapi' ~operations =
-        let var = Incr.Var.create Int.Map.empty
-        and f ~key ~data =
-          ( (let%map data in
-             let y = data * data in
-             Option.some_if (key + y > 33) y)
-          , let%map data in
-            data + 20 )
-        in
-        let left, right =
-          unzip_mapi'
-            ?comparator:None
-            ?cutoff:None
-            ?data_equal:(Some Int.equal)
-            (Incr.Var.watch var)
-            ~f
-        in
-        let left = Incr.observe left
-        and right = Incr.observe right in
-        Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
-          ignore (Incr.Observer.value_exn left);
-          ignore (Incr.Observer.value_exn right));
-        Incr.Observer.disallow_future_use left;
-        Incr.Observer.disallow_future_use right
-      ;;
+    let benchmark_unzip_mapi' unzip_mapi' ~operations =
+      let var = Incr.Var.create Int.Map.empty
+      and f ~key ~data =
+        ( (let%map data in
+           let y = data * data in
+           Option.some_if (key + y > 33) y)
+        , let%map data in
+          data + 20 )
+      in
+      let left, right =
+        unzip_mapi'
+          ?instrumentation:None
+          ?cutoff:None
+          ?data_equal:(Some Int.equal)
+          (Incr.Var.watch var)
+          ~f
+      in
+      let left = Incr.observe left
+      and right = Incr.observe right in
+      Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
+        ignore (Incr.Observer.value_exn left);
+        ignore (Incr.Observer.value_exn right));
+      Incr.Observer.disallow_future_use left;
+      Incr.Observer.disallow_future_use right
+    ;;
 
-      let%bench_fun ("unzip_mapi' random-ops" [@indexed
-                                                operations = [ 5000; 10000; 100000 ]])
-        =
-        let operations = test_data ~size:(operations / 100) ~operations in
-        fun () ->
-          benchmark_unzip_mapi' (Incr.Map.unzip_mapi' ?instrumentation:None) ~operations
-      ;;
+    let%bench_fun ("unzip_mapi' random-ops" [@indexed
+                                              operations = [ 5000; 10000; 100000 ]])
+      =
+      let operations = test_data ~size:(operations / 100) ~operations in
+      fun () -> benchmark_unzip_mapi' Incr.Map.unzip_mapi' ~operations
+    ;;
 
-      let slow_unzip_mapi' ?comparator ?cutoff ?data_equal input ~f =
-        let both =
-          Incr_map.mapi' ?comparator ?cutoff ?data_equal input ~f:(fun ~key ~data ->
-            let a, b = f ~key ~data in
-            Incr.both a b)
-        in
-        let left = Incr_map.map both ~f:Tuple2.get1 in
-        let right = Incr_map.map both ~f:Tuple2.get2 in
-        left, right
-      ;;
+    let slow_unzip_mapi' ?instrumentation:_ ?cutoff ?data_equal input ~f =
+      let both =
+        Incr_map.mapi' ?cutoff ?data_equal input ~f:(fun ~key ~data ->
+          let a, b = f ~key ~data in
+          Incr.both a b)
+      in
+      let left = Incr_map.map both ~f:Tuple2.get1 in
+      let right = Incr_map.map both ~f:Tuple2.get2 in
+      left, right
+    ;;
 
-      let%bench_fun ("slow_unzip_mapi' random-ops" [@indexed
-                                                     operations = [ 5000; 10000; 100000 ]])
-        =
-        let operations = test_data ~size:(operations / 100) ~operations in
-        fun () -> benchmark_unzip_mapi' slow_unzip_mapi' ~operations
-      ;;
-    end)
-  ;;
+    let%bench_fun ("slow_unzip_mapi' random-ops" [@indexed
+                                                   operations = [ 5000; 10000; 100000 ]])
+      =
+      let operations = test_data ~size:(operations / 100) ~operations in
+      fun () -> benchmark_unzip_mapi' slow_unzip_mapi' ~operations
+    ;;
+  end
 end
 
 module Unzip_mapi_prime = struct

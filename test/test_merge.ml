@@ -213,145 +213,142 @@ module%test [@name "random tests"] _ = struct
   ;;
 end
 
-let%bench_module "merge" =
-  (module struct
-    type map = int Int.Map.t
+module%bench [@name "merge"] _ = struct
+  type map = int Int.Map.t
 
-    let gen_map (min_key, max_key) ~size =
-      if size > max_key - min_key + 1
-      then
-        raise_s
-          [%message
-            "Cannot generate a map with more keys than the available range."
-              (min_key : int)
-              (max_key : int)
-              (size : int)];
-      let open Quickcheck.Generator.Let_syntax in
-      let%map keys =
-        let all_keys_length = max_key - min_key + 1 in
-        let%map all_keys =
-          List.gen_permutations
-            (List.range ~start:`inclusive min_key ~stop:`inclusive max_key)
-        in
-        List.drop all_keys (all_keys_length - size)
-      and values = List.gen_with_length size Int.quickcheck_generator in
-      Int.Map.of_alist_exn (List.zip_exn keys values)
-    ;;
+  let gen_map (min_key, max_key) ~size =
+    if size > max_key - min_key + 1
+    then
+      raise_s
+        [%message
+          "Cannot generate a map with more keys than the available range."
+            (min_key : int)
+            (max_key : int)
+            (size : int)];
+    let open Quickcheck.Generator.Let_syntax in
+    let%map keys =
+      let all_keys_length = max_key - min_key + 1 in
+      let%map all_keys =
+        List.gen_permutations
+          (List.range ~start:`inclusive min_key ~stop:`inclusive max_key)
+      in
+      List.drop all_keys (all_keys_length - size)
+    and values = List.gen_with_length size Int.quickcheck_generator in
+    Int.Map.of_alist_exn (List.zip_exn keys values)
+  ;;
 
+  type t =
+    { left_input : map Incr.Var.t
+    ; right_input : map Incr.Var.t
+    ; output : map Incr.Observer.t
+    }
+
+  let create ~merge_f left_input right_input =
+    let left_input = Incr.Var.create left_input in
+    let right_input = Incr.Var.create right_input in
+    let output =
+      Incr.Map.merge (Incr.Var.watch left_input) (Incr.Var.watch right_input) ~f:merge_f
+      |> Incr.observe
+    in
+    { left_input; right_input; output }
+  ;;
+
+  module Map_modification = struct
     type t =
-      { left_input : map Incr.Var.t
-      ; right_input : map Incr.Var.t
-      ; output : map Incr.Observer.t
-      }
+      | Add of int * int
+      | Remove of int
 
-    let create ~merge_f left_input right_input =
-      let left_input = Incr.Var.create left_input in
-      let right_input = Incr.Var.create right_input in
-      let output =
-        Incr.Map.merge (Incr.Var.watch left_input) (Incr.Var.watch right_input) ~f:merge_f
-        |> Incr.observe
-      in
-      { left_input; right_input; output }
-    ;;
-
-    module Map_modification = struct
-      type t =
-        | Add of int * int
-        | Remove of int
-
-      let quickcheck_generator key_range =
-        let open Quickcheck.Generator.Let_syntax in
-        let key_gen (key_range_begin, key_range_end) =
-          Int.gen_incl key_range_begin key_range_end
-        in
-        let add_gen =
-          let%map key = key_gen key_range
-          and data = Int.quickcheck_generator in
-          Add (key, data)
-        and remove_gen =
-          let%map key = key_gen key_range in
-          Remove key
-        in
-        Quickcheck.Generator.union [ add_gen; remove_gen ]
-      ;;
-
-      let perform t map =
-        match t with
-        | Add (key, data) -> Map.set map ~key ~data
-        | Remove key -> Map.remove map key
-      ;;
-    end
-
-    module Operation = struct
-      type t =
-        | Stabilize
-        | Modify_left of Map_modification.t
-        | Modify_right of Map_modification.t
-
-      let quickcheck_generator key_range =
-        let open Quickcheck.Generator.Let_syntax in
-        let modify_gen =
-          let%map dir =
-            Quickcheck.Generator.of_list
-              [ (fun x -> Modify_left x); (fun x -> Modify_right x) ]
-          and modification = Map_modification.quickcheck_generator key_range in
-          dir modification
-        in
-        Quickcheck.Generator.weighted_union [ 1., return Stabilize; 10., modify_gen ]
-      ;;
-
-      let perform op t =
-        match op with
-        | Modify_left md ->
-          Incr.Var.set
-            t.left_input
-            (Incr.Var.latest_value t.left_input |> Map_modification.perform md)
-        | Modify_right md ->
-          Incr.Var.set
-            t.right_input
-            (Incr.Var.latest_value t.right_input |> Map_modification.perform md)
-        | Stabilize -> Incr.stabilize ()
-      ;;
-    end
-
-    let generate_fun ~length ~key_range ~initial_size ~merge_f =
+    let quickcheck_generator key_range =
       let open Quickcheck.Generator.Let_syntax in
-      let gen_fun =
-        let gen_map = gen_map key_range ~size:initial_size in
-        let%map operations =
-          List.gen_with_length length (Operation.quickcheck_generator key_range)
-        and left_input = gen_map
-        and right_input = gen_map in
-        let t = create ~merge_f left_input right_input in
-        Staged.stage (fun () ->
-          List.iter operations ~f:(fun op -> Operation.perform op t))
+      let key_gen (key_range_begin, key_range_end) =
+        Int.gen_incl key_range_begin key_range_end
       in
-      Quickcheck.random_value
-        gen_fun
-        ~seed:(`Deterministic (sprintf "%i-%i-bla-bla-bla-foo-bar-baz" 43 length))
+      let add_gen =
+        let%map key = key_gen key_range
+        and data = Int.quickcheck_generator in
+        Add (key, data)
+      and remove_gen =
+        let%map key = key_gen key_range in
+        Remove key
+      in
+      Quickcheck.Generator.union [ add_gen; remove_gen ]
     ;;
 
-    let key_range = 0, 25000
-    let initial_size = 15000
+    let perform t map =
+      match t with
+      | Add (key, data) -> Map.set map ~key ~data
+      | Remove key -> Map.remove map key
+    ;;
+  end
 
-    let%bench_fun ("cheap merging function" [@indexed length = [ 1000; 3000; 5000 ]]) =
-      generate_fun ~length ~key_range ~initial_size ~merge_f:(fun ~key:_ v ->
-        match v with
-        | `Left v | `Right v | `Both (v, _) -> Some v)
-      |> Staged.unstage
+  module Operation = struct
+    type t =
+      | Stabilize
+      | Modify_left of Map_modification.t
+      | Modify_right of Map_modification.t
+
+    let quickcheck_generator key_range =
+      let open Quickcheck.Generator.Let_syntax in
+      let modify_gen =
+        let%map dir =
+          Quickcheck.Generator.of_list
+            [ (fun x -> Modify_left x); (fun x -> Modify_right x) ]
+        and modification = Map_modification.quickcheck_generator key_range in
+        dir modification
+      in
+      Quickcheck.Generator.weighted_union [ 1., return Stabilize; 10., modify_gen ]
     ;;
 
-    let%bench_fun ("merging function with expensive `Both case" [@indexed
-                                                                  length
-                                                                  = [ 1000; 2000; 4000 ]])
-      =
-      generate_fun ~length ~key_range ~initial_size ~merge_f:(fun ~key:_ v ->
-        match v with
-        | `Left v | `Right v -> Some v
-        | `Both (v, _) ->
-          Time.pause (Time.Span.of_us 1.);
-          Some v)
-      |> Staged.unstage
+    let perform op t =
+      match op with
+      | Modify_left md ->
+        Incr.Var.set
+          t.left_input
+          (Incr.Var.latest_value t.left_input |> Map_modification.perform md)
+      | Modify_right md ->
+        Incr.Var.set
+          t.right_input
+          (Incr.Var.latest_value t.right_input |> Map_modification.perform md)
+      | Stabilize -> Incr.stabilize ()
     ;;
-  end)
-;;
+  end
+
+  let generate_fun ~length ~key_range ~initial_size ~merge_f =
+    let open Quickcheck.Generator.Let_syntax in
+    let gen_fun =
+      let gen_map = gen_map key_range ~size:initial_size in
+      let%map operations =
+        List.gen_with_length length (Operation.quickcheck_generator key_range)
+      and left_input = gen_map
+      and right_input = gen_map in
+      let t = create ~merge_f left_input right_input in
+      Staged.stage (fun () -> List.iter operations ~f:(fun op -> Operation.perform op t))
+    in
+    Quickcheck.random_value
+      gen_fun
+      ~seed:(`Deterministic (sprintf "%i-%i-bla-bla-bla-foo-bar-baz" 43 length))
+  ;;
+
+  let key_range = 0, 25000
+  let initial_size = 15000
+
+  let%bench_fun ("cheap merging function" [@indexed length = [ 1000; 3000; 5000 ]]) =
+    generate_fun ~length ~key_range ~initial_size ~merge_f:(fun ~key:_ v ->
+      match v with
+      | `Left v | `Right v | `Both (v, _) -> Some v)
+    |> Staged.unstage
+  ;;
+
+  let%bench_fun ("merging function with expensive `Both case" [@indexed
+                                                                length
+                                                                = [ 1000; 2000; 4000 ]])
+    =
+    generate_fun ~length ~key_range ~initial_size ~merge_f:(fun ~key:_ v ->
+      match v with
+      | `Left v | `Right v -> Some v
+      | `Both (v, _) ->
+        Time.pause (Time.Span.of_us 1.);
+        Some v)
+    |> Staged.unstage
+  ;;
+end

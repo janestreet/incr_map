@@ -3,4 +3,4 @@
  (public_name incr_map)
  (preprocess
   (pps ppx_pattern_bind ppx_jane))
- (libraries abstract_algebra core incremental))
+ (libraries abstract_algebra core incremental uopt))

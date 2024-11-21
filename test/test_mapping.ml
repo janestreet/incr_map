@@ -65,42 +65,40 @@ let%test_unit "filter_mapi randomised fuzz test" =
       Incr.Observer.disallow_future_use slow_filter_mapi)
 ;;
 
-let%bench_module "filter_mapi" =
-  (module struct
-    let test_data ~size ~operations =
-      (* It is important this is deterministic *)
-      Quickcheck.random_value
-        ~seed:
-          (`Deterministic
-            (sprintf "%i-%i-%i-hello world, do not forget your towel" 42 size operations))
-        (Map_operations.quickcheck_generator
-           Int.quickcheck_generator
-           ~keys_size:size
-           ~operations)
-    ;;
+module%bench [@name "filter_mapi"] _ = struct
+  let test_data ~size ~operations =
+    (* It is important this is deterministic *)
+    Quickcheck.random_value
+      ~seed:
+        (`Deterministic
+          (sprintf "%i-%i-%i-hello world, do not forget your towel" 42 size operations))
+      (Map_operations.quickcheck_generator
+         Int.quickcheck_generator
+         ~keys_size:size
+         ~operations)
+  ;;
 
-    let benchmark_filter_mapi filter_mapi ~operations =
-      let var = Incr.Var.create Int.Map.empty
-      and test_map_fn ~key ~data =
-        let y = data * data in
-        Option.some_if (y + key > 33) y
-      in
-      let mapped =
-        Incr.observe
-          (filter_mapi ?data_equal:(Some Int.equal) (Incr.Var.watch var) ~f:test_map_fn)
-      in
-      Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
-        ignore (Incr.Observer.value_exn mapped));
-      Incr.Observer.disallow_future_use mapped
-    ;;
+  let benchmark_filter_mapi filter_mapi ~operations =
+    let var = Incr.Var.create Int.Map.empty
+    and test_map_fn ~key ~data =
+      let y = data * data in
+      Option.some_if (y + key > 33) y
+    in
+    let mapped =
+      Incr.observe
+        (filter_mapi ?data_equal:(Some Int.equal) (Incr.Var.watch var) ~f:test_map_fn)
+    in
+    Map_operations.run_operations operations ~into:var ~after_stabilize:(fun () ->
+      ignore (Incr.Observer.value_exn mapped));
+    Incr.Observer.disallow_future_use mapped
+  ;;
 
-    let%bench_fun ("random-ops" [@indexed operations = [ 5000; 10000; 100000 ]]) =
-      let operations = test_data ~size:(operations / 100) ~operations in
-      fun () ->
-        benchmark_filter_mapi (Incr.Map.filter_mapi ?instrumentation:None) ~operations
-    ;;
-  end)
-;;
+  let%bench_fun ("random-ops" [@indexed operations = [ 5000; 10000; 100000 ]]) =
+    let operations = test_data ~size:(operations / 100) ~operations in
+    fun () ->
+      benchmark_filter_mapi (Incr.Map.filter_mapi ?instrumentation:None) ~operations
+  ;;
+end
 
 let%test_unit "filter_mapi' should not throw on empty map" =
   let observer =

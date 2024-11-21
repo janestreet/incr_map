@@ -21,6 +21,7 @@ depends: [
   "ppx_pattern_bind"
   "ppx_stable_witness"
   "streamable"
+  "uopt"
   "dune"               {>= "3.11.0"}
 ]
 available: arch != "arm32" & arch != "x86_32"
