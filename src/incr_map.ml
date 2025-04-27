@@ -3,8 +3,8 @@ include Incr_map_intf
 
 let no_instrumentation = { Instrumentation.f = (fun f -> f ()) }
 
-(** This type lets us capture the kind of map function being performed, so we can with
-    one implementation perform map and filter-map operations.
+(** This type lets us capture the kind of map function being performed, so we can with one
+    implementation perform map and filter-map operations.
 
     Here, ['input_data] is the type of data in the input map, ['output_data] is the type
     of data in the output map, and ['f_output] is the return type of the [~f] function
@@ -18,22 +18,21 @@ module Map_type = struct
      | Filter : ('output_data, 'output_data, bool) t *)
 end
 
-(** This module encapsulates some operations on values that have the type  
-    [_ Map.t option ref].  It is used in the implementation of many Incr_map
-    functions that need an empty map, but don't yet have access to a comparator
-    in order to build one. *)
+(** This module encapsulates some operations on values that have the type
+    [_ Map.t option ref]. It is used in the implementation of many Incr_map functions that
+    need an empty map, but don't yet have access to a comparator in order to build one. *)
 module Map_option_ref : sig
   type ('k, 'v, 'cmp) t
 
   (** Creates a value initialzed to [ref None] *)
   val create_none : unit -> _ t
 
-  (** Gets the value inside the [option ref], and throws an exception if the 
-      option is None *)
+  (** Gets the value inside the [option ref], and throws an exception if the option is
+      None *)
   val value_exn : ('k, 'v, 'cmp) t -> ('k, 'v, 'cmp) Map.t
 
-  (** If the [Map_option_ref] is [None] then set it to [Some] containing an 
-      empty map whose comparitor is the same as the map passed in as an argument. *)
+  (** If the [Map_option_ref] is [None] then set it to [Some] containing an empty map
+      whose comparitor is the same as the map passed in as an argument. *)
   val if_none_then_fill_with_empty_map
     :  ('k, _, 'cmp) t
     -> using_the_comparator_from:('k, _, 'cmp) Map.t
@@ -218,8 +217,8 @@ module Generic = struct
             | `Right data_added ->
               add ~outer_cmp ~inner_cmp ~outer_key ~inner_key ~data:data_added acc
             | `Unequal (old_data, new_data) ->
-              update ~outer_cmp ~inner_cmp ~outer_key ~inner_key ~old_data ~new_data acc) [@nontail
-                                                                                          ])
+              update ~outer_cmp ~inner_cmp ~outer_key ~inner_key ~old_data ~new_data acc)
+        [@nontail])
       ~add:(fun ~cmp:outer_cmp ~key:outer_key ~data:inner_map acc ->
         let inner_cmp = Map.comparator inner_map in
         Map.fold inner_map ~init:acc ~f:(fun ~key:inner_key ~data acc ->
@@ -573,7 +572,8 @@ module Generic = struct
                 ~f [@nontail])
       in
       Option.value_map right_diffs ~default:output ~f:(fun (hd, tl) ->
-        Sequence.fold ~init:(apply_right output hd) tl ~f:apply_right) [@nontail])
+        Sequence.fold ~init:(apply_right output hd) tl ~f:apply_right)
+      [@nontail])
   ;;
 
   let new_data_from_diff_element = function
@@ -877,7 +877,7 @@ module Generic = struct
 
   let unzip_mapi
     (type v v1 v2 state_witness)
-    ~instrumentation
+    ?(instrumentation = no_instrumentation)
     ?(data_equal : v -> v -> bool = phys_equal)
     ?(left_result_equal : v1 -> v1 -> bool = phys_equal)
     ?(right_result_equal : v2 -> v2 -> bool = phys_equal)
@@ -968,22 +968,6 @@ module Generic = struct
     E.Node.add_dependency left_result (E.Dependency.create input_change);
     E.Node.add_dependency right_result (E.Dependency.create input_change);
     E.Node.watch left_result, E.Node.watch right_result
-  ;;
-
-  let unzip_mapi
-    ?(instrumentation = no_instrumentation)
-    ?data_equal
-    ?left_result_equal
-    ?right_result_equal
-    input
-    ~f
-    =
-    let pair =
-      input
-      |> unzip_mapi ~instrumentation ?data_equal ?left_result_equal ?right_result_equal ~f
-      |> Tuple2.uncurry Incremental.both
-    in
-    Incremental.map ~f:fst pair, Incremental.map ~f:snd pair
   ;;
 
   let unzip ?instrumentation ?left_result_equal ?right_result_equal input =
@@ -1668,10 +1652,9 @@ module Generic = struct
       ~index:(fun ~key:_ ~data -> index data)
   ;;
 
-  (** Find two keys in map by index, O(n). We use just one fold (two Map.nth would use two)
-      and optimize for keys close to either beginning or end by using either fold or
-      fold_right.
-  *)
+  (** Find two keys in map by index, O(n). We use just one fold (two Map.nth would use
+      two) and optimize for keys close to either beginning or end by using either fold or
+      fold_right. *)
   module Key_status = struct
     type 'k t =
       | Known of 'k
@@ -1736,8 +1719,7 @@ module Generic = struct
       | Some (key, _) -> offset key map ~by:(by + add))
   ;;
 
-  (** Find how we need to move [key] if [changed_key] changed in the given
-      way *)
+  (** Find how we need to move [key] if [changed_key] changed in the given way *)
   let find_offset ~compare ~key ~changed_key change =
     if Int.( < ) (compare changed_key key) 0
     then (
@@ -2223,6 +2205,65 @@ module Generic = struct
       ~init
       ~add
       ~remove
+  ;;
+
+  let cartesian_product
+    ?(instrumentation = no_instrumentation)
+    ?(data_equal_left = phys_equal)
+    ?(data_equal_right = phys_equal)
+    m1
+    m2
+    =
+    with_old2 ~instrumentation m1 m2 ~f:(fun ~old new_m1 new_m2 ->
+      (* old is None if this is the first call to this function - we must compute the
+         cartesian product from scratch from the two maps.
+
+         Otherwise, we can incrementally compute the cartesian product given the two
+         previous maps, the new maps, and the old output. *)
+      match old with
+      | None ->
+        let cmp1 = Map.comparator new_m1 in
+        let cmp2 = Map.comparator new_m2 in
+        let output =
+          List.cartesian_product (Map.to_alist new_m1) (Map.to_alist new_m2)
+          |> List.map ~f:(fun ((k1, v1), (k2, v2)) -> (k1, k2), (v1, v2))
+          |> Map.Using_comparator.of_alist_exn ~comparator:(Tuple2.comparator cmp1 cmp2)
+        in
+        output
+      | Some (old_m1, old_m2, old_output) ->
+        (* Find changes between the old m1 and the new m1 and update output by
+           updating/removing all tuples matching the changed key/value
+        *)
+        let output =
+          Map.fold_symmetric_diff
+            old_m1
+            new_m1
+            ~data_equal:data_equal_left
+            ~init:old_output
+            ~f:(fun output -> function
+            | removed_key, `Left _ ->
+              Map.fold old_m2 ~init:output ~f:(fun ~key ~data:_ output ->
+                Map.remove output (removed_key, key))
+            | new_key, `Right new_value | new_key, `Unequal (_, new_value) ->
+              Map.fold new_m2 ~init:output ~f:(fun ~key ~data output ->
+                Map.set output ~key:(new_key, key) ~data:(new_value, data)))
+        in
+        (* Find changes between the old m2 and the new m2 and update output accordingly *)
+        let output =
+          Map.fold_symmetric_diff
+            old_m2
+            new_m2
+            ~data_equal:data_equal_right
+            ~init:output
+            ~f:(fun output -> function
+            | removed_key, `Left _ ->
+              Map.fold old_m1 ~init:output ~f:(fun ~key ~data:_ output ->
+                Map.remove output (key, removed_key))
+            | new_key, `Right new_value | new_key, `Unequal (_, new_value) ->
+              Map.fold new_m1 ~init:output ~f:(fun ~key ~data output ->
+                Map.set output ~key:(key, new_key) ~data:(data, new_value)))
+        in
+        output)
   ;;
 
   module For_testing = struct

@@ -22,7 +22,7 @@ depends: [
   "ppx_stable_witness"
   "streamable"
   "uopt"
-  "dune"               {>= "3.11.0"}
+  "dune"               {>= "3.17.0"}
 ]
 available: arch != "arm32" & arch != "x86_32"
 synopsis: "Helpers for incremental operations on map like data structures"

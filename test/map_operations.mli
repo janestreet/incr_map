@@ -43,8 +43,8 @@ val nested_quickcheck_generator
 
 val tuple_key_quickcheck_generator
   :  ?keys_size:int
-       (** default is approximately the sqrt of the non-tuple variants to keep the probability
-      of modifications approximately equivalent. *)
+       (** default is approximately the sqrt of the non-tuple variants to keep the
+           probability of modifications approximately equivalent. *)
   -> ?operations:int
   -> 'data Base_quickcheck.Generator.t
   -> (int * int, 'data) t list Base_quickcheck.Generator.t

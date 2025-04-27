@@ -73,7 +73,7 @@ end
 
 type t =
   { map : Value.t Key.Map.t Incr.Var.t
-  ; collate : (Key.t, Filter.t, Order.t) Collate.t Incr.Var.t
+  ; collate : (Key.t, Filter.t, Order.t) Collate_params.t Incr.Var.t
   ; observer : Concrete.t Incr.Observer.t
   }
 
@@ -100,7 +100,7 @@ let modify_map t ~f = Incr.Var.set t.map (f (Incr.Var.value t.map))
 let set_collate ?filter ?rank_range ?key_range ?order t =
   let collate = Incr.Var.value t.collate in
   let collate =
-    { Collate.filter = Option.value filter ~default:collate.filter
+    { Collate_params.filter = Option.value filter ~default:collate.filter
     ; key_range = Option.value key_range ~default:collate.key_range
     ; rank_range = Option.value rank_range ~default:collate.rank_range
     ; order = Option.value order ~default:collate.order
@@ -125,15 +125,15 @@ let init_test
   ?operation_order
   ?(filter = Filter.None)
   ?(order = Order.By_symbol)
-  ?(key_range = Collate.Which_range.All_rows)
-  ?(rank_range = Collate.Which_range.All_rows)
+  ?(key_range = Collate_params.Which_range.All_rows)
+  ?(rank_range = Collate_params.Which_range.All_rows)
   ?(do_collate = do_collate_default)
   ()
   =
   let initial = Key.Map.of_alist_exn data in
   let map = Incr.Var.create initial in
   let collate =
-    Incr.Var.create ({ filter; order; key_range; rank_range } : _ Collate.t)
+    Incr.Var.create ({ filter; order; key_range; rank_range } : _ Collate_params.t)
   in
   let observer =
     let collated =
@@ -233,7 +233,7 @@ let%expect_test "second & third, sort, filter" =
     init_test
       ~filter:Filter.Key_has_vowel
       ~order:Order.By_price
-      ~rank_range:(Collate.Which_range.Between (1, 2))
+      ~rank_range:(Collate_params.Which_range.Between (1, 2))
       ()
   in
   print_res t;
@@ -258,7 +258,10 @@ let%expect_test "second & third, sort, filter" =
 
 let%expect_test "changing range" =
   let t =
-    init_test ~order:Order.By_price ~rank_range:(Collate.Which_range.Between (1, 2)) ()
+    init_test
+      ~order:Order.By_price
+      ~rank_range:(Collate_params.Which_range.Between (1, 2))
+      ()
   in
   modify_map t ~f:(Map.add_exn ~key:"FB" ~data:(10, 4.0));
   modify_map t ~f:(Map.add_exn ~key:"EEE" ~data:(10, 0.0));
@@ -294,7 +297,7 @@ let%expect_test "changing range" =
         ; "whip", (10, 3.0)
         ; "VOD", (10, 2.0)
         ]
-      ~rank_range:(Collate.Which_range.Between (1, 5))
+      ~rank_range:(Collate_params.Which_range.Between (1, 5))
       ()
   in
   let res1 = get_res t in

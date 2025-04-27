@@ -8,7 +8,7 @@ let%expect_test _ =
   in
   let collate_var =
     Incr.Var.create
-      { Incr_map_collate.Collate.filter = (fun ~key:_ ~data:_ -> true)
+      { Incr_map_collate.Collate_params.filter = (fun ~key:_ ~data:_ -> true)
       ; order = Incr_map_collate.Compare.Unchanged
       ; key_range = All_rows
       ; rank_range = All_rows
@@ -71,7 +71,7 @@ let%expect_test _ =
     |}];
   Incr.Var.set
     collate_var
-    { Incr_map_collate.Collate.filter = (fun ~key:_ ~data:_ -> true)
+    { Incr_map_collate.Collate_params.filter = (fun ~key:_ ~data:_ -> true)
     ; order = Custom_by_value { compare = Comparable.reverse Int.compare }
     ; key_range = All_rows
     ; rank_range = All_rows
@@ -110,7 +110,7 @@ let%expect_test _ =
     |}];
   Incr.Var.set
     collate_var
-    { Incr_map_collate.Collate.filter = (fun ~key:_ ~data:_ -> true)
+    { Incr_map_collate.Collate_params.filter = (fun ~key:_ ~data:_ -> true)
     ; order = Custom_by_value { compare = Comparable.reverse Int.compare }
     ; key_range = Between (3, 6)
     ; rank_range = All_rows
@@ -139,7 +139,7 @@ let%expect_test _ =
     |}];
   Incr.Var.set
     collate_var
-    { Incr_map_collate.Collate.filter = (fun ~key:_ ~data:_ -> true)
+    { Incr_map_collate.Collate_params.filter = (fun ~key:_ ~data:_ -> true)
     ; order = Custom_by_value { compare = Comparable.reverse Int.compare }
     ; key_range = All_rows
     ; rank_range = Between (3, 6)
@@ -172,7 +172,7 @@ let%expect_test _ =
     |}];
   Incr.Var.set
     collate_var
-    { Incr_map_collate.Collate.filter = (fun ~key:_ ~data -> data % 2 = 0)
+    { Incr_map_collate.Collate_params.filter = (fun ~key:_ ~data -> data % 2 = 0)
     ; order = Custom_by_value { compare = Comparable.reverse Int.compare }
     ; key_range = All_rows
     ; rank_range = All_rows

@@ -24,13 +24,12 @@ val rand_add_to_map_of_vars : float Incr.Var.t Int.Map.t -> float Incr.Var.t Int
 val rand_replace_in_map : float Int.Map.t -> float Int.Map.t
 
 (** [random_replace_in_map_of_vars] is similar to [random_replace_in_map], but instead of
-    a [float], the data is a [float Incr.Var.t] initialized to a randomly generated
-    float. *)
+    a [float], the data is a [float Incr.Var.t] initialized to a randomly generated float. *)
 val rand_replace_in_map_of_vars : float Incr.Var.t Int.Map.t -> float Incr.Var.t Int.Map.t
 
 (** [random_set_in_map_of_vars] is similar to [random_replace_in_map_of_vars], but instead
     of creating a new [float Incr.Var.t], the existing [float Incr.Var.t] is set to a new
-    randomly generated float.  *)
+    randomly generated float. *)
 val rand_set_in_map_of_vars : float Incr.Var.t Int.Map.t -> unit
 
 (** [random_remove_from_map] randomly chooses a key in the map and removes it. *)

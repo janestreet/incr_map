@@ -1,5 +1,5 @@
 open! Core
-module Collate = Collate
+module Collate_params = Collate_params
 module Collated = Collated
 module Store = Incr_memoize.Store
 module Store_params = Incr_memoize.Store_params
@@ -48,8 +48,8 @@ module Range_memoize_bucket = struct
 
   let create
     ~bucket_size
-    ~(key_range : _ Collate.Which_range.t)
-    ~(rank_range : int Collate.Which_range.t)
+    ~(key_range : _ Collate_params.Which_range.t)
+    ~(rank_range : int Collate_params.Which_range.t)
     =
     let key_bucket : key_bucket =
       match key_range with
@@ -230,7 +230,7 @@ let do_sort
 let do_rank_range_restrict_and_rank
   (type k v w)
   (data : (k, v, w) Incr_collated_map.t)
-  ~(rank_range : (int Collate.Which_range.t, w) Incremental.t)
+  ~(rank_range : (int Collate_params.Which_range.t, w) Incremental.t)
   : (k, v, w) Incr_collated_map.t * (int, w) Incremental.t
   =
   let incremental_state = Incremental.state rank_range in
@@ -256,7 +256,7 @@ let do_key_range_restrict
   (type k v cmp w)
   (data : (k, v, w) Incr_collated_map.t)
   ~(orig_map : ((k, v, cmp) Map.t, w) Incremental.t)
-  ~(key_range : (k Collate.Which_range.t, w) Incremental.t)
+  ~(key_range : (k Collate_params.Which_range.t, w) Incremental.t)
   : (k, v, w) Incr_collated_map.t * (int, w) Incremental.t
   =
   let incremental_state = Incremental.state orig_map in
@@ -437,7 +437,7 @@ let collate_and_maybe_fold
   ~(order_to_compare : order -> _)
   ~(fold_action : (k, v, fold_result) Fold_action.t)
   (data : ((k, v, cmp) Map.t, w) Incremental.t)
-  (collate : ((k, filter, order) Collate.t, w) Incremental.t)
+  (collate : ((k, filter, order) Collate_params.t, w) Incremental.t)
   : (k, v, fold_result, w) t
   =
   let incremental_state = Incremental.state data in
@@ -546,7 +546,7 @@ module With_caching = struct
     ~(order_to_compare : order -> _)
     ~(fold_action : (k, v, fold_result) Fold_action.t)
     (data : ((k, v, cmp) Map.t, w) Incremental.t)
-    (collate : ((k, filter, order) Collate.t, w) Incremental.t)
+    (collate : ((k, filter, order) Collate_params.t, w) Incremental.t)
     : (k, v, fold_result, w) t
     =
     let%pattern_bind (collated, key_rank), fold_result =
@@ -656,7 +656,7 @@ module With_caching = struct
     ~(filter_to_predicate : filter -> _)
     ~(order_to_compare : order -> _)
     (data : ((k, v, cmp) Map.t, w) Incremental.t)
-    (collate : ((k, filter, order) Collate.t, w) Incremental.t)
+    (collate : ((k, filter, order) Collate_params.t, w) Incremental.t)
     : (k, v, unit, w) t
     =
     collate_and_maybe_fold__sort_first
@@ -685,7 +685,7 @@ module With_caching = struct
     ~(order_to_compare : order -> _)
     ~(fold : (k, v, fold_result) Fold_params.t)
     (data : ((k, v, cmp) Map.t, w) Incremental.t)
-    (collate : ((k, filter, order) Collate.t, w) Incremental.t)
+    (collate : ((k, filter, order) Collate_params.t, w) Incremental.t)
     : (k, v, fold_result, w) t
     =
     collate_and_maybe_fold__sort_first

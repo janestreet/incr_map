@@ -55,7 +55,7 @@ let%expect_test "test unnecessary nodes are cleaned" =
   (* Stop looking at some keys. Initially they are still live. *)
   List.iter [ 1; 4; 5 ] ~f:(fun key ->
     Hashtbl.find_and_remove key_observers key
-    |> Option.value_exn ~here:[%here]
+    |> Option.value_exn
     |> Incr.Observer.disallow_future_use);
   print_lookup_state lookup;
   [%expect
