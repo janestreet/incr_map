@@ -1,5 +1,5 @@
 open Core
-module Which_range = Collate.Which_range
+module Which_range = Collate_params.Which_range
 
 module Parametrized = struct
   module Stable = struct
@@ -9,9 +9,9 @@ module Parametrized = struct
       type ('k, 'v) t =
         { data : ('k * 'v) Opaque_map.Stable.V1.t
         ; num_filtered_rows : int
-        ; key_range : 'k Collate.Stable.Which_range.V1.t
+        ; key_range : 'k Collate_params.Stable.Which_range.V1.t
         (** Ranges that this value was computed for *)
-        ; rank_range : int Collate.Stable.Which_range.V1.t
+        ; rank_range : int Collate_params.Stable.Which_range.V1.t
         ; num_before_range : int
         ; num_unfiltered_rows : int
         }

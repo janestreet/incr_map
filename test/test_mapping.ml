@@ -2,7 +2,7 @@ open Core
 open Import
 
 (** version of filter_mapi that tests the real implementation against a simple, all-at
-    once one, and fails if the two implementations don't match.*)
+    once one, and fails if the two implementations don't match. *)
 let filter_mapi ~data_equal m ~f =
   let a = Incr.Map.filter_mapi ~data_equal m ~f in
   let b =

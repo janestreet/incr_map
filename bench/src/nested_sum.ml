@@ -40,7 +40,6 @@ module Sum_map_direct = struct
      far better off using this type. Similarly, we can't return a float in %xmm
      registers. So the obvious [Map.fold] here actually allocates one box per map
      entry, so we're better off using a ref.
-    
   *)
   type float_ref = { mutable contents : float }
 

@@ -1,5 +1,5 @@
 open Core
-module Which_range = Collate.Which_range
+module Which_range = Collate_params.Which_range
 
 module type Parametrized = sig
   (** The result of collation - a filtered, sorted and restricted-to-a-range list of keys
@@ -7,8 +7,7 @@ module type Parametrized = sig
       to provide better diffing.
 
       To get an implementation of [Diffable] interface, you'll need to instantiate
-      [Make_concrete].
-  *)
+      [Make_concrete]. *)
   type ('k, 'v) t [@@deriving sexp, bin_io, compare, equal, diff]
 
   val empty : _ t
@@ -100,7 +99,7 @@ module type Concrete = sig
   include Streamable.S with type t := t
 
   (** This strange value just encodes the fact that this type does not yet implement
-      [Ldiffable.S].  When it does, delete this and then the compiler will show you places
+      [Ldiffable.S]. When it does, delete this and then the compiler will show you places
       to update. *)
   val this_type_does_not_support_ldiffable : unit
 

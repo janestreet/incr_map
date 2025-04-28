@@ -63,7 +63,7 @@ end
 
 type 'a t =
   { map : Value.t Key.Map.t Incr.Var.t
-  ; collate : (Key.t, Filter.t, Order.t) Collate.t Incr.Var.t
+  ; collate : (Key.t, Filter.t, Order.t) Collate_params.t Incr.Var.t
   ; observer : (Concrete.t * 'a) Incr.Observer.t
   }
 
@@ -146,7 +146,7 @@ let print_res t =
 
 let set_collate ?filter ?rank_range ?key_range ?order t =
   let collate = Incr.Var.value t.collate in
-  let collate : _ Collate.t =
+  let collate : _ Collate_params.t =
     { filter = Option.value filter ~default:collate.filter
     ; key_range = Option.value key_range ~default:collate.key_range
     ; rank_range = Option.value rank_range ~default:collate.rank_range
@@ -160,15 +160,15 @@ let init_test
   ?(data = [ "A", 1; "B", 2; "C", 3 ])
   ?(filter = Filter.None)
   ?(order = Order.Ascending)
-  ?(key_range = Collate.Which_range.All_rows)
-  ?(rank_range = Collate.Which_range.All_rows)
+  ?(key_range = Collate_params.Which_range.All_rows)
+  ?(rank_range = Collate_params.Which_range.All_rows)
   ~fold
   ()
   =
   let initial = Key.Map.of_alist_exn data in
   let map = Incr.Var.create initial in
   let collate =
-    Incr.Var.create ({ filter; order; key_range; rank_range } : _ Collate.t)
+    Incr.Var.create ({ filter; order; key_range; rank_range } : _ Collate_params.t)
   in
   let observer =
     let collated =

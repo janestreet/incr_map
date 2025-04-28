@@ -137,9 +137,8 @@ module Make_test (S : S) = struct
 end
 
 module Unzip_mapi_prime = struct
-  (** version of unzip_mapi' that tests the real implementation against a
-      simpler, less incremental one, and fails if the two implementations don't
-      match.*)
+  (** version of unzip_mapi' that tests the real implementation against a simpler, less
+      incremental one, and fails if the two implementations don't match. *)
   let unzip3_mapi' ~data_equal ~data_equal_left ~data_equal_middle ~data_equal_right m ~f =
     let a_left, a_middle, a_right = Incr.Map.unzip3_mapi' ~data_equal m ~f in
     let b_left, b_middle, b_right =

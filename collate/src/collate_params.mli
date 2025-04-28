@@ -22,16 +22,11 @@ type ('k, 'filter, 'order) t =
   ; key_range : 'k Which_range.t
   (** Select only rows between these keys (in the configured ordering) *)
   ; rank_range : int Which_range.t
-  (** After selecting rows according to [key_range], select rows between these
-      positions.
+  (** After selecting rows according to [key_range], select rows between these positions.
 
-      For example, if your (sorted & filtered) data is [(A, 1); (B, 2); (C, 3)], then
-      both for
-      {key_range = All_rows; rank_range = From 1}
-      and
-      {key_range = From B; rank_range = All_rows}
-      the result would be [(B, 2); (C, 3)]
-  *)
+      For example, if your (sorted & filtered) data is [(A, 1); (B, 2); (C, 3)], then both
+      for [{key_range = All_rows; rank_range = From 1}] and
+      [{key_range = From B; rank_range = All_rows}] the result would be [(B, 2); (C, 3)] *)
   }
 [@@deriving equal, sexp_of]
 

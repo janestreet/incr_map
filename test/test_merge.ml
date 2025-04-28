@@ -339,9 +339,8 @@ module%bench [@name "merge"] _ = struct
     |> Staged.unstage
   ;;
 
-  let%bench_fun ("merging function with expensive `Both case" [@indexed
-                                                                length
-                                                                = [ 1000; 2000; 4000 ]])
+  let%bench_fun ("merging function with expensive `Both case"
+    [@indexed length = [ 1000; 2000; 4000 ]])
     =
     generate_fun ~length ~key_range ~initial_size ~merge_f:(fun ~key:_ v ->
       match v with
