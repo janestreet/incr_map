@@ -358,7 +358,6 @@ module type S_gen = sig
 
   val subrange_by_rank
     :  ?instrumentation:Instrumentation.t
-    -> ?data_equal:('v -> 'v -> bool)
     -> ('k, 'v, 'cmp) Map.t Incr.t
     -> (int Maybe_bound.As_lower_bound.t * int Maybe_bound.As_upper_bound.t) Incr.t
     -> ('k, 'v, 'cmp) Map.t Incr.t
@@ -532,14 +531,6 @@ module type S_gen = sig
     module For_debug : sig
       val sexp_of_t : ('k -> Sexp.t) -> ('v -> Sexp.t) -> ('k, 'v, 'cmp) t -> Sexp.t
     end
-  end
-
-  module For_testing : sig
-    val find_key_range_linear
-      :  from:int
-      -> to_:int
-      -> ('a, 'b, 'c) Base.Map.t
-      -> ('a * 'a option) option
   end
 end
 
@@ -1032,7 +1023,6 @@ module type Incr_map = sig
       v} *)
   val subrange_by_rank
     :  ?instrumentation:Instrumentation.t
-    -> ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> ( int Maybe_bound.As_lower_bound.t * int Maybe_bound.As_upper_bound.t
          , 'w )
@@ -1358,14 +1348,6 @@ module type Incr_map = sig
     module For_debug : sig
       val sexp_of_t : ('k -> Sexp.t) -> ('v -> Sexp.t) -> ('k, 'v, 'cmp, _) t -> Sexp.t
     end
-  end
-
-  module For_testing : sig
-    val find_key_range_linear
-      :  from:int
-      -> to_:int
-      -> ('a, 'b, 'c) Base.Map.t
-      -> ('a * 'a option) option
   end
 
   module type S_gen = S_gen

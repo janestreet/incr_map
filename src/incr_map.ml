@@ -407,7 +407,7 @@ module Generic = struct
       ~update:(fun ~key ~old_data ~new_data acc ->
         let prev_key = f ~key ~data:old_data in
         let new_key = f ~key ~data:new_data in
-        if M.comparator.compare prev_key new_key = 0
+        if (Comparator.compare M.comparator) prev_key new_key = 0
         then acc
         else acc |> remove prev_key |> add new_key)
   ;;
@@ -563,7 +563,7 @@ module Generic = struct
                    | _ -> apply_left output, right_diffs)
               in
               loop
-                comparator.compare
+                (Comparator.compare comparator)
                 ~old_output
                 ~output
                 right_diffs
@@ -707,7 +707,7 @@ module Generic = struct
                 [%here]
                   "Incr_map.merge_disjoint"
                   "caller has broken invariant, a key is present in both maps"
-                  ~key:(comparator.sexp_of_t key : Sexp.t)])
+                  ~key:((Comparator.sexp_of_t comparator) key : Sexp.t)])
         in
         match Map.length new_left_map, Map.length new_right_map with
         | 0, 0 -> empty
@@ -1465,7 +1465,7 @@ module Generic = struct
     range
     =
     with_old2 ~instrumentation map_incr range ~f:(fun ~old map range ->
-      let compare = (Map.comparator map).compare in
+      let compare = Comparator.compare (Map.comparator map) in
       let equal l r = compare l r = 0 in
       let ( > ) a b = compare a b > 0
       and ( >= ) a b = compare a b >= 0 in
@@ -1598,7 +1598,7 @@ module Generic = struct
       ~update:(fun ~key ~old_data ~new_data (output, adds) ->
         let prev_key = f ~key ~data:old_data in
         let new_key = f ~key ~data:new_data in
-        if (Map.comparator output).compare prev_key new_key = 0
+        if (Comparator.compare (Map.comparator output)) prev_key new_key = 0
         then Map.set output ~key:new_key ~data:new_data, adds
         else (
           let output = Map.remove output prev_key in
@@ -1652,247 +1652,56 @@ module Generic = struct
       ~index:(fun ~key:_ ~data -> index data)
   ;;
 
-  (** Find two keys in map by index, O(n). We use just one fold (two Map.nth would use
-      two) and optimize for keys close to either beginning or end by using either fold or
-      fold_right. *)
-  module Key_status = struct
-    type 'k t =
-      | Known of 'k
-      | Known_none
-      | Unknown
-
-    let is_known = function
-      | Unknown -> false
-      | _ -> true
-    ;;
-
-    let to_option = function
-      | Unknown | Known_none -> None
-      | Known k -> Some k
-    ;;
-  end
-
-  let find_key_range_linear (type k) ~from ~to_ (map : (k, _, _) Map.t)
-    : (k * k option) option
-    =
-    let open Key_status in
-    let len = Map.length map in
-    let begin_key = if Int.( >= ) from len then Known_none else Unknown in
-    let end_key = if Int.( >= ) to_ len then Known_none else Unknown in
-    let find_keys fold ~start_pos ~advance_pos =
-      with_return (fun { return } ->
-        fold
-          map
-          ~init:(begin_key, end_key, start_pos)
-          ~f:(fun ~key ~data:_ (begin_key, end_key, pos) ->
-            let begin_key = if Int.( = ) pos from then Known key else begin_key in
-            let end_key = if Int.( = ) pos to_ then Known key else end_key in
-            if is_known begin_key && is_known end_key
-            then return (begin_key, end_key, pos)
-            else begin_key, end_key, advance_pos pos))
-    in
-    let begin_key, end_key, _ =
-      (* Searching from left takes O(to_), from right - O(len - from), so select the
-         smaller one. *)
-      if to_ < len - from
-      then find_keys Map.fold ~start_pos:0 ~advance_pos:(fun pos -> pos + 1)
-      else find_keys Map.fold_right ~start_pos:(len - 1) ~advance_pos:(fun pos -> pos - 1)
-    in
-    Option.map (Key_status.to_option begin_key) ~f:(fun begin_key ->
-      begin_key, Key_status.to_option end_key)
-  ;;
-
-  let nth_from_either_side (type k) n (map : (k, _, _) Map.t) : k option =
-    Option.map ~f:fst (find_key_range_linear ~from:n ~to_:n map)
-  ;;
-
-  (** Find key [by] positions earlier/later in a map. Returns none if out of bounds. *)
-  let rec offset (key : 'k) (map : ('k, _, _) Map.t) ~by : 'k option =
-    if Int.( = ) by 0
-    then Some key
-    else (
-      let closest_dir, add =
-        if Int.( < ) by 0 then `Less_than, 1 else `Greater_than, -1
-      in
-      match Map.closest_key map closest_dir key with
-      | None -> None
-      | Some (key, _) -> offset key map ~by:(by + add))
-  ;;
-
-  (** Find how we need to move [key] if [changed_key] changed in the given way *)
-  let find_offset ~compare ~key ~changed_key change =
-    if Int.( < ) (compare changed_key key) 0
-    then (
-      match change with
-      | `Left _ -> 1
-      | `Right _ -> -1
-      | _ -> 0)
-    else 0
-  ;;
-
   let rank
     (type k v cmp state_witness)
     ?(instrumentation = no_instrumentation)
     (map : ((k, v, cmp) Map.t, state_witness) Incremental.t)
     (key : (k, state_witness) Incremental.t)
     =
-    let when_key_changed ~compare_key ~map ~old_key ~new_key ~old_rank =
-      if compare_key new_key old_key < 0
-      then (
-        (* If the new key is smaller than the old key, find the size of the map subrange
-             between them and subtract it from the previous rank *)
-        let lower_bound, upper_bound = Excl new_key, Excl old_key in
-        let subrange = Map.subrange map ~lower_bound ~upper_bound in
-        old_rank - Map.length subrange - 1)
-      else (
-        (* Otherwise, the new key is larger than the old key, so find the size of the
-             map subrange between them and add it to the previous rank *)
-        let lower_bound, upper_bound = Excl old_key, Excl new_key in
-        let subrange = Map.subrange map ~lower_bound ~upper_bound in
-        old_rank + Map.length subrange + 1)
-    in
-    let when_map_changed ~compare_key ~old_map ~new_map ~key ~old_rank =
-      Map.fold_symmetric_diff (* We don't care about the data, so optimize these checks *)
-        ~data_equal:(fun _ _ -> true)
-        old_map
-        new_map
-        ~init:old_rank
-        ~f:(fun acc (diff_key, diff) ->
-          match diff with
-          | `Left _ when compare_key diff_key key < 0 -> acc - 1
-          | `Right _ when compare_key diff_key key < 0 -> acc + 1
-          | _ -> acc)
-    in
-    let rec process ~(old : ((k, v, _) Map.t * _ * _) option) new_map (new_key : k) =
-      let compare_key = (Map.comparator new_map).compare in
-      let same_key a b = compare_key a b = 0 in
-      if not (Map.mem new_map new_key)
-      then None
-      else (
-        match old with
-        (* If the map and key are the same, just reuse the old rank *)
-        | Some (old_map, old_key, old_rank)
-          when phys_equal new_map old_map && same_key old_key new_key -> old_rank
-        (* If the map is the same but the key changed *)
-        | Some (old_map, old_key, Some old_rank) when phys_equal new_map old_map ->
-          Some (when_key_changed ~compare_key ~map:new_map ~old_key ~new_key ~old_rank)
-        (* If the key is the same but the map changed *)
-        | Some (old_map, old_key, Some old_rank) when same_key new_key old_key ->
-          Some (when_map_changed ~compare_key ~old_map ~new_map ~key:new_key ~old_rank)
-        (* If both the map and the key changed, this can be simulated as the
-             map changing followed by the key changing *)
-        | Some (old_map, old_key, Some old_rank) ->
-          (* We call [process] recursively instead of directly calling
-               [when_map_changed] followed by [when_key_changed] since it might be the
-               case that [old_key] is in [old_map] and [new_key] is in [new_map], but
-               [old_key] is not in [new_map]. *)
-          let old_rank =
-            process ~old:(Some (old_map, old_key, Some old_rank)) new_map old_key
-          in
-          process ~old:(Some (new_map, old_key, old_rank)) new_map new_key
-        (* If the previous key was not in the map or this is the first stabilization,
-             compute the rank from scratch *)
-        | Some (_, _, None) | None -> Map.rank new_map new_key)
-    in
-    with_old2 ~instrumentation map key ~f:process
+    Incremental.map2 map key ~f:(fun map key ->
+      instrumentation.Instrumentation.f (fun () -> Map.rank map key))
   ;;
 
   (** Range map by indices *)
   let subrange_by_rank
     (type k state_witness)
     ?(instrumentation = no_instrumentation)
-    ?data_equal
     (map : ((k, _, _) Map.t, state_witness) Incremental.t)
     (range : (int Maybe_bound.t * int Maybe_bound.t, state_witness) Incremental.t)
     =
-    let find_key_range (range : (int * int, state_witness) Incremental.t)
-      : ((k * k option) option, state_witness) Incremental.t
-      =
-      with_old2 map range ~instrumentation ~f:(fun ~old map (from, to_) ->
-        (* This function returns no keys, only begin key, or begin and end keys.
-           These are the keys at [from] and [to_] positions in the map, or None if the
-           indices are too big. As always [0 <= from && from <= to_], there is no
-           possibility of only [to_] being a valid position.
-        *)
-        if Int.( < ) to_ from || Int.( < ) from 0
-        then raise_s [%message "Invalid indices" (from : int) (to_ : int)];
-        match old with
-        | Some (old_map, (old_from, old_to), Some (begin_key, end_key_opt)) ->
-          let find_offset = find_offset ~compare:(Map.comparator map).compare in
-          let range_offset_begin = from - old_from in
-          let range_offset_end = to_ - old_to in
-          let adjust_and_offset ~by key =
-            let by = by + if by >= 0 && not (Map.mem map key) then 1 else 0 in
-            offset key map ~by
+    Incremental.map2 map range ~f:(fun map (lower_bound, upper_bound) ->
+      instrumentation.Instrumentation.f (fun () ->
+        if Map.is_empty map
+        then map
+        else (
+          let lower_bound_inclusive =
+            let n =
+              match lower_bound with
+              | (Incl x | Excl x) when x < 0 -> 0
+              | Incl x -> x
+              | Excl x -> x + 1
+              | Unbounded -> 0
+            in
+            Map.nth map n
           in
-          (* We only care about the keys changing and not the data, so [data_equal] here
-             can be always true *)
-          let diff ~init ~f =
-            Map.fold_symmetric_diff ~data_equal:(fun _ _ -> true) old_map map ~init ~f
+          let upper_bound_inclusive =
+            let n =
+              match upper_bound with
+              | (Incl x | Excl x) when x >= Map.length map -> Map.length map - 1
+              | Incl x -> x
+              | Excl x -> x - 1
+              | Unbounded -> Map.length map - 1
+            in
+            Map.nth map n
           in
-          let begin_key_opt, end_key_opt =
-            match end_key_opt with
-            | Some end_key ->
-              let map_offset_begin, map_offset_end =
-                diff ~init:(0, 0) ~f:(fun (offset_begin, offset_end) (key, change) ->
-                  ( offset_begin + find_offset ~key:begin_key ~changed_key:key change
-                  , offset_end + find_offset ~key:end_key ~changed_key:key change ))
-              in
-              ( adjust_and_offset begin_key ~by:(map_offset_begin + range_offset_begin)
-              , adjust_and_offset end_key ~by:(map_offset_end + range_offset_end) )
-            | None ->
-              let map_offset_begin =
-                diff ~init:0 ~f:(fun offset_begin (key, change) ->
-                  offset_begin + find_offset ~key:begin_key ~changed_key:key change)
-              in
-              ( adjust_and_offset begin_key ~by:(map_offset_begin + range_offset_begin)
-              , nth_from_either_side to_ map )
-          in
-          assert (Option.for_all ~f:(Map.mem map) begin_key_opt);
-          assert (Option.for_all ~f:(Map.mem map) end_key_opt);
-          Option.map begin_key_opt ~f:(fun begin_key -> begin_key, end_key_opt)
-        | None | Some (_, _, None) ->
-          (* On first run (when we have to) or when both the keys are none, run O(n)
-             scan. This is fine for keys-are-none case as it happens when the positions
-             are past end of the map, so they shouldn't be too far from end after the
-             map changes, and [find_key_range_linear] is fast in such case. *)
-          find_key_range_linear map ~from ~to_)
-    in
-    (* Handle different Maybe_bound cases and call find_key_range if necessary. It's
-       nicer to do this here as opposed to making find_key_range even more complicated *)
-    let open Incremental.Let_syntax in
-    let ( >>> ) new_ bound = Maybe_bound.map ~f:(fun _ -> new_) bound in
-    let return = Incremental.return (Incremental.state map) in
-    let key_range =
-      match%pattern_bind range with
-      | Maybe_bound.Unbounded, Maybe_bound.Unbounded ->
-        return (Some (Maybe_bound.Unbounded, Maybe_bound.Unbounded))
-      | ( ((Maybe_bound.Incl l | Maybe_bound.Excl l) as lb)
-        , ((Maybe_bound.Incl u | Maybe_bound.Excl u) as ub) ) ->
-        let%map key_range = find_key_range (Incremental.both l u)
-        and lb
-        and ub in
-        (match key_range with
-         | Some (begin_key, Some end_key) -> Some (begin_key >>> lb, end_key >>> ub)
-         | Some (begin_key, None) -> Some (begin_key >>> lb, Unbounded)
-         | None -> None)
-      | ((Maybe_bound.Incl l | Maybe_bound.Excl l) as lb), Maybe_bound.Unbounded ->
-        let%map key_range = find_key_range (Incremental.both l l)
-        and lb in
-        (match key_range with
-         | Some (key, _) -> Some (key >>> lb, Unbounded)
-         | None -> None)
-      | Maybe_bound.Unbounded, ((Maybe_bound.Incl u | Maybe_bound.Excl u) as ub) ->
-        let%map key_range = find_key_range (Incremental.both u u)
-        and ub in
-        (match key_range with
-         | Some (key, _) -> Some (Unbounded, key >>> ub)
-         (* In this case, the upper bound was larger than the number of elements in the
-            map, so the upper bound for the key range is [Unbounded].
-            This behavior is demonstrated in a test in [../test/test_subrange.ml]. *)
-         | None -> Some (Unbounded, Unbounded))
-    in
-    subrange ?data_equal map key_range
+          match lower_bound_inclusive, upper_bound_inclusive with
+          | None, _ | _, None ->
+            Map.Using_comparator.empty ~comparator:(Map.comparator map)
+          | Some (lower_bound_inclusive, _), Some (upper_bound_inclusive, _) ->
+            Map.subrange
+              ~lower_bound:(Incl lower_bound_inclusive)
+              ~upper_bound:(Incl upper_bound_inclusive)
+              map)))
   ;;
 
   let transpose
@@ -2002,8 +1811,8 @@ module Generic = struct
         Map.change acc merged_keys ~f:(function
           | None -> None
           | Some ((prev_outer_key, prev_inner_key, _) as prev) ->
-            if Outer_cmp.comparator.compare prev_outer_key outer_key = 0
-               && inner_cmp.compare prev_inner_key inner_key = 0
+            if (Comparator.compare Outer_cmp.comparator) prev_outer_key outer_key = 0
+               && (Comparator.compare inner_cmp) prev_inner_key inner_key = 0
             then None
             else
               (* if the outer and inner keys aren't the same, then that's because the same
@@ -2265,10 +2074,6 @@ module Generic = struct
         in
         output)
   ;;
-
-  module For_testing = struct
-    let find_key_range_linear = find_key_range_linear
-  end
 
   module Lookup = struct
     type ('v, 'w) entry =

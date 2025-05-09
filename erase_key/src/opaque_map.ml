@@ -144,7 +144,7 @@ let erase_key_incrementally
           | None -> [], acc.additions
           | Some (lowest, _) ->
             List.partition_tf acc.additions ~f:(fun (a, _) ->
-              Int.(M.comparator.compare a lowest < 0))
+              Int.((Comparator.compare M.comparator) a lowest < 0))
         in
         acc |> add_all lower_than_lowest |> add_all (List.rev rest)
       in

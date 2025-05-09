@@ -90,7 +90,7 @@ module Incr_collated_map = struct
     | Sorted (m, key_comparator) ->
       let%map m in
       fun key ->
-        let compare = key_comparator.compare in
+        let compare = Comparator.compare key_comparator in
         Map.to_sequence m
         |> Sequence.findi ~f:(fun _i ((k, _), _) -> compare k key = 0)
         |> Option.map ~f:fst
@@ -206,7 +206,7 @@ let do_sort
         ~remove:(fun ~key ~data map -> Map.remove map (key, data))
         ~specialized_initial:(fun ~init new_in ->
           let[@inline always] compare_ignoring_second (t1, _) (t2, _) =
-            custom_comparator.compare t1 t2
+            (Comparator.compare custom_comparator) t1 t2
           in
           match Map.min_elt new_in with
           | None -> init
@@ -356,8 +356,8 @@ let comparator_of_compare
     let (module Cmp : Comparator.S_fc with type comparable_t = k * v) =
       Comparator.make
         ~compare:(fun [@inline always] (k1, _v1) (k2, _v2) ->
-          map_comparator.compare k2 k1)
-        ~sexp_of_t:(fun (k, _v) -> map_comparator.sexp_of_t k)
+          (Comparator.compare map_comparator) k2 k1)
+        ~sexp_of_t:(fun (k, _v) -> (Comparator.sexp_of_t map_comparator) k)
     in
     T (Some Cmp.comparator)
   | Custom_by_value { compare } ->
@@ -371,8 +371,8 @@ let comparator_of_compare
       Comparator.make
         ~compare:(fun [@inline always] (k1, v1) (k2, v2) ->
           let res = compare (k1, v1) (k2, v2) in
-          if res <> 0 then res else map_comparator.compare k1 k2)
-        ~sexp_of_t:(fun (k, _v) -> map_comparator.sexp_of_t k)
+          if res <> 0 then res else (Comparator.compare map_comparator) k1 k2)
+        ~sexp_of_t:(fun (k, _v) -> (Comparator.sexp_of_t map_comparator) k)
     in
     T (Some Cmp.comparator)
 ;;

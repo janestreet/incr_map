@@ -103,36 +103,11 @@ module%bench [@name "inline_benchmarks"] _ = struct
       ~num_ops
   ;;
 
-  let map =
-    Core.Int.Map.of_increasing_sequence
-      (Sequence.range 0 1_000_000 |> Sequence.map ~f:(fun x -> x, ()))
-    |> Or_error.ok_exn
-  ;;
-
   let%bench_fun "next page" =
     let x = 500_000 in
     benchmark_fixed_map
       ~range:(Incl x, Incl (x + 30))
       ~new_range:(Incl (x + 31), Incl (x + 60))
       ~size:1_000_000
-  ;;
-
-  let find_key_range_linear ~from ~to_ () =
-    let (_ : (int * int option) option) =
-      Incr.Map.For_testing.find_key_range_linear ~from ~to_ map
-    in
-    ()
-  ;;
-
-  (* Test that beginning and end is fast, and middle is slow *)
-
-  let%bench_fun "find_key_range_linear beginning" = find_key_range_linear ~from:0 ~to_:30
-
-  let%bench_fun "find_key_range_linear middle" =
-    find_key_range_linear ~from:500_000 ~to_:500_030
-  ;;
-
-  let%bench_fun "find_key_range_linear end" =
-    find_key_range_linear ~from:999_970 ~to_:1_000_000
   ;;
 end
