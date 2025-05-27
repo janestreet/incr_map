@@ -142,7 +142,7 @@ let%expect_test _ =
     { Incr_map_collate.Collate_params.filter = (fun ~key:_ ~data:_ -> true)
     ; order = Custom_by_value { compare = Comparable.reverse Int.compare }
     ; key_range = All_rows
-    ; rank_range = Between (3, 6)
+    ; rank_range = Between (From_start 3, From_start 6)
     };
   stabilize_and_show ();
   [%expect
@@ -157,6 +157,38 @@ let%expect_test _ =
        (key_range         All_rows)
        (rank_range (Between 3 6))
        (num_before_range    3)
+       (num_unfiltered_rows 10)))
+     (data_with_key_rank (
+       (0 (0 (9)))
+       (1 (1 (8)))
+       (2 (2 (7)))
+       (3 (3 (6)))
+       (4 (4 (5)))
+       (5 (5 (4)))
+       (6 (6 (3)))
+       (7 (7 (2)))
+       (8 (8 (1)))
+       (9 (9 (0))))))
+    |}];
+  Incr.Var.set
+    collate_var
+    { Incr_map_collate.Collate_params.filter = (fun ~key:_ ~data:_ -> true)
+    ; order = Custom_by_value { compare = Comparable.reverse Int.compare }
+    ; key_range = All_rows
+    ; rank_range = Between (From_end 3, From_end 1)
+    };
+  stabilize_and_show ();
+  [%expect
+    {|
+    ((collated (
+       (data (
+         (0   (3 3))
+         (100 (2 2))
+         (200 (1 1))))
+       (num_filtered_rows 10)
+       (key_range         All_rows)
+       (rank_range (Between 6 8))
+       (num_before_range    6)
        (num_unfiltered_rows 10)))
      (data_with_key_rank (
        (0 (0 (9)))

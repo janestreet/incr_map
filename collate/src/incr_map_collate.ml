@@ -227,25 +227,83 @@ let do_sort
     Sorted (sorted, map_comparator)
 ;;
 
+let to_from_start_rank (idx : Collate_params.Rank.t) ~data_length =
+  match idx with
+  | From_start i -> i
+  | From_end i -> data_length - i - 1
+;;
+
+let to_from_start_rank_range
+  (rank_range : Collate_params.Rank.t Collate_params.Which_range.t)
+  ~(data_length : int)
+  : int Collate_params.Which_range.t
+  =
+  match rank_range with
+  | All_rows -> All_rows
+  | Between (l, u) ->
+    let l = to_from_start_rank l ~data_length in
+    let u = to_from_start_rank u ~data_length in
+    Collate_params.Which_range.Between (l, u)
+  | From l ->
+    let l = to_from_start_rank l ~data_length in
+    Collate_params.Which_range.From l
+  | To u ->
+    let u = to_from_start_rank u ~data_length in
+    Collate_params.Which_range.To u
+;;
+
 let do_rank_range_restrict_and_rank
   (type k v w)
   (data : (k, v, w) Incr_collated_map.t)
-  ~(rank_range : (int Collate_params.Which_range.t, w) Incremental.t)
+  ~(rank_range : (Collate_params.Rank.t Collate_params.Which_range.t, w) Incremental.t)
+  ~data_length
   : (k, v, w) Incr_collated_map.t * (int, w) Incremental.t
   =
   let incremental_state = Incremental.state rank_range in
   let apply_range data =
     match%pattern_bind rank_range with
     | All_rows -> data
-    | Between (l, u) ->
-      Incr_map.subrange_by_rank data (Incremental.map2 l u ~f:(fun l u -> Incl l, Incl u))
-    | From l -> Incr_map.subrange_by_rank data (l >>| fun l -> Incl l, Unbounded)
-    | To u -> Incr_map.subrange_by_rank data (u >>| fun u -> Unbounded, Incl u)
+    | Between (From_start _, From_start _) as bounds ->
+      let bounds =
+        (* re-match on bounds here to avoid introducing two incrementals (one for each [l] and [u]*)
+        match%map bounds with
+        | Between (From_start l, From_start u) -> Incl l, Incl u
+        | _ -> assert false
+      in
+      Incr_map.subrange_by_rank data bounds
+    | From (From_start l) ->
+      Incr_map.subrange_by_rank data (l >>| fun l -> Incl l, Unbounded)
+    | To (From_start u) ->
+      Incr_map.subrange_by_rank data (u >>| fun u -> Unbounded, Incl u)
+    | Between _ as bounds ->
+      let bounds =
+        (* re-match on bounds here to avoid introducing two incrementals (one for each [l] and [u]*)
+        let%mapn bounds and data_length in
+        match bounds with
+        | Between (l, u) ->
+          ( Incl (to_from_start_rank l ~data_length)
+          , Incl (to_from_start_rank u ~data_length) )
+        | _ -> assert false
+      in
+      Incr_map.subrange_by_rank data bounds
+    | From l ->
+      Incr_map.subrange_by_rank
+        data
+        (let%mapn.Incremental l and data_length in
+         Incl (to_from_start_rank l ~data_length), Unbounded)
+    | To u ->
+      Incr_map.subrange_by_rank
+        data
+        (let%mapn.Incremental u and data_length in
+         Unbounded, Incl (to_from_start_rank u ~data_length))
   in
   let count_before =
     match%pattern_bind rank_range with
     | All_rows | To _ -> Incremental.return incremental_state 0
-    | Between (l, _) | From l -> l
+    | Between (From_start l, _) | From (From_start l) -> l
+    | Between (l, _) | From l ->
+      let%mapn.Incremental l and data_length in
+      to_from_start_rank l ~data_length
   in
   match data with
   | Original m -> Original (apply_range m), count_before
@@ -270,20 +328,20 @@ let do_key_range_restrict
     | All_rows -> data
     | Between (l, u) ->
       let range =
-        let%map l = lookup l
+        let%mapn l = lookup l
         and u = lookup u in
         Some (l, u)
       in
       Incr_map.subrange data range
     | From l ->
       let range =
-        let%map l = lookup l in
+        let%mapn l = lookup l in
         Some (l, Maybe_bound.Unbounded)
       in
       Incr_map.subrange data range
     | To u ->
       let range =
-        let%map u = lookup u in
+        let%mapn u = lookup u in
         Some (Maybe_bound.Unbounded, u)
       in
       Incr_map.subrange data range
@@ -295,7 +353,7 @@ let do_key_range_restrict
        | All_rows | To _ -> none
        | Between (k, _) | From k ->
          let closest =
-           let%map key = k
+           let%mapn key = k
            and map in
            Map.closest_key map `Less_or_equal_to key
          in
@@ -307,14 +365,14 @@ let do_key_range_restrict
        | All_rows | To _ -> none
        | Between (k, _) | From k ->
          let v =
-           let%map orig_map and k in
+           let%mapn orig_map and k in
            Map.find orig_map k
          in
          (match%pattern_bind v with
           | None -> none
           | Some v ->
             let closest =
-              let%map key = k
+              let%mapn key = k
               and v
               and map in
               Map.closest_key map `Less_or_equal_to (key, v)
@@ -333,7 +391,7 @@ let do_key_range_restrict
     Original (resolve_range_and_do data ~lookup), count_before
   | Sorted (data, key_cmp) ->
     let lookup k =
-      let%map orig_map and k in
+      let%mapn orig_map and k in
       match Map.find orig_map k with
       | None -> Maybe_bound.Unbounded
       | Some v -> Maybe_bound.Incl (k, v)
@@ -406,17 +464,22 @@ let do_range_restrict orig_data data ~key_range ~rank_range =
   let data, count_before_key_rank =
     do_key_range_restrict data ~key_range ~orig_map:orig_data
   in
-  let data, count_before_range_rank = do_rank_range_restrict_and_rank data ~rank_range in
+  let data_length = Incr_collated_map.length data in
+  let data, count_before_range_rank =
+    do_rank_range_restrict_and_rank data ~rank_range ~data_length
+  in
   let data = do_to_pos_map data in
   let collated =
-    let%map data
+    let%mapn data
     and num_unfiltered_rows = orig_data >>| Map.length
     and num_filtered_rows
     and key_range
     and rank_range
     and count_before_key_rank
-    and count_before_range_rank in
+    and count_before_range_rank
+    and data_length in
     let num_before_range = count_before_key_rank + count_before_range_rank in
+    let rank_range = to_from_start_rank_range rank_range ~data_length in
     Collated.Private.create
       ~data
       ~num_filtered_rows
@@ -571,6 +634,15 @@ module With_caching = struct
            We also keep a cache of a few least recently used buckets.
         *)
         let%map key_range and rank_range in
+        (* At this point, we cannot get [num_filtered_row] so we set it to 0 to
+           get a forward rank range.
+           This means that [Backward] Ranks in the forward rank_range will be
+           negative.
+           This is fine because this [rank_range] isn't passed to
+           [Incr_map.subrange_by_rank] but only used to uniquely identify
+           a Bucket range. For that use case, a negative range should be fine... *)
+        let data_length = 0 in
+        let rank_range = to_from_start_rank_range ~data_length rank_range in
         Range_memoize_bucket.create
           ~bucket_size:range_memoize_bucket_size
           ~key_range

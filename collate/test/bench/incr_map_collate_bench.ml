@@ -212,7 +212,7 @@ let fresh_benchmarks ~verbose =
       ~operation_order:`Filter_first
       ~collate:
         { (Collate_params.default ~filter:Filter.Almost_all ~order:Order.By_value) with
-          rank_range = Between (100, 200)
+          rank_range = Between (From_start 100, From_start 200)
         });
   run ~name:(sprintf "fresh (%d) - sort, filter, no range" map_len) ~init_f:(fun () ->
     fresh_test
@@ -225,7 +225,7 @@ let fresh_benchmarks ~verbose =
       ~operation_order:`Sort_first
       ~collate:
         { (Collate_params.default ~filter:Filter.Almost_all ~order:Order.By_value) with
-          rank_range = Between (100, 200)
+          rank_range = Between (From_start 100, From_start 200)
         });
   run
     ~name:(sprintf "change filter (%d) - filter, sort, no range" map_len)
@@ -242,7 +242,7 @@ let fresh_benchmarks ~verbose =
         ~operation_order:`Filter_first
         ~collate:
           { (Collate_params.default ~filter:Filter.Almost_all ~order:Order.By_value) with
-            rank_range = Between (100, 200)
+            rank_range = Between (From_start 100, From_start 200)
           });
   run
     ~name:(sprintf "change filter (%d) - sort, filter, no range" map_len)
@@ -259,7 +259,7 @@ let fresh_benchmarks ~verbose =
         ~operation_order:`Sort_first
         ~collate:
           { (Collate_params.default ~filter:Filter.Almost_all ~order:Order.By_value) with
-            rank_range = Between (100, 200)
+            rank_range = Between (From_start 100, From_start 200)
           })
 ;;
 
