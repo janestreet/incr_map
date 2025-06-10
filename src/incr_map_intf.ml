@@ -534,7 +534,7 @@ module type S_gen = sig
   end
 end
 
-module type Incr_map = sig
+module type Incr_map = sig @@ portable
   (** Functions for using maps efficiently within Incremental. The goal of the algorithms
       here is to do work on the output of the computation proportional to the amount of
       work done on the input. i.e., [k] modifications to the input map for some
@@ -1280,6 +1280,8 @@ module type Incr_map = sig
     -> (('k, 'v, 'cmp) Map.t, _) Incremental.t
     -> f:(('k, 'v) Map.Symmetric_diff_element.t -> unit)
     -> unit
+    @@ (* not portable because it requires [Incremental.observe] to be portable *)
+       nonportable
 
   (** [cartesian_product] provides a way to compute the cartesian product of two maps,
       performed incrementally. The number of keys in the resulting map is the product of

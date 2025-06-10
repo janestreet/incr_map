@@ -1,9 +1,11 @@
+@@ portable
+
 open! Core
 
 module Key : sig
-  type t [@@deriving sexp, bin_io]
+  type t : value mod contended portable [@@deriving sexp, bin_io]
 
-  include Comparable.S with type t := t
+  include Comparable.S [@mode portable] with type t := t
 
   val to_string : t -> string
   val zero : t
@@ -15,7 +17,7 @@ module Key : sig
   end
 end
 
-type 'a t = (Key.t, 'a, Key.comparator_witness) Map.t
+type 'a t : value mod contended portable with 'a = 'a Key.Map.t
 [@@deriving sexp, compare, equal, bin_io]
 
 include Diffable.S1 with type 'a t := 'a t

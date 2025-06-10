@@ -19,10 +19,8 @@ end
 let%expect_test "Simple usage example" =
   let m = String.Map.of_alist_exn [ "a", 1; "b", 2; "c", 3 ] |> Incr.Var.create in
   let ib =
-    Incr_map.index_by
-      (Incr.Var.watch m)
-      ~comparator:(module Odd_or_even)
-      ~index:(fun v -> Option.some_if (v >= 0) (Odd_or_even.of_int v))
+    Incr_map.index_by (Incr.Var.watch m) ~comparator:(module Odd_or_even) ~index:(fun v ->
+      Option.some_if (v >= 0) (Odd_or_even.of_int v))
   in
   let sexp_of_map = [%sexp_of: int String.Map.t Odd_or_even.Map.t] in
   let stabilize_and_get_sexp =

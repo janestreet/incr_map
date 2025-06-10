@@ -1,14 +1,18 @@
 open Core
 module Which_range = Collate_params.Which_range
 
-module type Parametrized = sig
+module type Parametrized = sig @@ portable
   (** The result of collation - a filtered, sorted and restricted-to-a-range list of keys
       and values. The underlying data structure is a bit more sophisticated than a list,
       to provide better diffing.
 
       To get an implementation of [Diffable] interface, you'll need to instantiate
       [Make_concrete]. *)
-  type ('k, 'v) t [@@deriving sexp, bin_io, compare, equal, diff]
+
+  type ('k, 'v) t : value mod contended portable with 'k with 'v
+  [@@deriving sexp, bin_io, compare, equal]
+
+  include Diffable.S2 with type ('a, 'b) t := ('a, 'b) t @@ nonportable
 
   val empty : _ t
   val fold : ('k, 'v) t -> init:'accum -> f:('accum -> 'k * 'v -> 'accum) -> 'accum
@@ -38,11 +42,11 @@ module type Parametrized = sig
   (** The rank range this result was computed for *)
   val rank_range : _ t -> int Which_range.t
 
-  module Stable : sig
-    module V1 : sig
+  module (Stable @@ nonportable) : sig @@ portable
+    module (V1 @@ nonportable) : sig @@ portable
       type nonrec ('k, 'v) t = ('k, 'v) t [@@deriving sexp, bin_io, stable_witness]
 
-      include Diffable.S2 with type ('k, 'v) t := ('k, 'v) t
+      include Diffable.S2 with type ('k, 'v) t := ('k, 'v) t @@ nonportable
     end
   end
 
@@ -55,6 +59,7 @@ module type Parametrized = sig
       -> num_before_range:int
       -> num_unfiltered_rows:int
       -> ('k, 'v) t
+      @@ portable
   end
 
   module For_testing : sig
@@ -75,7 +80,7 @@ module type Bin_comp_sexp = sig
   type t [@@deriving bin_io, sexp, compare, equal]
 end
 
-module type Concrete = sig
+module type%template [@modality p = (nonportable, portable)] Concrete = sig @@ p
   module Key : Bin_comp_sexp
   module Value : Bin_comp_sexp
 
@@ -95,8 +100,8 @@ module type Concrete = sig
   val key_range : t -> Key.t Which_range.t
   val rank_range : t -> int Which_range.t
 
-  include Legacy_diffable.S with type t := t
-  include Streamable.S with type t := t
+  include Legacy_diffable.S with type t := t @@ nonportable
+  include Streamable.S with type t := t @@ nonportable
 
   (** This strange value just encodes the fact that this type does not yet implement
       [Ldiffable.S]. When it does, delete this and then the compiler will show you places
@@ -113,6 +118,14 @@ module type Collated = sig
 
   module type Concrete = Concrete with type ('k, 'v) parametrized = ('k, 'v) t
 
-  module Make_concrete (Key : Bin_comp_sexp) (Value : Bin_comp_sexp) :
-    Concrete with type Key.t = Key.t and type Value.t = Value.t
+  module%template
+    [@modality p = (nonportable, portable)] Make_concrete
+      (Key : sig
+       @@ p
+         include Bin_comp_sexp
+       end)
+      (Value : sig
+       @@ p
+         include Bin_comp_sexp
+       end) : Concrete [@modality p] with type Key.t = Key.t and type Value.t = Value.t
 end

@@ -895,6 +895,76 @@ let%expect_test "duplicates in diff" =
     |}]
 ;;
 
+let%expect_test "instrumentation: every instrumented stage gets hit once" =
+  let hits = String.Table.create () in
+  let instrument name =
+    { Incr_map.Instrumentation.f =
+        (fun f ->
+          Hashtbl.update hits name ~f:(function
+            | None -> 1
+            | Some x -> x + 1);
+          f ())
+    }
+  in
+  let print_hits () =
+    Expectable.print
+      (Hashtbl.to_alist hits
+       |> List.map ~f:(fun (stage, hits) -> [%sexp { stage : string; hits : int }]))
+  in
+  let instrumentation : Instrumentation.t =
+    { filter = instrument "filter"
+    ; fold = instrument "fold"
+    ; sort = instrument "sort"
+    ; key_subrange = instrument "key_subrange"
+    ; key_to_rank = instrument "key_to_rank"
+    ; rank_range = instrument "rank_range"
+    }
+  in
+  let do_collate =
+    Incr_map_collate.collate_and_fold
+      ~instrumentation
+      ~filter_to_predicate:Filter.to_predicate
+      ~order_to_compare:Order.to_compare
+      ~filter_equal:Filter.equal
+      ~order_equal:Order.equal
+      ~fold:
+        (Fold.create
+           ~init:()
+           ~add:(fun ~key:_ ~data:_ () -> ())
+           ~remove:(fun ~key:_ ~data:_ () -> ())
+           ())
+  in
+  let (_ : t) =
+    init_test
+      ~do_collate
+      ~operation_order:`Sort_first
+      ~order:Order.By_price
+      ~filter:Filter.True
+      ~key_range:(From "VOD")
+      ~rank_range:(Between (From_start 0, From_start 100))
+      ()
+  in
+  Incr.stabilize ();
+  print_hits ();
+  [%expect
+    {|
+    ┌──────────────┬──────┐
+    │ stage        │ hits │
+    ├──────────────┼──────┤
+    │ sort         │ 1    │
+    │ rank_range   │ 1    │
+    │ key_subrange │ 1    │
+    │ fold         │ 1    │
+    │ filter       │ 1    │
+    │ key_to_rank  │ 1    │
+    └──────────────┴──────┘
+    |}];
+  (* Verifying we witnessed 6 instrumentation stages *)
+  [%test_eq: int] (Hashtbl.length hits) 6;
+  (* Verifying we only ran each stage once *)
+  [%test_eq: int] (Hashtbl.fold ~init:0 ~f:(fun ~key:_ ~data acc -> data + acc) hits) 6
+;;
+
 module%test [@name "new API"] _ = struct
   module Range = Incr_map_collate.With_caching.Range_memoize_bucket
 

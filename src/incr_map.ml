@@ -21,7 +21,7 @@ end
 (** This module encapsulates some operations on values that have the type
     [_ Map.t option ref]. It is used in the implementation of many Incr_map functions that
     need an empty map, but don't yet have access to a comparator in order to build one. *)
-module Map_option_ref : sig
+module Map_option_ref : sig @@ portable
   type ('k, 'v, 'cmp) t
 
   (** Creates a value initialzed to [ref None] *)
@@ -44,7 +44,7 @@ end = struct
   (* use of uopt is ok because with this type you can't have nested uopts. *)
   type ('k, 'v, 'cmp) t = ('k, 'v, 'cmp) Map.t Uopt.t ref
 
-  let create_none () = ref Uopt.none
+  let create_none () = ref (Uopt.get_none ())
   let value_exn t = Uopt.value_exn !t
 
   let if_none_then_fill_with_empty_map t ~using_the_comparator_from =
@@ -104,7 +104,7 @@ module Generic = struct
       in
       Option.value update ~default
     in
-    let cmp_and_init = ref Uopt.none in
+    let cmp_and_init = ref (Uopt.get_none ()) in
     with_old ~instrumentation map ~f:(fun ~old new_in ->
       let cmp, init =
         match%optional.Uopt !cmp_and_init with
@@ -518,58 +518,56 @@ module Generic = struct
           old_left_map
           new_left_map
           ~data_equal:data_equal_left
-          ~f:
-            (local_
-            fun (output, right_diffs) (left_key, left_diff_element) ->
-              let rec local_ loop
-                compare
-                ~old_output
-                ~output
-                right_diffs
-                left_key
-                left_diff_element
-                ~f
-                =
-                let[@inline] apply_left output =
-                  f
-                    ~old_output
-                    ~key:left_key
-                    ~output
-                    ~diff_element:(`Left left_diff_element)
-                in
-                let[@inline] apply_right output (key, diff_element) =
-                  f ~old_output ~key ~output ~diff_element:(`Right diff_element)
-                in
-                match right_diffs with
-                | None -> apply_left output, right_diffs
-                | Some (((right_key, right_diff_element) as hd), tl) ->
-                  (match compare left_key right_key with
-                   | 0 ->
-                     ( f
-                         ~old_output
-                         ~key:left_key
-                         ~output
-                         ~diff_element:(`Both (left_diff_element, right_diff_element))
-                     , Sequence.next tl )
-                   | x when x > 0 ->
-                     (loop [@tailcall])
-                       compare
-                       ~old_output
-                       ~output:(apply_right output hd)
-                       (Sequence.next tl)
-                       left_key
-                       left_diff_element
-                       ~f
-                   | _ -> apply_left output, right_diffs)
+          ~f:(local_ fun (output, right_diffs) (left_key, left_diff_element) ->
+            let rec local_ loop
+              compare
+              ~old_output
+              ~output
+              right_diffs
+              left_key
+              left_diff_element
+              ~f
+              =
+              let[@inline] apply_left output =
+                f
+                  ~old_output
+                  ~key:left_key
+                  ~output
+                  ~diff_element:(`Left left_diff_element)
               in
-              loop
-                (Comparator.compare comparator)
-                ~old_output
-                ~output
-                right_diffs
-                left_key
-                left_diff_element
-                ~f [@nontail])
+              let[@inline] apply_right output (key, diff_element) =
+                f ~old_output ~key ~output ~diff_element:(`Right diff_element)
+              in
+              match right_diffs with
+              | None -> apply_left output, right_diffs
+              | Some (((right_key, right_diff_element) as hd), tl) ->
+                (match compare left_key right_key with
+                 | 0 ->
+                   ( f
+                       ~old_output
+                       ~key:left_key
+                       ~output
+                       ~diff_element:(`Both (left_diff_element, right_diff_element))
+                   , Sequence.next tl )
+                 | x when x > 0 ->
+                   (loop [@tailcall])
+                     compare
+                     ~old_output
+                     ~output:(apply_right output hd)
+                     (Sequence.next tl)
+                     left_key
+                     left_diff_element
+                     ~f
+                 | _ -> apply_left output, right_diffs)
+            in
+            loop
+              (Comparator.compare comparator)
+              ~old_output
+              ~output
+              right_diffs
+              left_key
+              left_diff_element
+              ~f [@nontail])
       in
       Option.value_map right_diffs ~default:output ~f:(fun (hd, tl) ->
         Sequence.fold ~init:(apply_right output hd) tl ~f:apply_right)

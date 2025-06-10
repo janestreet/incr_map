@@ -14,7 +14,7 @@ module Compare = struct
 end
 
 module Custom_tuple_comparator = struct
-  include Comparator.Derived2 (struct
+  include%template Comparator.Derived2 [@mode portable] (struct
       type ('a, 'b) t = 'a * 'b
 
       let[@inline always] compare compare_k compare_v (k1, v1) (k2, v2) =
@@ -44,7 +44,8 @@ module Range_memoize_bucket = struct
   end
 
   include T
-  include Comparable.Make_plain (T)
+
+  include%template Comparable.Make_plain [@mode portable] (T)
 
   let create
     ~bucket_size
@@ -68,11 +69,11 @@ module Range_memoize_bucket = struct
 end
 
 module Incr_collated_map = struct
-  type ('k, 'v, 'w) t =
-    | Original : (('k, 'v, 'cmp) Map.t, 'w) Incremental.t -> ('k, 'v, 'w) t
+  type ('k, 'v, 'cmp, 'w) t =
+    | Original : (('k, 'v, 'cmp) Map.t, 'w) Incremental.t -> ('k, 'v, 'cmp, 'w) t
     | Sorted :
         ((('k * 'v, 'v, 'custom_cmp) Map.t, 'w) Incremental.t * ('k, 'cmp) Comparator.t)
-        -> ('k, 'v, 'w) t
+        -> ('k, 'v, 'cmp, 'w) t
 
   let length t =
     let open Incremental.Let_syntax in
@@ -81,21 +82,66 @@ module Incr_collated_map = struct
     | Sorted (m, _) -> m >>| Map.length
   ;;
 
+  module Key_rank = struct
+    module Erased_tree = struct
+      (* Ideally, this type would be
+
+         {[ 
+           type ('k, 'v) t 
+             : value mod contended portable with 'k with 'v 
+             = T : ('k, 'v, _) Map.Tree.t -> ('k, 'v) t
+         ]}
+
+         (which is totally safe btw), but the compiler currently doesn't support 
+         mode crossing in GADTs.  A feature is in the works, but until then, we're 
+         left with a little transmutation. *)
+
+      type ('k, 'v) t : value mod contended portable with 'k with 'v
+
+      let to_tree (type k v) : (k, v, _) Map.Tree.t -> (k, v) t = Obj.magic
+      let of_tree (type k v) : (k, v) t -> (k, v, _) Map.Tree.t = Obj.magic
+    end
+
+    type ('k
+         , 'v
+         , 'cmp)
+         t :
+         value mod contended portable with 'k with 'v with ('k, 'cmp) Comparator.t =
+      | Original of ('k, 'v, 'cmp) Map.t
+      | Sorted of
+          { tree : ('k * 'v, 'v) Erased_tree.t
+          ; cmp : ('k, 'cmp) Comparator.t
+          }
+
+    let lookup t key =
+      match t with
+      | Original map -> Map.rank map key
+      | Sorted { tree; cmp } ->
+        let tree = Erased_tree.of_tree tree in
+        let compare = Comparator.compare cmp in
+        Map.Tree.fold_until
+          tree
+          ~init:0
+          ~f:(fun ~key:(k, _) ~data:_ i ->
+            if compare k key = 0 then Stop (Some i) else Continue (i + 1))
+          ~finish:(fun _ -> None)
+    ;;
+  end
+
   let key_rank t =
     let open Incremental.Let_syntax in
     match t with
     | Original m ->
       let%map m in
-      fun key -> Map.rank m key
+      Key_rank.Original m
     | Sorted (m, key_comparator) ->
       let%map m in
-      fun key ->
-        let compare = Comparator.compare key_comparator in
-        Map.to_sequence m
-        |> Sequence.findi ~f:(fun _i ((k, _), _) -> compare k key = 0)
-        |> Option.map ~f:fst
+      let tree = Key_rank.Erased_tree.to_tree (Map.to_tree m) in
+      Key_rank.Sorted { tree; cmp = key_comparator }
   ;;
 end
+
+module Key_rank = Incr_collated_map.Key_rank
 
 module Fold_params = struct
   type ('k, 'v, 'acc) t =
@@ -124,15 +170,17 @@ end
 
 open Incremental.Let_syntax
 
-let do_filter data ~predicate =
+let do_filter ~instrumentation data ~predicate =
   match predicate with
   | None -> data
   | Some filter ->
-    Incr_map.filter_mapi data ~f:(fun ~key ~data ->
+    Incr_map.filter_mapi ?instrumentation data ~f:(fun ~key ~data ->
       if filter ~key ~data then Some data else None)
 ;;
 
-let do_filter_sorted (data : _ Incr_collated_map.t) ~predicate : _ Incr_collated_map.t =
+let do_filter_sorted ~instrumentation (data : _ Incr_collated_map.t) ~predicate
+  : _ Incr_collated_map.t
+  =
   let filter
     (type a c)
     ~(get : a -> 'v -> 'k * 'v)
@@ -142,7 +190,7 @@ let do_filter_sorted (data : _ Incr_collated_map.t) ~predicate : _ Incr_collated
     match predicate with
     | None -> m
     | Some filter ->
-      Incr_map.filter_mapi m ~f:(fun ~key ~data ->
+      Incr_map.filter_mapi ?instrumentation m ~f:(fun ~key ~data ->
         let key, data = get key data in
         if filter ~key ~data then Some data else None)
   in
@@ -152,11 +200,13 @@ let do_filter_sorted (data : _ Incr_collated_map.t) ~predicate : _ Incr_collated
 ;;
 
 let do_fold
+  ~instrumentation
   (data : _ Incr_collated_map.t)
   ({ init; add; remove; update; finalize; revert_to_init_when_empty } : _ Fold_params.t)
   =
   match data with
-  | Original map -> Incr_map.unordered_fold map ~init ~add ~remove ?update
+  | Original map ->
+    Incr_map.unordered_fold ?instrumentation map ~init ~add ~remove ?update
   | Sorted (map, _) ->
     let lift f ~key ~data acc =
       let key, _ = key in
@@ -168,6 +218,7 @@ let do_fold
         update ~key ~old_data ~new_data acc)
     in
     Incr_map.unordered_fold
+      ?instrumentation
       map
       ~init
       ~add:(fun ~key ~data acc -> lift add ~key ~data acc)
@@ -180,27 +231,31 @@ let do_fold
 let do_fold
   (type fold_result)
   (data : _ Incr_collated_map.t)
+  ~instrumentation
   ~incremental_state
   ~in_scope
   ~(fold_action : (_, _, fold_result) Fold_action.t)
   =
   match fold_action with
-  | Fold_action.Fold fold_params -> in_scope (fun () -> do_fold data fold_params)
+  | Fold_action.Fold fold_params ->
+    in_scope (fun () -> do_fold ~instrumentation data fold_params)
   | Don't_fold -> in_scope (fun () -> Incremental.return incremental_state ())
 ;;
 
 let do_sort
   (type k v cmp custom_cmp w)
+  ~instrumentation
   (data : ((k, v, cmp) Map.t, w) Incremental.t)
   ~(map_comparator : (k, cmp) Comparator.t)
   ~(custom_comparator : (k * v, custom_cmp) Comparator.t option)
-  : (k, v, w) Incr_collated_map.t
+  : (k, v, cmp, w) Incr_collated_map.t
   =
   match custom_comparator with
   | None -> Incr_collated_map.Original data
   | Some custom_comparator ->
     let sorted =
       Incr_map.unordered_fold
+        ?instrumentation
         ~init:(Map.Using_comparator.empty ~comparator:custom_comparator)
         ~add:(fun ~key ~data map -> Map.set map ~key:(key, data) ~data)
         ~remove:(fun ~key ~data map -> Map.remove map (key, data))
@@ -253,11 +308,12 @@ let to_from_start_rank_range
 ;;
 
 let do_rank_range_restrict_and_rank
-  (type k v w)
-  (data : (k, v, w) Incr_collated_map.t)
+  (type k v cmp w)
+  (data : (k, v, cmp, w) Incr_collated_map.t)
+  ~instrumentation
   ~(rank_range : (Collate_params.Rank.t Collate_params.Which_range.t, w) Incremental.t)
   ~data_length
-  : (k, v, w) Incr_collated_map.t * (int, w) Incremental.t
+  : (k, v, cmp, w) Incr_collated_map.t * (int, w) Incremental.t
   =
   let incremental_state = Incremental.state rank_range in
   let apply_range data =
@@ -270,11 +326,11 @@ let do_rank_range_restrict_and_rank
         | Between (From_start l, From_start u) -> Incl l, Incl u
         | _ -> assert false
       in
-      Incr_map.subrange_by_rank data bounds
+      Incr_map.subrange_by_rank ?instrumentation data bounds
     | From (From_start l) ->
-      Incr_map.subrange_by_rank data (l >>| fun l -> Incl l, Unbounded)
+      Incr_map.subrange_by_rank ?instrumentation data (l >>| fun l -> Incl l, Unbounded)
     | To (From_start u) ->
-      Incr_map.subrange_by_rank data (u >>| fun u -> Unbounded, Incl u)
+      Incr_map.subrange_by_rank ?instrumentation data (u >>| fun u -> Unbounded, Incl u)
     | Between _ as bounds ->
       let bounds =
         (* re-match on bounds here to avoid introducing two incrementals (one for each [l] and [u]*)
@@ -285,14 +341,16 @@ let do_rank_range_restrict_and_rank
           , Incl (to_from_start_rank u ~data_length) )
         | _ -> assert false
       in
-      Incr_map.subrange_by_rank data bounds
+      Incr_map.subrange_by_rank ?instrumentation data bounds
     | From l ->
       Incr_map.subrange_by_rank
+        ?instrumentation
         data
         (let%mapn.Incremental l and data_length in
          Incl (to_from_start_rank l ~data_length), Unbounded)
     | To u ->
       Incr_map.subrange_by_rank
+        ?instrumentation
         data
         (let%mapn.Incremental u and data_length in
          Unbounded, Incl (to_from_start_rank u ~data_length))
@@ -312,10 +370,12 @@ let do_rank_range_restrict_and_rank
 
 let do_key_range_restrict
   (type k v cmp w)
-  (data : (k, v, w) Incr_collated_map.t)
+  (data : (k, v, cmp, w) Incr_collated_map.t)
+  ~subrange_instrumentation
+  ~rank_instrumentation
   ~(orig_map : ((k, v, cmp) Map.t, w) Incremental.t)
   ~(key_range : (k Collate_params.Which_range.t, w) Incremental.t)
-  : (k, v, w) Incr_collated_map.t * (int, w) Incremental.t
+  : (k, v, cmp, w) Incr_collated_map.t * (int, w) Incremental.t
   =
   let incremental_state = Incremental.state orig_map in
   let none = Incremental.return incremental_state None in
@@ -332,19 +392,19 @@ let do_key_range_restrict
         and u = lookup u in
         Some (l, u)
       in
-      Incr_map.subrange data range
+      Incr_map.subrange ?instrumentation:subrange_instrumentation data range
     | From l ->
       let range =
         let%mapn l = lookup l in
         Some (l, Maybe_bound.Unbounded)
       in
-      Incr_map.subrange data range
+      Incr_map.subrange ?instrumentation:subrange_instrumentation data range
     | To u ->
       let range =
         let%mapn u = lookup u in
         Some (Maybe_bound.Unbounded, u)
       in
-      Incr_map.subrange data range
+      Incr_map.subrange ?instrumentation:subrange_instrumentation data range
   in
   let count_before =
     match data with
@@ -358,7 +418,7 @@ let do_key_range_restrict
            Map.closest_key map `Less_or_equal_to key
          in
          (match%pattern_bind closest with
-          | Some (k, _) -> Incr_map.rank map k
+          | Some (k, _) -> Incr_map.rank ?instrumentation:rank_instrumentation map k
           | None -> none))
     | Sorted (map, _key_cmp) ->
       (match%pattern_bind key_range with
@@ -378,7 +438,7 @@ let do_key_range_restrict
               Map.closest_key map `Less_or_equal_to (key, v)
             in
             (match%pattern_bind closest with
-             | Some (k, _) -> Incr_map.rank map k
+             | Some (k, _) -> Incr_map.rank ?instrumentation:rank_instrumentation map k
              | None -> none)))
   in
   let count_before = Incremental.map count_before ~f:(Option.value ~default:0) in
@@ -440,7 +500,7 @@ let with_cutoff incr ~equal =
   incr
 ;;
 
-let do_to_pos_map (type k v w) (data : (k, v, w) Incr_collated_map.t) =
+let do_to_pos_map (type k v cmp w) (data : (k, v, cmp, w) Incr_collated_map.t) =
   match data with
   | Original data ->
     Opaque_map.erase_key_incrementally data ~get:(fun ~key ~data -> key, data)
@@ -448,25 +508,48 @@ let do_to_pos_map (type k v w) (data : (k, v, w) Incr_collated_map.t) =
     Opaque_map.erase_key_incrementally data ~get:(fun ~key:(k, _v1) ~data:v2 -> k, v2)
 ;;
 
-type ('k, 'v, 'fold_result, 'w) t =
+type ('k, 'v, 'cmp, 'fold_result, 'w) t =
   { collated : (('k, 'v) Collated.t, 'w) Incremental.t
-  ; key_rank : ('k -> int option, 'w) Incremental.t
+  ; key_rank : (('k, 'v, 'cmp) Incr_collated_map.Key_rank.t, 'w) Incremental.t
   ; fold_result : ('fold_result, 'w) Incremental.t
   }
 
 let collated t = t.collated
-let key_rank t = t.key_rank
+
+let key_rank t =
+  let%map key_rank = t.key_rank in
+  fun key -> Incr_collated_map.Key_rank.lookup key_rank key
+;;
+
+let key_rank' t = t.key_rank
 let fold_result t = t.fold_result
 
-let do_range_restrict orig_data data ~key_range ~rank_range =
+let do_range_restrict
+  orig_data
+  data
+  ~key_range
+  ~rank_range
+  ~key_subrange_instrumentation
+  ~key_to_rank_instrumentation
+  ~rank_range_instrumentation
+  =
   let num_filtered_rows = Incr_collated_map.length data in
   let key_rank = Incr_collated_map.key_rank data in
   let data, count_before_key_rank =
-    do_key_range_restrict data ~key_range ~orig_map:orig_data
+    do_key_range_restrict
+      data
+      ~key_range
+      ~orig_map:orig_data
+      ~subrange_instrumentation:key_subrange_instrumentation
+      ~rank_instrumentation:key_to_rank_instrumentation
   in
   let data_length = Incr_collated_map.length data in
   let data, count_before_range_rank =
-    do_rank_range_restrict_and_rank data ~rank_range ~data_length
+    do_rank_range_restrict_and_rank
+      data
+      ~rank_range
+      ~data_length
+      ~instrumentation:rank_range_instrumentation
   in
   let data = do_to_pos_map data in
   let collated =
@@ -491,6 +574,17 @@ let do_range_restrict orig_data data ~key_range ~rank_range =
   Incremental.both collated key_rank
 ;;
 
+module Instrumentation = struct
+  type t =
+    { key_subrange : Incr_map.Instrumentation.t
+    ; key_to_rank : Incr_map.Instrumentation.t
+    ; rank_range : Incr_map.Instrumentation.t
+    ; filter : Incr_map.Instrumentation.t
+    ; fold : Incr_map.Instrumentation.t
+    ; sort : Incr_map.Instrumentation.t
+    }
+end
+
 let collate_and_maybe_fold
   (type k v cmp filter order w fold_result)
   ?(operation_order = `Sort_first)
@@ -499,10 +593,21 @@ let collate_and_maybe_fold
   ~(filter_to_predicate : filter -> _)
   ~(order_to_compare : order -> _)
   ~(fold_action : (k, v, fold_result) Fold_action.t)
+  ~(instrumentation : Instrumentation.t option)
   (data : ((k, v, cmp) Map.t, w) Incremental.t)
   (collate : ((k, filter, order) Collate_params.t, w) Incremental.t)
-  : (k, v, fold_result, w) t
+  : (k, v, cmp, fold_result, w) t
   =
+  let%pattern_bind.Option { key_subrange = key_subrange_instrumentation
+                          ; key_to_rank = key_to_rank_instrumentation
+                          ; rank_range = rank_range_instrumentation
+                          ; filter = filter_instrumentation
+                          ; fold = fold_instrumentation
+                          ; sort = sort_instrumentation
+                          }
+    =
+    instrumentation
+  in
   let incremental_state = Incremental.state data in
   let%pattern_bind (collated, key_rank), fold_result =
     let%bind map_comparator = Incremental.freeze (data >>| Map.comparator) in
@@ -514,29 +619,69 @@ let collate_and_maybe_fold
     | `Filter_first ->
       let%bind filter in
       let predicate = filter_to_predicate filter in
-      let data = do_filter data ~predicate in
+      let data = do_filter ~instrumentation:filter_instrumentation data ~predicate in
       let fold_result =
-        do_fold (Original data) ~incremental_state ~in_scope:(fun f -> f ()) ~fold_action
+        do_fold
+          ~instrumentation:fold_instrumentation
+          (Original data)
+          ~incremental_state
+          ~in_scope:(fun f -> f ())
+          ~fold_action
       in
       let%bind order in
       let compare = order_to_compare order in
       let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
-      let data = do_sort data ~map_comparator ~custom_comparator in
-      let%mapn out = do_range_restrict orig_data data ~key_range ~rank_range
+      let data =
+        do_sort
+          ~instrumentation:sort_instrumentation
+          data
+          ~map_comparator
+          ~custom_comparator
+      in
+      let%mapn out =
+        do_range_restrict
+          ~key_subrange_instrumentation
+          ~key_to_rank_instrumentation
+          ~rank_range_instrumentation
+          orig_data
+          data
+          ~key_range
+          ~rank_range
       and fold_result in
       out, fold_result
     | `Sort_first ->
       let%bind order in
       let compare = order_to_compare order in
       let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
-      let data = do_sort data ~map_comparator ~custom_comparator in
+      let data =
+        do_sort
+          ~instrumentation:sort_instrumentation
+          data
+          ~map_comparator
+          ~custom_comparator
+      in
       let%bind filter in
       let predicate = filter_to_predicate filter in
-      let data = do_filter_sorted data ~predicate in
-      let fold_result =
-        do_fold data ~incremental_state ~in_scope:(fun f -> f ()) ~fold_action
+      let data =
+        do_filter_sorted ~instrumentation:filter_instrumentation data ~predicate
       in
-      let%mapn out = do_range_restrict orig_data data ~key_range ~rank_range
+      let fold_result =
+        do_fold
+          ~instrumentation:fold_instrumentation
+          data
+          ~incremental_state
+          ~in_scope:(fun f -> f ())
+          ~fold_action
+      in
+      let%mapn out =
+        do_range_restrict
+          ~key_subrange_instrumentation
+          ~key_to_rank_instrumentation
+          ~rank_range_instrumentation
+          orig_data
+          data
+          ~key_range
+          ~rank_range
       and fold_result in
       out, fold_result
   in
@@ -545,6 +690,7 @@ let collate_and_maybe_fold
 
 let collate
   ?operation_order
+  ?instrumentation
   ~filter_equal
   ~order_equal
   ~filter_to_predicate
@@ -554,6 +700,7 @@ let collate
   =
   collate_and_maybe_fold
     ?operation_order
+    ~instrumentation
     ~filter_equal
     ~order_equal
     ~filter_to_predicate
@@ -565,6 +712,7 @@ let collate
 
 let collate_and_fold
   ?operation_order
+  ?instrumentation
   ~filter_equal
   ~order_equal
   ~filter_to_predicate
@@ -575,6 +723,7 @@ let collate_and_fold
   =
   collate_and_maybe_fold
     ?operation_order
+    ~instrumentation
     ~filter_equal
     ~order_equal
     ~filter_to_predicate
@@ -605,13 +754,24 @@ module With_caching = struct
              ~eq3:Range_memoize_bucket.equal)
         ~max_size:50)
     ?(range_memoize_bucket_size = 10000)
+    ~(instrumentation : Instrumentation.t option)
     ~(filter_to_predicate : filter -> _)
     ~(order_to_compare : order -> _)
     ~(fold_action : (k, v, fold_result) Fold_action.t)
     (data : ((k, v, cmp) Map.t, w) Incremental.t)
     (collate : ((k, filter, order) Collate_params.t, w) Incremental.t)
-    : (k, v, fold_result, w) t
+    : (k, v, cmp, fold_result, w) t
     =
+    let%pattern_bind.Option { key_subrange = key_subrange_instrumentation
+                            ; key_to_rank = key_to_rank_instrumentation
+                            ; rank_range = rank_range_instrumentation
+                            ; filter = filter_instrumentation
+                            ; fold = fold_instrumentation
+                            ; sort = sort_instrumentation
+                            }
+      =
+      instrumentation
+    in
     let%pattern_bind (collated, key_rank), fold_result =
       let cache_sorted = Store.create order_cache_params in
       let cache_sorted_filtered = Store.create order_filter_cache_params in
@@ -663,7 +823,14 @@ module With_caching = struct
       let do_range ~sorted ~sorted_filtered ~fold_result =
         let sorted_filtered_ranked =
           in_scope (fun () ->
-            do_range_restrict orig_data sorted_filtered ~key_range ~rank_range)
+            do_range_restrict
+              ~key_subrange_instrumentation
+              ~key_to_rank_instrumentation
+              ~rank_range_instrumentation
+              orig_data
+              sorted_filtered
+              ~key_range
+              ~rank_range)
         in
         Store.add
           cache_sorted_filtered_ranked
@@ -672,9 +839,17 @@ module With_caching = struct
         Incremental.both sorted_filtered_ranked fold_result
       in
       let do_filter_range ~sorted =
-        let sorted_filtered = in_scope (fun () -> do_filter_sorted sorted ~predicate) in
+        let sorted_filtered =
+          in_scope (fun () ->
+            do_filter_sorted ~instrumentation:filter_instrumentation sorted ~predicate)
+        in
         let fold_result =
-          do_fold sorted_filtered ~incremental_state ~in_scope ~fold_action
+          do_fold
+            ~instrumentation:fold_instrumentation
+            sorted_filtered
+            ~incremental_state
+            ~in_scope
+            ~fold_action
         in
         Store.add
           cache_sorted_filtered
@@ -685,7 +860,12 @@ module With_caching = struct
       let do_sort_filter_range () =
         let (T custom_comparator) = comparator_of_compare ~map_comparator compare in
         let sorted =
-          in_scope (fun () -> do_sort data ~map_comparator ~custom_comparator)
+          in_scope (fun () ->
+            do_sort
+              ~instrumentation:sort_instrumentation
+              data
+              ~map_comparator
+              ~custom_comparator)
         in
         Store.add cache_sorted ~key:order ~value:sorted;
         do_filter_range ~sorted
@@ -725,11 +905,12 @@ module With_caching = struct
     ?order_filter_cache_params
     ?order_filter_range_cache_params
     ?range_memoize_bucket_size
+    ?instrumentation
     ~(filter_to_predicate : filter -> _)
     ~(order_to_compare : order -> _)
     (data : ((k, v, cmp) Map.t, w) Incremental.t)
     (collate : ((k, filter, order) Collate_params.t, w) Incremental.t)
-    : (k, v, unit, w) t
+    : (k, v, cmp, unit, w) t
     =
     collate_and_maybe_fold__sort_first
       ~filter_equal
@@ -738,6 +919,7 @@ module With_caching = struct
       ?order_filter_cache_params
       ?order_filter_range_cache_params
       ?range_memoize_bucket_size
+      ~instrumentation
       ~filter_to_predicate
       ~order_to_compare
       ~fold_action:Don't_fold
@@ -753,12 +935,13 @@ module With_caching = struct
     ?order_filter_cache_params
     ?order_filter_range_cache_params
     ?range_memoize_bucket_size
+    ?instrumentation
     ~(filter_to_predicate : filter -> _)
     ~(order_to_compare : order -> _)
     ~(fold : (k, v, fold_result) Fold_params.t)
     (data : ((k, v, cmp) Map.t, w) Incremental.t)
     (collate : ((k, filter, order) Collate_params.t, w) Incremental.t)
-    : (k, v, fold_result, w) t
+    : (k, v, cmp, fold_result, w) t
     =
     collate_and_maybe_fold__sort_first
       ~filter_equal
@@ -767,6 +950,7 @@ module With_caching = struct
       ?order_filter_cache_params
       ?order_filter_range_cache_params
       ?range_memoize_bucket_size
+      ~instrumentation
       ~filter_to_predicate
       ~order_to_compare
       ~fold_action:(Fold fold)

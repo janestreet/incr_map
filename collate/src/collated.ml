@@ -81,7 +81,7 @@ include Parametrized
 
 module type Concrete = Collated_intf.Concrete with type ('k, 'v) parametrized = ('k, 'v) t
 
-module Make_concrete
+module%template.portable Make_concrete
     (Key : Collated_intf.Bin_comp_sexp)
     (Value : Collated_intf.Bin_comp_sexp) =
 struct

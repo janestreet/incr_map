@@ -22,7 +22,8 @@ type 'a t = 'a Map.M(Key).t [@@deriving sexp, compare, equal, bin_io]
 
 module Stable = struct
   module V1 = struct
-    include Comparable.Stable.V1.With_stable_witness.Make (struct
+    include%template
+      Comparable.Stable.V1.With_stable_witness.Make [@mode portable] (struct
         type t = Bignum.Stable.V3.t [@@deriving bin_io, sexp, compare, stable_witness]
         type comparator_witness = Bignum.comparator_witness
 
@@ -73,7 +74,7 @@ let erase_key_incrementally
 
     let empty cmp =
       { key_to_bignum = Map.empty cmp
-      ; out = Bignum.Map.empty
+      ; out = Map.empty (module Bignum)
       ; comparator = cmp
       ; additions = []
       ; removals = []

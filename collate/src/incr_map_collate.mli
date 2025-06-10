@@ -1,7 +1,26 @@
+@@ portable
+
 open! Core
 module Collate_params = Collate_params
 module Collated = Collated
 module Store_params = Incr_memoize.Store_params
+
+module Instrumentation : sig
+  (** Gives an instrumentation hook at various points into the phases of
+      [Incr_map_collate]. *)
+  type t =
+    { key_subrange : Incr_map.Instrumentation.t
+    (** Invoked when [key_range] is computed, to compute the reduced range *)
+    ; key_to_rank : Incr_map.Instrumentation.t
+    (** Invoked when [key_range] is computed, to compute the rank indice of the first key *)
+    ; rank_range : Incr_map.Instrumentation.t
+    (** Invoked when [rank_range] is computed, to compute the reduced range *)
+    ; filter : Incr_map.Instrumentation.t (** Invoked when the filter is computed *)
+    ; fold : Incr_map.Instrumentation.t
+    (** Invoked at the end when folding back into the resulting data structure *)
+    ; sort : Incr_map.Instrumentation.t (** Invoked when the dataset is being sorted *)
+    }
+end
 
 module Compare : sig
   (** Note: [Unchanged] and [Reversed] is with respect to ['cmp]. *)
@@ -29,7 +48,7 @@ module Fold : sig
     -> ('k, 'v, 'acc) t
 end
 
-type ('k, 'v, 'fold_result, 'w) t
+type ('k, 'v, 'cmp, 'fold_result, 'w) t
 
 (** Perform filtering, sorting and restricting to ranges.
 
@@ -48,16 +67,18 @@ type ('k, 'v, 'fold_result, 'w) t
     prepared to explore the fascinating world of functions' physical equality. *)
 val collate
   :  ?operation_order:[ `Filter_first | `Sort_first ] (** default: `Sort_first *)
+  -> ?instrumentation:Instrumentation.t
   -> filter_equal:('filter -> 'filter -> bool)
   -> order_equal:('order -> 'order -> bool)
   -> filter_to_predicate:('filter -> (key:'k -> data:'v -> bool) option)
   -> order_to_compare:('order -> ('k, 'v, 'cmp) Compare.t)
   -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
   -> (('k, 'filter, 'order) Collate_params.t, 'w) Incremental.t
-  -> ('k, 'v, unit, 'w) t
+  -> ('k, 'v, 'cmp, unit, 'w) t
 
 val collate_and_fold
   :  ?operation_order:[ `Filter_first | `Sort_first ] (** default: `Sort_first *)
+  -> ?instrumentation:Instrumentation.t
   -> filter_equal:('filter -> 'filter -> bool)
   -> order_equal:('order -> 'order -> bool)
   -> filter_to_predicate:('filter -> (key:'k -> data:'v -> bool) option)
@@ -65,21 +86,40 @@ val collate_and_fold
   -> fold:('k, 'v, 'fold_result) Fold.t
   -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
   -> (('k, 'filter, 'order) Collate_params.t, 'w) Incremental.t
-  -> ('k, 'v, 'fold_result, 'w) t
+  -> ('k, 'v, 'cmp, 'fold_result, 'w) t
 
 (** Gets the collated data produced by a collation function like [collate]. *)
-val collated : ('k, 'v, 'fold_result, 'w) t -> (('k, 'v) Collated.t, 'w) Incremental.t
+val collated : ('k, 'v, _, 'fold_result, 'w) t -> (('k, 'v) Collated.t, 'w) Incremental.t
 
 (** A function for finding the index into the collated map of a particular key. The
     resulting index is "pre-range-restriction", which means that even if the key is not in
     the collation range, [key_rank] can still respond with its index. However, the index
     is after filtering and ordering, which means that if it is filtered out of the map (or
     isn't in the original map), then the result will be [None]. *)
-val key_rank : ('k, 'v, 'fold_result, 'w) t -> ('k -> int option, 'w) Incremental.t
+val key_rank : ('k, _, _, 'fold_result, 'w) t -> ('k -> int option, 'w) Incremental.t
 
-val fold_result : ('k, 'v, 'fold_result, 'w) t -> ('fold_result, 'w) Incremental.t
+module Key_rank : sig
+  (** This [Key_rank] module and it's associated [key_rank'] accessor function are
+      primarily used to allow key ranking to move between threads using OCaml's
+      portability mode. If you dont' care about using [Incr_map_collate] in a separate
+      thread, then you can ignore this and just use the regular [key_rank] function. *)
 
-module With_caching : sig
+  type ('k
+       , 'v
+       , 'cmp)
+       t :
+       value mod contended portable with 'k with 'v with ('k, 'cmp) Comparator.t
+
+  val lookup : ('k, _, _) t -> 'k -> int option
+end
+
+val key_rank'
+  :  ('k, 'v, 'cmp, 'fold_result, 'w) t
+  -> (('k, 'v, 'cmp) Key_rank.t, 'w) Incremental.t
+
+val fold_result : (_, _, _, 'fold_result, 'w) t -> ('fold_result, 'w) Incremental.t
+
+module (With_caching @@ nonportable) : sig
   (** A version of [collate] with caching.
 
       We use [Incr_memoize] to cache incremental nodes for the result of a particular:
@@ -118,11 +158,12 @@ module With_caching : sig
          ('order * 'filter * Range_memoize_bucket.t) Store_params.t
          (** default: alist of size 50 *)
     -> ?range_memoize_bucket_size:int
+    -> ?instrumentation:Instrumentation.t
     -> filter_to_predicate:('filter -> (key:'k -> data:'v -> bool) option)
     -> order_to_compare:('order -> ('k, 'v, 'cmp) Compare.t)
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> (('k, 'filter, 'order) Collate_params.t, 'w) Incremental.t
-    -> ('k, 'v, unit, 'w) t
+    -> ('k, 'v, 'cmp, unit, 'w) t
 
   (** Like [collate__sort_first], but also gives an opportunity to perform a fold over the
       post-filtered, pre-range-restricted data. *)
@@ -136,10 +177,11 @@ module With_caching : sig
          ('order * 'filter * Range_memoize_bucket.t) Store_params.t
          (** default: alist of size 50 *)
     -> ?range_memoize_bucket_size:int
+    -> ?instrumentation:Instrumentation.t
     -> filter_to_predicate:('filter -> (key:'k -> data:'v -> bool) option)
     -> order_to_compare:('order -> ('k, 'v, 'cmp) Compare.t)
     -> fold:('k, 'v, 'fold_result) Fold.t
     -> (('k, 'v, 'cmp) Map.t, 'w) Incremental.t
     -> (('k, 'filter, 'order) Collate_params.t, 'w) Incremental.t
-    -> ('k, 'v, 'fold_result, 'w) t
+    -> ('k, 'v, 'cmp, 'fold_result, 'w) t
 end

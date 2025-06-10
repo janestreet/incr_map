@@ -9,10 +9,8 @@ let%test_unit "rekey random test" =
       let m = Incr.Var.create Int.Map.empty in
       let watch_m = Incr.Var.watch m in
       let fast =
-        Incr_map.rekey
-          ~comparator:(module String)
-          watch_m
-          ~f:(fun ~key ~data:_ -> Int.to_string key)
+        Incr_map.rekey ~comparator:(module String) watch_m ~f:(fun ~key ~data:_ ->
+          Int.to_string key)
       in
       let slow =
         let%map watch_m in
@@ -75,10 +73,8 @@ let%expect_test "rekey should order adds and removes properly (part 2)" =
   let m = Incr.Var.create Int.Map.empty in
   let watch_m = Incr.Var.watch m in
   let result =
-    Incr_map.rekey
-      ~comparator:(module Int)
-      watch_m
-      ~f:(fun ~key ~data -> (key mod 3) + data)
+    Incr_map.rekey ~comparator:(module Int) watch_m ~f:(fun ~key ~data ->
+      (key mod 3) + data)
   in
   let result_obs = Incr.observe result in
   let set_to alist = Incr.Var.set m (Int.Map.of_alist_exn alist) in
