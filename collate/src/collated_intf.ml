@@ -8,7 +8,10 @@ module type Parametrized = sig
 
       To get an implementation of [Diffable] interface, you'll need to instantiate
       [Make_concrete]. *)
-  type ('k, 'v) t [@@deriving sexp, bin_io, compare, equal, diff]
+
+  type ('k, 'v) t [@@deriving sexp, bin_io, compare, equal]
+
+  include Diffable.S2 with type ('a, 'b) t := ('a, 'b) t
 
   val empty : _ t
   val fold : ('k, 'v) t -> init:'accum -> f:('accum -> 'k * 'v -> 'accum) -> 'accum
@@ -75,7 +78,7 @@ module type Bin_comp_sexp = sig
   type t [@@deriving bin_io, sexp, compare, equal]
 end
 
-module type Concrete = sig
+module type%template [@modality p = (nonportable, portable)] Concrete = sig
   module Key : Bin_comp_sexp
   module Value : Bin_comp_sexp
 
@@ -113,6 +116,12 @@ module type Collated = sig
 
   module type Concrete = Concrete with type ('k, 'v) parametrized = ('k, 'v) t
 
-  module Make_concrete (Key : Bin_comp_sexp) (Value : Bin_comp_sexp) :
-    Concrete with type Key.t = Key.t and type Value.t = Value.t
+  module%template
+    [@modality p = (nonportable, portable)] Make_concrete
+      (Key : sig
+         include Bin_comp_sexp
+       end)
+      (Value : sig
+         include Bin_comp_sexp
+       end) : Concrete [@modality p] with type Key.t = Key.t and type Value.t = Value.t
 end

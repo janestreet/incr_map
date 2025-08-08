@@ -1006,11 +1006,11 @@ module type Incr_map = sig
  [subrange_by_rank map (s, e)] constructs an incremental submap that includes (e-s+1)
       keys between s-th and e-th, inclusive.
 
+      If s is less than zero, s is considered to be zero.
       If s is greater or equal to map length, the result is empty.
       If e is greater or equal to map length, the result contains keys from s-th to the
       last one.
-
-      Raises for invalid indices - s < 0 or e < s.
+      If e is less than s, the returned map will be empty.
 
       Runtime of the initial computation is O(min(e, n-s) + log(n)), i.e. linear,
       but optimized for ranges close to beginning or end.
@@ -1279,7 +1279,7 @@ module type Incr_map = sig
     :  ?data_equal:('v -> 'v -> bool)
     -> (('k, 'v, 'cmp) Map.t, _) Incremental.t
     -> f:(('k, 'v) Map.Symmetric_diff_element.t -> unit)
-    -> unit
+    -> unit (* not portable because it requires [Incremental.observe] to be portable *)
 
   (** [cartesian_product] provides a way to compute the cartesian product of two maps,
       performed incrementally. The number of keys in the resulting map is the product of

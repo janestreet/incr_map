@@ -309,9 +309,8 @@ struct
         in
         let obs =
           I.Var.watch var
-          |> operation
-               ~comparator:(module Two_ints)
-               ~merge_keys:(fun a b -> Two_ints.create a b)
+          |> operation ~comparator:(module Two_ints) ~merge_keys:(fun a b ->
+            Two_ints.create a b)
           |> I.observe
         in
         let set_stabilize map =

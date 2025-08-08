@@ -44,7 +44,7 @@ end = struct
   (* use of uopt is ok because with this type you can't have nested uopts. *)
   type ('k, 'v, 'cmp) t = ('k, 'v, 'cmp) Map.t Uopt.t ref
 
-  let create_none () = ref Uopt.none
+  let create_none () = ref (Uopt.get_none ())
   let value_exn t = Uopt.value_exn !t
 
   let if_none_then_fill_with_empty_map t ~using_the_comparator_from =
@@ -104,7 +104,7 @@ module Generic = struct
       in
       Option.value update ~default
     in
-    let cmp_and_init = ref Uopt.none in
+    let cmp_and_init = ref (Uopt.get_none ()) in
     with_old ~instrumentation map ~f:(fun ~old new_in ->
       let cmp, init =
         match%optional.Uopt !cmp_and_init with

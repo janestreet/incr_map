@@ -3,7 +3,7 @@ open! Core
 module Key : sig
   type t [@@deriving sexp, bin_io]
 
-  include Comparable.S with type t := t
+  include Comparable.S [@mode portable] with type t := t
 
   val to_string : t -> string
   val zero : t
@@ -15,8 +15,7 @@ module Key : sig
   end
 end
 
-type 'a t = (Key.t, 'a, Key.comparator_witness) Map.t
-[@@deriving sexp, compare, equal, bin_io]
+type 'a t = 'a Key.Map.t [@@deriving sexp, compare, equal, bin_io]
 
 include Diffable.S1 with type 'a t := 'a t
 
@@ -43,6 +42,7 @@ val of_array : 'a array -> 'a t
 
 module Stable : sig
   module V1 : sig
-    type nonrec 'a t = 'a t [@@deriving sexp, bin_io, diff, stable_witness]
+    type nonrec 'a t = 'a t
+    [@@deriving sexp, bin_io, compare, diff, stable_witness, equal]
   end
 end

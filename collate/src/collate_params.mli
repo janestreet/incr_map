@@ -17,7 +17,9 @@ module Which_range : sig
     | From of 'a
     | To of 'a
     | Between of 'a * 'a
-  [@@deriving sexp, compare, equal, bin_io, diff]
+  [@@deriving sexp, compare, equal, bin_io]
+
+  include Diffable.S1 with type 'a t := 'a t
 
   val map : f:('a -> 'b) -> 'a t -> 'b t
 end
