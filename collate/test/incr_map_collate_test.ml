@@ -613,6 +613,17 @@ let%expect_test "update values so that they compare equal" =
      (num_filtered_rows   5)
      (num_unfiltered_rows 5))
     |}];
+  (* change the size which doesn't affect sorting *)
+  modify_map t ~f:(Map.set ~key:"ZZZ" ~data:(50, 2.0));
+  print_res t;
+  [%expect
+    {|
+    (((VOD  (11 2))
+      (ZZZ  (50 2))
+      (GOOG (10 3)))
+     (num_filtered_rows   5)
+     (num_unfiltered_rows 5))
+    |}];
   (* Modify to bigger value *)
   modify_map t ~f:(Map.set ~key:"VOD" ~data:(11, 2.5));
   print_res t;
@@ -624,11 +635,24 @@ let%expect_test "update values so that they compare equal" =
      (num_unfiltered_rows 5))
     |}];
   (* Move GOOG to ensure it gets compared to the new value of VOD *)
+  (* Also change the size of ZZZ which is filtered out *)
+  modify_map t ~f:(Map.set ~key:"ZZZ" ~data:(33, 2.0));
   modify_map t ~f:(Map.set ~key:"GOOG" ~data:(10, 2.3));
   print_res t;
   [%expect
     {|
     (((VOD (11 2.5)))
+     (num_filtered_rows   5)
+     (num_unfiltered_rows 5))
+    |}];
+  (* Reveal ZZZ with the size that was changed while it was off range *)
+  modify_map t ~f:(Map.set ~key:"VOD" ~data:(11, 2.0));
+  print_res t;
+  [%expect
+    {|
+    (((VOD  (11 2))
+      (ZZZ  (33 2))
+      (GOOG (10 2.3)))
      (num_filtered_rows   5)
      (num_unfiltered_rows 5))
     |}]

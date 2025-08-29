@@ -255,6 +255,12 @@ let do_sort
         ~init:(Map.Using_comparator.empty ~comparator:custom_comparator)
         ~add:(fun ~key ~data map -> Map.set map ~key:(key, data) ~data)
         ~remove:(fun ~key ~data map -> Map.remove map (key, data))
+        ~update:(fun ~key ~old_data ~new_data output ->
+          let prev_key = key, old_data in
+          let new_key = key, new_data in
+          if (Comparator.compare custom_comparator) prev_key new_key = 0
+          then Map.set output ~key:new_key ~data:new_data
+          else Map.remove output prev_key |> Map.set ~key:new_key ~data:new_data)
         ~specialized_initial:(fun ~init new_in ->
           let[@inline always] compare_ignoring_second (t1, _) (t2, _) =
             (Comparator.compare custom_comparator) t1 t2
