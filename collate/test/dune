@@ -3,4 +3,4 @@
  (libraries expectable incr_map_collate core expect_test_helpers_core
    incremental.memoize incr_map incremental)
  (preprocess
-  (pps ppx_jane)))
+  (pps ppx_jane ppx_diff.ppx_diff)))

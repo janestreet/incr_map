@@ -10,6 +10,7 @@ let%expect_test "From_end with empty map" =
       ; order = ()
       ; key_range = All_rows
       ; rank_range = Between (From_end 2, From_start 10)
+      ; widen_range_by = 0, 0
       }
   in
   let collated =
@@ -49,6 +50,7 @@ let%expect_test "From_end with small map" =
       ; order = ()
       ; key_range = All_rows
       ; rank_range = Between (From_end 5, From_start 10)
+      ; widen_range_by = 0, 0
       }
   in
   let collated =
@@ -93,6 +95,7 @@ let%expect_test "Bug 2 fix: Correct num_before_range for non-existent keys" =
       ; order = ()
       ; key_range = From "b" (* Start from "b" *)
       ; rank_range = All_rows
+      ; widen_range_by = 0, 0
       }
   in
   let collated1 =
@@ -120,6 +123,7 @@ let%expect_test "Bug 2 fix: Correct num_before_range for non-existent keys" =
       ; order = ()
       ; key_range = From "b_and_a_half" (* Non-existent key between "b" and "c" *)
       ; rank_range = All_rows
+      ; widen_range_by = 0, 0
       }
   in
   let collated2 =

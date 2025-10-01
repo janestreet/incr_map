@@ -209,3 +209,10 @@ let of_list xs = Bignum.Map.of_alist_exn (List.mapi xs ~f:(fun i x -> Bignum.of_
 let of_array arr =
   Bignum.Map.of_sorted_array_unchecked (Array.mapi arr ~f:(fun i x -> Bignum.of_int i, x))
 ;;
+
+let append map elem =
+  match Map.max_elt map with
+  | None -> Key.Map.singleton Key.zero elem
+  | Some (max_key, _) ->
+    Map.add_exn map ~key:(Bignum.( + ) (Bignum.of_int 1) max_key) ~data:elem
+;;

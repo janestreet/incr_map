@@ -7,7 +7,12 @@ let test_rank_range ~data ~rank_range =
   let map_var = Incr.Var.create map in
   let collate_params =
     Incr.Var.create
-      { Collate_params.filter = (); order = (); key_range = All_rows; rank_range }
+      { Collate_params.filter = ()
+      ; order = ()
+      ; key_range = All_rows
+      ; rank_range
+      ; widen_range_by = 0, 0
+      }
   in
   let collated =
     Incr_map_collate.collate

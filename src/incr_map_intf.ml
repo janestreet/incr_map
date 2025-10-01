@@ -656,9 +656,9 @@ module type Incr_map = sig
       [revert_to_init_when_empty] is [false], so this optimization does not apply
       automatically.
 
-      [finalize] defaults to [Fn.id] is called immediately before the accumulator value is
-      stored and returned during stabilization. You can use it to e.g. process the fold
-      operations in a different order. *)
+      [finalize] defaults to [Fn.id] and is called immediately before the accumulator
+      value is stored and returned during stabilization. You can use it to e.g. process
+      the fold operations in a different order. *)
   val unordered_fold
     :  ?instrumentation:Instrumentation.t
     -> ?data_equal:('v -> 'v -> bool)

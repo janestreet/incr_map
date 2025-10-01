@@ -9,9 +9,13 @@ module type Parametrized = sig
       To get an implementation of [Diffable] interface, you'll need to instantiate
       [Make_concrete]. *)
 
-  type ('k, 'v) t [@@deriving sexp, bin_io, compare, equal]
+  type ('k, 'v) t [@@deriving sexp_of, compare, equal]
 
-  include Diffable.S2 with type ('a, 'b) t := ('a, 'b) t
+  module Unstable : sig
+    type nonrec ('k, 'v) t = ('k, 'v) t [@@deriving sexp, bin_io]
+
+    include Diffable.S2 with type ('k, 'v) t := ('k, 'v) t
+  end
 
   val empty : _ t
   val fold : ('k, 'v) t -> init:'accum -> f:('accum -> 'k * 'v -> 'accum) -> 'accum
@@ -41,37 +45,10 @@ module type Parametrized = sig
   (** The rank range this result was computed for *)
   val rank_range : _ t -> int Which_range.t
 
-  module Stable : sig
-    module V1 : sig
-      type nonrec ('k, 'v) t = ('k, 'v) t [@@deriving sexp, bin_io, stable_witness]
-
-      include Diffable.S2 with type ('k, 'v) t := ('k, 'v) t
-    end
-  end
-
-  module Private : sig
-    val create
-      :  data:('k * 'v) Opaque_map.t
-      -> num_filtered_rows:int
-      -> key_range:'k Which_range.t
-      -> rank_range:int Which_range.t
-      -> num_before_range:int
-      -> num_unfiltered_rows:int
-      -> ('k, 'v) t
-  end
-
-  module For_testing : sig
-    (** Create Collated.t of a list of data. Note: no collation or checks are performed,
-        it will contain exactly the data you provided *)
-    val of_list
-      :  num_filtered_rows:int
-      -> key_range:'k Which_range.t
-      -> rank_range:int Which_range.t
-      -> num_before_range:int
-      -> num_unfiltered_rows:int
-      -> ('k * 'v) list
-      -> ('k, 'v) t
-  end
+  (** The amount that the resulting range was widened by. Closely related to
+      [Collate_params.widen_range_by], [range_widened_by] specifies the actual amount of
+      widening given bounds of the underlying dataset. *)
+  val range_widened_by : _ t -> int * int
 end
 
 module type Bin_comp_sexp = sig
@@ -109,19 +86,103 @@ module type%template [@modality p = (nonportable, portable)] Concrete = sig
   val find_by_key : t -> Key.t -> Value.t option
   val prev : t -> Key.t -> (Key.t * Value.t) option
   val next : t -> Key.t -> (Key.t * Value.t) option
+
+  module Private : sig
+    val create
+      :  data:('k * 'v) Opaque_map.t
+      -> num_filtered_rows:int
+      -> key_range:'k Which_range.t
+      -> rank_range:int Which_range.t
+      -> num_before_range:int
+      -> num_unfiltered_rows:int
+      -> ('k, 'v) parametrized
+  end
 end
 
 module type Collated = sig
   include Parametrized
 
-  module type Concrete = Concrete with type ('k, 'v) parametrized = ('k, 'v) t
+  module Stable : sig
+    module V1 : sig
+      type ('k, 'v) t [@@deriving sexp, bin_io, stable_witness, compare, equal]
 
-  module%template
-    [@modality p = (nonportable, portable)] Make_concrete
-      (Key : sig
-         include Bin_comp_sexp
-       end)
-      (Value : sig
-         include Bin_comp_sexp
-       end) : Concrete [@modality p] with type Key.t = Key.t and type Value.t = Value.t
+      val empty : _ t
+
+      include Diffable.S2 with type ('k, 'v) t := ('k, 'v) t
+
+      (** The old [Concrete] / [Legacy_diffable] is only supported on Stable.V1 *)
+      module type Concrete = Concrete with type ('k, 'v) parametrized = ('k, 'v) t
+
+      module%template
+        [@modality p = (nonportable, portable)] Make_concrete
+          (Key : sig
+             include Bin_comp_sexp
+           end)
+          (Value : sig
+             include Bin_comp_sexp
+           end) :
+        Concrete [@modality p] with type Key.t = Key.t and type Value.t = Value.t
+    end
+
+    module V2 : sig
+      type nonrec ('k, 'v) t = ('k, 'v) t [@@deriving sexp, bin_io, stable_witness, equal]
+
+      val empty : _ t
+
+      include Diffable.S2 with type ('k, 'v) t := ('k, 'v) t
+
+      val of_v1 : ('k, 'v) V1.t -> ('k, 'v) t
+      val to_v1 : ('k, 'v) t -> ('k, 'v) V1.t
+    end
+  end
+
+  module Unstable : sig
+    type nonrec ('k, 'v) t = ('k, 'v) t [@@deriving sexp, bin_io, compare, equal]
+
+    module Diff = Stable.V2.Diff
+  end
+
+  module Diff = Stable.V2.Diff
+
+  val of_stable_v1 : ('k, 'v) Stable.V1.t -> ('k, 'v) t
+  val to_stable_v1 : ('k, 'v) t -> ('k, 'v) Stable.V1.t
+
+  module Private : sig
+    val create
+      :  data:('k * 'v) Opaque_map.t
+      -> num_filtered_rows:int
+      -> key_range:'k Which_range.t
+      -> rank_range:int Which_range.t
+      -> num_before_range:int
+      -> range_widened_by:int * int
+      -> num_unfiltered_rows:int
+      -> ('k, 'v) t
+
+    module Stable : sig
+      module V1 : sig
+        val create
+          :  data:('k * 'v) Opaque_map.t
+          -> num_filtered_rows:int
+          -> key_range:'k Which_range.t
+          -> rank_range:int Which_range.t
+          -> num_before_range:int
+          -> num_unfiltered_rows:int
+          -> ('k, 'v) Stable.V1.t
+      end
+    end
+  end
+
+  module For_testing : sig
+    (** Create Collated.t of a list of data. Note: no collation or checks are performed,
+        it will contain exactly the data you provided *)
+    val of_list
+      :  num_filtered_rows:int
+      -> key_range:'k Which_range.t
+      -> rank_range:int Which_range.t
+      -> num_before_range:int
+      -> range_widened_by:int * int
+      -> num_unfiltered_rows:int
+      -> ('k * 'v) list
+      -> ('k, 'v) t
+  end
 end

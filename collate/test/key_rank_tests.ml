@@ -31,6 +31,7 @@ let setup_test () =
       ; order = Incr_map_collate.Compare.Unchanged
       ; key_range = All_rows
       ; rank_range = All_rows
+      ; widen_range_by = 0, 0
       }
   in
   let t =
@@ -77,10 +78,11 @@ let%expect_test "all data" =
            (700 ((key 7) (data 7)))
            (800 ((key 8) (data 8)))
            (900 ((key 9) (data 9)))))
-         (num_filtered_rows   10)
-         (key_range           All_rows)
-         (rank_range          All_rows)
-         (num_before_range    0)
+         (num_filtered_rows 10)
+         (key_range         All_rows)
+         (rank_range        All_rows)
+         (num_before_range  0)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10)))
        (data_with_key_rank (
          ((key 0) ((data 0) ((rank 0))))
@@ -102,6 +104,7 @@ let%expect_test "all data" =
       ; order = Custom_by_value { compare = Comparable.reverse Int.compare }
       ; key_range = All_rows
       ; rank_range = All_rows
+      ; widen_range_by = 0, 0
       };
     stabilize_and_show ();
     [%expect
@@ -118,10 +121,11 @@ let%expect_test "all data" =
            (700 ((key 2) (data 2)))
            (800 ((key 1) (data 1)))
            (900 ((key 0) (data 0)))))
-         (num_filtered_rows   10)
-         (key_range           All_rows)
-         (rank_range          All_rows)
-         (num_before_range    0)
+         (num_filtered_rows 10)
+         (key_range         All_rows)
+         (rank_range        All_rows)
+         (num_before_range  0)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10)))
        (data_with_key_rank (
          ((key 0) ((data 0) ((rank 9))))
@@ -148,6 +152,7 @@ let%expect_test "key range" =
       ; order = Unchanged
       ; key_range = Between (3, 6)
       ; rank_range = All_rows
+      ; widen_range_by = 0, 0
       };
     stabilize_and_show ();
     [%expect
@@ -163,8 +168,9 @@ let%expect_test "key range" =
            Between
            (key 3)
            (key 6)))
-         (rank_range          All_rows)
-         (num_before_range    3)
+         (rank_range       All_rows)
+         (num_before_range 3)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10)))
        (data_with_key_rank (
          ((key 0) ((data 0) ((rank 0))))
@@ -186,6 +192,7 @@ let%expect_test "key range" =
       ; order = Custom_by_value { compare = Comparable.reverse Int.compare }
       ; key_range = Between (3, 6)
       ; rank_range = All_rows
+      ; widen_range_by = 0, 0
       };
     stabilize_and_show ();
     [%expect
@@ -197,8 +204,9 @@ let%expect_test "key range" =
            Between
            (key 3)
            (key 6)))
-         (rank_range          All_rows)
-         (num_before_range    6)
+         (rank_range       All_rows)
+         (num_before_range 6)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10)))
        (data_with_key_rank (
          ((key 0) ((data 0) ((rank 9))))
@@ -225,6 +233,7 @@ let%expect_test "rank range from start" =
       ; order = Unchanged
       ; key_range = All_rows
       ; rank_range = Between (From_start 3, From_start 6)
+      ; widen_range_by = 0, 0
       };
     stabilize_and_show ();
     [%expect
@@ -238,7 +247,8 @@ let%expect_test "rank range from start" =
          (num_filtered_rows 10)
          (key_range         All_rows)
          (rank_range (Between 3 6))
-         (num_before_range    3)
+         (num_before_range 3)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10)))
        (data_with_key_rank (
          ((key 0) ((data 0) ((rank 0))))
@@ -260,6 +270,7 @@ let%expect_test "rank range from start" =
       ; order = Custom_by_value { compare = Comparable.reverse Int.compare }
       ; key_range = All_rows
       ; rank_range = Between (From_start 3, From_start 6)
+      ; widen_range_by = 0, 0
       };
     stabilize_and_show ();
     [%expect
@@ -273,7 +284,8 @@ let%expect_test "rank range from start" =
          (num_filtered_rows 10)
          (key_range         All_rows)
          (rank_range (Between 3 6))
-         (num_before_range    3)
+         (num_before_range 3)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10)))
        (data_with_key_rank (
          ((key 0) ((data 0) ((rank 9))))
@@ -300,6 +312,7 @@ let%expect_test "rank range from end" =
       ; order = Unchanged
       ; key_range = All_rows
       ; rank_range = Between (From_end 3, From_end 1)
+      ; widen_range_by = 0, 0
       };
     stabilize_and_show ();
     [%expect
@@ -312,7 +325,8 @@ let%expect_test "rank range from end" =
          (num_filtered_rows 10)
          (key_range         All_rows)
          (rank_range (Between 6 8))
-         (num_before_range    6)
+         (num_before_range 6)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10)))
        (data_with_key_rank (
          ((key 0) ((data 0) ((rank 0))))
@@ -334,6 +348,7 @@ let%expect_test "rank range from end" =
       ; order = Custom_by_value { compare = Comparable.reverse Int.compare }
       ; key_range = All_rows
       ; rank_range = Between (From_end 3, From_end 1)
+      ; widen_range_by = 0, 0
       };
     stabilize_and_show ();
     [%expect
@@ -346,7 +361,8 @@ let%expect_test "rank range from end" =
          (num_filtered_rows 10)
          (key_range         All_rows)
          (rank_range (Between 6 8))
-         (num_before_range    6)
+         (num_before_range 6)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10)))
        (data_with_key_rank (
          ((key 0) ((data 0) ((rank 9))))
@@ -373,6 +389,7 @@ let%expect_test "filters" =
       ; order = Unchanged
       ; key_range = All_rows
       ; rank_range = All_rows
+      ; widen_range_by = 0, 0
       };
     stabilize_and_show ();
     [%expect
@@ -384,10 +401,11 @@ let%expect_test "filters" =
            (200 ((key 4) (data 4)))
            (300 ((key 6) (data 6)))
            (400 ((key 8) (data 8)))))
-         (num_filtered_rows   5)
-         (key_range           All_rows)
-         (rank_range          All_rows)
-         (num_before_range    0)
+         (num_filtered_rows 5)
+         (key_range         All_rows)
+         (rank_range        All_rows)
+         (num_before_range  0)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10)))
        (data_with_key_rank (
          ((key 0) ((data 0) ((rank 0))))
@@ -409,6 +427,7 @@ let%expect_test "filters" =
       ; order = Custom_by_value { compare = Comparable.reverse Int.compare }
       ; key_range = All_rows
       ; rank_range = All_rows
+      ; widen_range_by = 0, 0
       };
     stabilize_and_show ();
     [%expect
@@ -420,10 +439,11 @@ let%expect_test "filters" =
            (200 ((key 4) (data 4)))
            (300 ((key 2) (data 2)))
            (400 ((key 0) (data 0)))))
-         (num_filtered_rows   5)
-         (key_range           All_rows)
-         (rank_range          All_rows)
-         (num_before_range    0)
+         (num_filtered_rows 5)
+         (key_range         All_rows)
+         (rank_range        All_rows)
+         (num_before_range  0)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10)))
        (data_with_key_rank (
          ((key 0) ((data 0) ((rank 4))))

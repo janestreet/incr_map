@@ -284,193 +284,51 @@ let do_sort
     Sorted (sorted, map_comparator)
 ;;
 
-let to_from_start_rank (idx : Collate_params.Rank.t) ~data_length =
-  match idx with
-  | From_start i -> i
-  | From_end i ->
-    (* This can return negative values when i >= data_length. We handle the negative
-       values appropriately in the calling code, e.g. for lower bounds, we want to
-       truncate to 0, but for upper bounds, we want to return the empty range *)
-    data_length - i - 1
-;;
-
-let to_from_start_rank_range
-  (rank_range : Collate_params.Rank.t Collate_params.Which_range.t)
-  ~(data_length : int)
-  : int Collate_params.Which_range.t
-  =
-  match rank_range with
-  | All_rows -> All_rows
-  | Between (l, u) ->
-    let l = to_from_start_rank l ~data_length in
-    let u = to_from_start_rank u ~data_length in
-    Collate_params.Which_range.Between (l, u)
-  | From l ->
-    let l = to_from_start_rank l ~data_length in
-    Collate_params.Which_range.From l
-  | To u ->
-    let u = to_from_start_rank u ~data_length in
-    Collate_params.Which_range.To u
-;;
-
-let do_rank_range_restrict_and_rank
-  (type k v cmp w)
-  (data : (k, v, cmp, w) Incr_collated_map.t)
-  ~instrumentation
-  ~(rank_range : (Collate_params.Rank.t Collate_params.Which_range.t, w) Incremental.t)
-  ~data_length
-  : (k, v, cmp, w) Incr_collated_map.t * (int, w) Incremental.t
-  =
-  let incremental_state = Incremental.state rank_range in
-  let apply_range data =
-    match%pattern_bind rank_range with
-    | All_rows -> data
-    | Between (From_start _, From_start _) as bounds ->
-      let bounds =
-        (* re-match on bounds here to avoid introducing two incrementals (one for each [l] and [u]*)
-        match%map bounds with
-        | Between (From_start l, From_start u) -> Incl l, Incl u
-        | _ -> assert false
-      in
-      Incr_map.subrange_by_rank ?instrumentation data bounds
-    | From (From_start l) ->
-      Incr_map.subrange_by_rank ?instrumentation data (l >>| fun l -> Incl l, Unbounded)
-    | To (From_start u) ->
-      Incr_map.subrange_by_rank ?instrumentation data (u >>| fun u -> Unbounded, Incl u)
-    | Between _ as bounds ->
-      let bounds =
-        (* re-match on bounds here to avoid introducing two incrementals (one for each [l] and [u]*)
-        let%mapn bounds and data_length in
-        match bounds with
-        | Between (l, u) ->
-          (* Clamp negative indices to 0 for proper behavior *)
-          let lower = max 0 (to_from_start_rank l ~data_length) in
-          let upper = to_from_start_rank u ~data_length in
-          (* If upper bound is negative, return empty range *)
-          if upper < 0 then Incl 0, Excl 0 else Incl lower, Incl upper
-        | _ -> assert false
-      in
-      Incr_map.subrange_by_rank ?instrumentation data bounds
-    | From l ->
-      Incr_map.subrange_by_rank
-        ?instrumentation
-        data
-        (let%mapn.Incremental l and data_length in
-         (* Clamp negative lower bound to 0 *)
-         Incl (max 0 (to_from_start_rank l ~data_length)), Unbounded)
-    | To u ->
-      Incr_map.subrange_by_rank
-        ?instrumentation
-        data
-        (let%mapn.Incremental u and data_length in
-         let upper_bound = to_from_start_rank u ~data_length in
-         (* When the upper bound would be negative, we want an empty result.
-            We achieve this by using an exclusive bound at -1, which excludes
-            all elements. *)
-         if upper_bound < 0 then Unbounded, Excl (-1) else Unbounded, Incl upper_bound)
-  in
-  let count_before =
-    match%pattern_bind rank_range with
-    | All_rows | To _ -> Incremental.return incremental_state 0
-    | Between (l, _) | From l ->
-      let%mapn.Incremental l and data_length in
-      (* Ensure count_before is always non-negative *)
-      max 0 (to_from_start_rank l ~data_length)
-  in
-  match data with
-  | Original m -> Original (apply_range m), count_before
-  | Sorted (m, key_cmp) -> Sorted (apply_range m, key_cmp), count_before
-;;
-
-let do_key_range_restrict
-  (type k v cmp w)
-  (data : (k, v, cmp, w) Incr_collated_map.t)
-  ~subrange_instrumentation
-  ~(orig_map : ((k, v, cmp) Map.t, w) Incremental.t)
-  ~(key_range : (k Collate_params.Which_range.t, w) Incremental.t)
-  : (k, v, cmp, w) Incr_collated_map.t * (int, w) Incremental.t
-  =
-  let incremental_state = Incremental.state orig_map in
-  let zero = Incremental.return incremental_state 0 in
-  let resolve_range_and_do
-    (type full_key)
-    (data : ((full_key, _, _) Map.t, w) Incremental.t)
-    ~(lookup : (k, w) Incremental.t -> (full_key Maybe_bound.t, w) Incremental.t)
+module Which_range = struct
+  let to_from_start_rank_range
+    (rank_range : Collate_params.Rank.t Collate_params.Which_range.t)
+    ~(data_length : int)
+    : int Collate_params.Which_range.t
     =
-    match%pattern_bind key_range with
-    | All_rows -> data
+    match rank_range with
+    | All_rows -> All_rows
     | Between (l, u) ->
-      let range =
-        let%mapn l = lookup l
-        and u = lookup u in
-        Some (l, u)
-      in
-      Incr_map.subrange ?instrumentation:subrange_instrumentation data range
+      let l = Rank_from_start.of_rank ~data_length l in
+      let u = Rank_from_start.of_rank ~data_length u in
+      Collate_params.Which_range.Between (l, u)
     | From l ->
-      let range =
-        let%mapn l = lookup l in
-        Some (l, Maybe_bound.Unbounded)
-      in
-      Incr_map.subrange ?instrumentation:subrange_instrumentation data range
+      let l = Rank_from_start.of_rank ~data_length l in
+      Collate_params.Which_range.From l
     | To u ->
-      let range =
-        let%mapn u = lookup u in
-        Some (Maybe_bound.Unbounded, u)
-      in
-      Incr_map.subrange ?instrumentation:subrange_instrumentation data range
-  in
-  (* Helper function to calculate the count of keys strictly before a target key *)
-  let count_keys_before_target map target_key =
-    match Map.closest_key map `Less_or_equal_to target_key with
-    | None -> 0 (* No keys <= target, so 0 keys before it *)
-    | Some (found_key, _) ->
-      let rank = Map.rank map found_key |> Option.value ~default:0 in
-      (* If the found key equals our target key, rank is the count before it.
-         If the found key is less than our target, we need rank + 1. *)
-      if Comparator.compare (Map.comparator map) found_key target_key = 0
-      then rank
-      else rank + 1
-  in
-  let count_before =
-    match data with
-    | Original map ->
-      (match%pattern_bind key_range with
-       | All_rows | To _ -> zero
-       | Between (k, _) | From k ->
-         let%mapn key = k
-         and map in
-         count_keys_before_target map key)
-    | Sorted (map, _key_cmp) ->
-      (match%pattern_bind key_range with
-       | All_rows | To _ -> zero
-       | Between (k, _) | From k ->
-         let v =
-           let%mapn orig_map and k in
-           Map.find orig_map k
-         in
-         (match%pattern_bind v with
-          | None -> zero
-          | Some v ->
-            let%mapn key = k
-            and v
-            and map in
-            count_keys_before_target map (key, v)))
-  in
+      let u = Rank_from_start.of_rank ~data_length u in
+      Collate_params.Which_range.To u
+  ;;
+end
+
+let do_rank_range_restrict
+  (type k v cmp w)
+  ~subrange_by_rank_instrumentation
+  (data : (k, v, cmp, w) Incr_collated_map.t)
+  ~(rank_range : (Rank_from_start.Range.t, w) Incremental.t)
+  : (k, v, cmp, w) Incr_collated_map.t
+  =
   match data with
-  | Original data ->
-    let lookup k =
-      let%map k in
-      Maybe_bound.Incl k
+  | Original m ->
+    let resolved_data =
+      Incr_map.subrange_by_rank
+        ?instrumentation:subrange_by_rank_instrumentation
+        m
+        rank_range
     in
-    Original (resolve_range_and_do data ~lookup), count_before
-  | Sorted (data, key_cmp) ->
-    let lookup k =
-      let%mapn orig_map and k in
-      match Map.find orig_map k with
-      | None -> Maybe_bound.Unbounded
-      | Some v -> Maybe_bound.Incl (k, v)
+    Original resolved_data
+  | Sorted (m, key_cmp) ->
+    let resolved_data =
+      Incr_map.subrange_by_rank
+        ?instrumentation:subrange_by_rank_instrumentation
+        m
+        rank_range
     in
-    Sorted (resolve_range_and_do data ~lookup, key_cmp), count_before
+    Sorted (resolved_data, key_cmp)
 ;;
 
 type ('k, 'v) kv_custom_comparator =
@@ -538,51 +396,201 @@ let key_rank t =
 let key_rank' t = t.key_rank
 let fold_result t = t.fold_result
 
+(** Converts a key range to a rank range.
+
+    First adjusts the bounds of [which_key_range] by swapping out-of-dataset keys for
+    their nearest in-dataset neighbors, and then calls
+    [Rank_from_start.Rank.of_key_range]. *)
+let which_key_range_to_rank_range_from_start
+  (type k v cmp w)
+  (data : (k, v, cmp, w) Incr_collated_map.t)
+  ~(orig_map : ((k, v, cmp) Map.t, w) Incremental.t)
+  ~(which_key_range : (k Collate_params.Which_range.t, w) Incremental.t)
+  ~key_to_rank_instrumentation
+  : (Rank_from_start.Range.t, w) Incremental.t
+  =
+  let incremental_state = Incremental.state orig_map in
+  let to_bounds_pair ~lookup_lower_bound ~lookup_upper_bound which_range =
+    match%pattern_bind which_range with
+    | Collate_params.Which_range.All_rows ->
+      Incremental.return incremental_state (Maybe_bound.Unbounded, Maybe_bound.Unbounded)
+    | Between (l, u) ->
+      let%mapn l = lookup_lower_bound l
+      and u = lookup_upper_bound u in
+      l, u
+    | From l ->
+      let%mapn l = lookup_lower_bound l in
+      l, Maybe_bound.Unbounded
+    | To u ->
+      let%mapn u = lookup_upper_bound u in
+      Maybe_bound.Unbounded, u
+  in
+  match data with
+  | Original m ->
+    let find_gte_key m k =
+      match Map.closest_key m `Greater_or_equal_to k with
+      | Some (k, _) -> Some k
+      | None -> None
+    in
+    let find_lte_key m k =
+      match Map.closest_key m `Less_or_equal_to k with
+      | Some (k, _) -> Some k
+      | None -> None
+    in
+    (* Transforms a key into a [Maybe_bound.t]. If the key isn't in the dataset, attempt
+       to use the nearest key in the dataset. *)
+    let lookup_lower_bound k =
+      let%mapn m and k in
+      match Map.find m k with
+      | Some _ -> Maybe_bound.Incl k (* Key exists, use it directly *)
+      | None ->
+        (* Key doesn't exist, find nearest key *)
+        (match find_gte_key m k with
+         | Some gte_key -> Maybe_bound.Incl gte_key
+         | None ->
+           (match find_lte_key m k with
+            | Some lte_key -> Maybe_bound.Excl lte_key
+            | None -> Maybe_bound.Unbounded))
+    in
+    (* Transforms a key into a [Maybe_bound.t]. If the key isn't in the dataset, attempt
+       to use the nearest key in the dataset. *)
+    let lookup_upper_bound (k : (k, w) Incremental.t) =
+      let%mapn m and k in
+      match Map.find m k with
+      | Some _ -> Maybe_bound.Incl k (* Key exists, use it directly *)
+      | None ->
+        (* Key doesn't exist, find nearest key *)
+        (match find_lte_key m k with
+         | Some lte_key -> Maybe_bound.Incl lte_key
+         | None ->
+           (match find_gte_key m k with
+            | Some gte_key -> Maybe_bound.Excl gte_key
+            | None -> Maybe_bound.Unbounded))
+    in
+    let key_range =
+      to_bounds_pair ~lookup_lower_bound ~lookup_upper_bound which_key_range
+    in
+    Rank_from_start.Range.of_key_range ~key_to_rank_instrumentation ~data:m key_range
+  | Sorted (data, _) ->
+    let lookup_lower_bound (k : (k, w) Incremental.t)
+      : ((k * v) Maybe_bound.t, w) Incremental.t
+      =
+      let%mapn orig_map and k in
+      match Map.find orig_map k with
+      | Some v -> Maybe_bound.Incl (k, v)
+      | None ->
+        (* We can't guess a likely position for the key as the dataset is sorted by value *)
+        Maybe_bound.Unbounded
+    in
+    let lookup_upper_bound (k : (k, w) Incremental.t)
+      : ((k * v) Maybe_bound.t, w) Incremental.t
+      =
+      let%mapn orig_map and k in
+      match Map.find orig_map k with
+      | Some v -> Maybe_bound.Incl (k, v)
+      | None ->
+        (* We can't guess a likely position for the key as the dataset is sorted by value *)
+        Maybe_bound.Unbounded
+      (* Target larger than all keys *)
+    in
+    let key_range =
+      to_bounds_pair ~lookup_lower_bound ~lookup_upper_bound which_key_range
+    in
+    Rank_from_start.Range.of_key_range ~key_to_rank_instrumentation ~data key_range
+;;
+
+(** Apply the key range and rank range in order. Bounds in the rank range are relative to
+    the data after the key range has been applied.
+
+    Algorithmically, we take [which_key_range], narrow it based on [which_rank_range], and
+    widen it based on [widen_range_by]. To simplify the logic, each range is normalized to
+    a [Rank_from_start.Range.t] so that ranges can be easily combined into a single call
+    to [Incr_map.subrange_by_rank]. *)
 let do_range_restrict
   orig_data
   data
-  ~key_range
-  ~rank_range
-  ~key_subrange_instrumentation
-  ~rank_range_instrumentation
+  ~which_key_range
+  ~which_rank_range
+  ~widen_range_by
+  ~key_to_rank_instrumentation
+  ~subrange_by_rank_instrumentation
   =
   let num_filtered_rows = Incr_collated_map.length data in
   let key_rank = Incr_collated_map.key_rank data in
-  let data, count_before_key_rank =
-    do_key_range_restrict
+  let data_length_for_key_range = Incr_collated_map.length data in
+  let key_range_as_rank_range_from_start =
+    which_key_range_to_rank_range_from_start
+      ~key_to_rank_instrumentation
       data
-      ~key_range
       ~orig_map:orig_data
-      ~subrange_instrumentation:key_subrange_instrumentation
+      ~which_key_range
   in
-  let data_length = Incr_collated_map.length data in
-  let data, count_before_range_rank =
-    do_rank_range_restrict_and_rank
+  let data_length_of_key_range =
+    let%mapn data_length_for_key_range and key_range_as_rank_range_from_start in
+    Rank_from_start.Range.length
+      ~data_length:data_length_for_key_range
+      key_range_as_rank_range_from_start
+    |> (* Guard against reversed/empty key ranges producing negative lengths.
+       For the purpose of interpreting rank_range (which is relative to the key-range),
+       a reversed key-range should behave like an empty segment of length 0. *)
+    Int.max 0
+  in
+  let combined_range_before_widening =
+    let%mapn data_length = data_length_of_key_range
+    and which_rank_range
+    and key_range_as_rank_range_from_start in
+    let rank_range =
+      Rank_from_start.Range.of_which_rank_range ~data_length which_rank_range
+    in
+    Rank_from_start.Range.remove_basis
+      ~basis:key_range_as_rank_range_from_start
+      rank_range
+  in
+  let%pattern_bind combined_range_for_selecting, range_widened_by =
+    let%mapn widen_range_by
+    and data_length_for_key_range
+    and combined_range_before_widening in
+    Rank_from_start.Range.widen
+      ~by:widen_range_by
+      ~data_length:data_length_for_key_range
+      combined_range_before_widening
+  in
+  (* [range_widened_by] is a tuple and therefore breaks phys_equal *)
+  Incremental.set_cutoff
+    range_widened_by
+    (Incremental.Cutoff.of_equal [%equal: int * int]);
+  let data =
+    do_rank_range_restrict
+      ~subrange_by_rank_instrumentation
       data
-      ~rank_range
-      ~data_length
-      ~instrumentation:rank_range_instrumentation
+      ~rank_range:combined_range_for_selecting
   in
   let data = do_to_pos_map data in
   let collated =
     let%mapn data
     and num_unfiltered_rows = orig_data >>| Map.length
     and num_filtered_rows
-    and key_range
-    and rank_range
-    and count_before_key_rank
-    and count_before_range_rank
-    and data_length in
+    and which_key_range
+    and which_rank_range
+    and combined_range_before_widening
+    and data_length_of_key_range
+    and range_widened_by in
     let num_before_range =
-      count_before_key_rank + count_before_range_rank |> Int.min num_filtered_rows
+      Rank_from_start.Range.count_before combined_range_before_widening
+      |> Int.min num_filtered_rows
     in
-    let rank_range = to_from_start_rank_range rank_range ~data_length in
+    let which_rank_range =
+      Which_range.to_from_start_rank_range
+        which_rank_range
+        ~data_length:data_length_of_key_range
+    in
     Collated.Private.create
       ~data
       ~num_filtered_rows
-      ~key_range
-      ~rank_range
+      ~key_range:which_key_range
+      ~rank_range:which_rank_range
       ~num_before_range
+      ~range_widened_by
       ~num_unfiltered_rows
   in
   Incremental.both collated key_rank
@@ -590,8 +598,8 @@ let do_range_restrict
 
 module Instrumentation = struct
   type t =
-    { key_subrange : Incr_map.Instrumentation.t
-    ; rank_range : Incr_map.Instrumentation.t
+    { key_to_rank : Incr_map.Instrumentation.t
+    ; subrange_by_rank : Incr_map.Instrumentation.t
     ; filter : Incr_map.Instrumentation.t
     ; fold : Incr_map.Instrumentation.t
     ; sort : Incr_map.Instrumentation.t
@@ -611,8 +619,8 @@ let collate_and_maybe_fold
   (collate : ((k, filter, order) Collate_params.t, w) Incremental.t)
   : (k, v, cmp, fold_result, w) t
   =
-  let%pattern_bind.Option { key_subrange = key_subrange_instrumentation
-                          ; rank_range = rank_range_instrumentation
+  let%pattern_bind.Option { key_to_rank = key_to_rank_instrumentation
+                          ; subrange_by_rank = subrange_by_rank_instrumentation
                           ; filter = filter_instrumentation
                           ; fold = fold_instrumentation
                           ; sort = sort_instrumentation
@@ -623,7 +631,7 @@ let collate_and_maybe_fold
   let incremental_state = Incremental.state data in
   let%pattern_bind (collated, key_rank), fold_result =
     let%bind map_comparator = Incremental.freeze (data >>| Map.comparator) in
-    let%pattern_bind { key_range; rank_range; filter; order } = collate in
+    let%pattern_bind { key_range; rank_range; filter; order; widen_range_by } = collate in
     let filter = with_cutoff filter ~equal:filter_equal in
     let order = with_cutoff order ~equal:order_equal in
     let orig_data = data in
@@ -652,12 +660,13 @@ let collate_and_maybe_fold
       in
       let%mapn out =
         do_range_restrict
-          ~key_subrange_instrumentation
-          ~rank_range_instrumentation
+          ~key_to_rank_instrumentation
+          ~subrange_by_rank_instrumentation
           orig_data
           data
-          ~key_range
-          ~rank_range
+          ~which_key_range:key_range
+          ~which_rank_range:rank_range
+          ~widen_range_by
       and fold_result in
       out, fold_result
     | `Sort_first ->
@@ -686,12 +695,13 @@ let collate_and_maybe_fold
       in
       let%mapn out =
         do_range_restrict
-          ~key_subrange_instrumentation
-          ~rank_range_instrumentation
+          ~key_to_rank_instrumentation
+          ~subrange_by_rank_instrumentation
           orig_data
           data
-          ~key_range
-          ~rank_range
+          ~which_key_range:key_range
+          ~which_rank_range:rank_range
+          ~widen_range_by
       and fold_result in
       out, fold_result
   in
@@ -772,8 +782,8 @@ module With_caching = struct
     (collate : ((k, filter, order) Collate_params.t, w) Incremental.t)
     : (k, v, cmp, fold_result, w) t
     =
-    let%pattern_bind.Option { key_subrange = key_subrange_instrumentation
-                            ; rank_range = rank_range_instrumentation
+    let%pattern_bind.Option { key_to_rank = key_to_rank_instrumentation
+                            ; subrange_by_rank = subrange_by_rank_instrumentation
                             ; filter = filter_instrumentation
                             ; fold = fold_instrumentation
                             ; sort = sort_instrumentation
@@ -786,7 +796,9 @@ module With_caching = struct
       let cache_sorted_filtered = Store.create order_filter_cache_params in
       let cache_sorted_filtered_ranked = Store.create order_filter_range_cache_params in
       let%bind map_comparator = Incremental.freeze (data >>| Map.comparator) in
-      let%pattern_bind { key_range; rank_range; filter; order } = collate in
+      let%pattern_bind { key_range; rank_range; filter; order; widen_range_by } =
+        collate
+      in
       let incremental_state = Incremental.state key_range in
       let range_bucket =
         (* Range operations are incremental with respect to the range, so we don't have
@@ -811,7 +823,7 @@ module With_caching = struct
            [Incr_map.subrange_by_rank] but only used to uniquely identify
            a Bucket range. For that use case, a negative range should be fine... *)
         let data_length = 0 in
-        let rank_range = to_from_start_rank_range ~data_length rank_range in
+        let rank_range = Which_range.to_from_start_rank_range ~data_length rank_range in
         Range_memoize_bucket.create
           ~bucket_size:range_memoize_bucket_size
           ~key_range
@@ -833,12 +845,13 @@ module With_caching = struct
         let sorted_filtered_ranked =
           in_scope (fun () ->
             do_range_restrict
-              ~key_subrange_instrumentation
-              ~rank_range_instrumentation
+              ~key_to_rank_instrumentation
+              ~subrange_by_rank_instrumentation
               orig_data
               sorted_filtered
-              ~key_range
-              ~rank_range)
+              ~which_key_range:key_range
+              ~which_rank_range:rank_range
+              ~widen_range_by)
         in
         Store.add
           cache_sorted_filtered_ranked

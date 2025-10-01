@@ -7,10 +7,10 @@ module Instrumentation : sig
   (** Gives an instrumentation hook at various points into the phases of
       [Incr_map_collate]. *)
   type t =
-    { key_subrange : Incr_map.Instrumentation.t
-    (** Invoked when [key_range] is computed, to compute the rank indice of the first key *)
-    ; rank_range : Incr_map.Instrumentation.t
-    (** Invoked when [rank_range] is computed, to compute the reduced range *)
+    { key_to_rank : Incr_map.Instrumentation.t
+    (** Invoked when converting the key range to a rank range *)
+    ; subrange_by_rank : Incr_map.Instrumentation.t
+    (** Invoked when [subrange_by_rank] is computed, to compute the reduced range *)
     ; filter : Incr_map.Instrumentation.t (** Invoked when the filter is computed *)
     ; fold : Incr_map.Instrumentation.t
     (** Invoked at the end when folding back into the resulting data structure *)
