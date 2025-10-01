@@ -42,9 +42,11 @@ val erase_key_incrementally
 val empty : _ t
 val of_list : 'a list -> 'a t
 val of_array : 'a array -> 'a t
+val append : 'a t -> 'a -> 'a t
 
 module Stable : sig
   module V1 : sig
-    type nonrec 'a t = 'a t [@@deriving sexp, bin_io, diff, stable_witness]
+    type nonrec 'a t = 'a t
+    [@@deriving sexp, bin_io, compare, diff, stable_witness, equal]
   end
 end

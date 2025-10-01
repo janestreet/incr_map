@@ -656,9 +656,9 @@ module type Incr_map = sig @@ portable
       [revert_to_init_when_empty] is [false], so this optimization does not apply
       automatically.
 
-      [finalize] defaults to [Fn.id] is called immediately before the accumulator value is
-      stored and returned during stabilization. You can use it to e.g. process the fold
-      operations in a different order. *)
+      [finalize] defaults to [Fn.id] and is called immediately before the accumulator
+      value is stored and returned during stabilization. You can use it to e.g. process
+      the fold operations in a different order. *)
   val unordered_fold
     :  ?instrumentation:Instrumentation.t
     -> ?data_equal:('v -> 'v -> bool)
@@ -1006,11 +1006,11 @@ module type Incr_map = sig @@ portable
  [subrange_by_rank map (s, e)] constructs an incremental submap that includes (e-s+1)
       keys between s-th and e-th, inclusive.
 
+      If s is less than zero, s is considered to be zero.
       If s is greater or equal to map length, the result is empty.
       If e is greater or equal to map length, the result contains keys from s-th to the
       last one.
-
-      Raises for invalid indices - s < 0 or e < s.
+      If e is less than s, the returned map will be empty.
 
       Runtime of the initial computation is O(min(e, n-s) + log(n)), i.e. linear,
       but optimized for ranges close to beginning or end.

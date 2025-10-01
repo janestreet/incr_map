@@ -258,6 +258,41 @@ let subrange_by_rank_test
       (observe i))
 ;;
 
+let%expect_test "subrange_by_rank out of bounds" =
+  (* negative start index *)
+  subrange_by_rank_test
+    ~initial_map:(String.Map.of_alist_exn [ "a", (); "b", () ])
+    ~initial_range:(Incl (-1), Incl 2)
+    ~ops:[]
+    ();
+  [%expect
+    {|
+    Initial full                      : ((a ()) (b ()))
+    Initial range ((Incl -1), (Incl 2)): ((a ()) (b ()))
+    |}];
+  (* too-large end index *)
+  subrange_by_rank_test
+    ~initial_map:(String.Map.of_alist_exn [ "a", (); "b", () ])
+    ~initial_range:(Incl 0, Incl 10)
+    ~ops:[]
+    ();
+  [%expect
+    {|
+    Initial full                      : ((a ()) (b ()))
+    Initial range ((Incl 0), (Incl 10)): ((a ()) (b ()))
+    |}];
+  subrange_by_rank_test
+    ~initial_map:(String.Map.of_alist_exn [ "a", (); "b", () ])
+    ~initial_range:(Incl 1, Incl 0)
+    ~ops:[]
+    ();
+  [%expect
+    {|
+    Initial full                      : ((a ()) (b ()))
+    Initial range ((Incl 1), (Incl 0)): ()
+    |}]
+;;
+
 let%expect_test "subrange_by_rank" =
   let map_only_op f (map, range) = f map, range in
   let add key = map_only_op (fun map -> Map.add_exn map ~key ~data:()) in

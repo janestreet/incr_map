@@ -1,7 +1,11 @@
 open! Core
 module Incr = Incremental.Make ()
 open Incr_map_collate
-module Concrete = Collated.Make_concrete (String) (Int)
+
+module Concrete = struct
+  type t = (String.t, Int.t) Incr_map_collate.Collated.t
+end
+
 module Order = Unit
 module Filter = Unit
 
@@ -18,6 +22,7 @@ let set_collate ?rank_range ?key_range t =
     ; key_range = Option.value key_range ~default:collate.key_range
     ; rank_range = Option.value rank_range ~default:collate.rank_range
     ; order = ()
+    ; widen_range_by = collate.widen_range_by
     }
   in
   Incr.Var.set t.collate collate
@@ -36,7 +41,13 @@ let do_collate input collate =
 let init ~key_range ~rank_range map =
   let map = Incr.Var.create map in
   let collate =
-    Incr.Var.create { Collate_params.filter = (); order = (); key_range; rank_range }
+    Incr.Var.create
+      { Collate_params.filter = ()
+      ; order = ()
+      ; key_range
+      ; rank_range
+      ; widen_range_by = 0, 0
+      }
   in
   let observer =
     do_collate (Incr.Var.watch map) (Incr.Var.watch collate)

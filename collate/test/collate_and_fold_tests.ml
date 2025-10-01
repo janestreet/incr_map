@@ -11,7 +11,9 @@ module Value = struct
   type t = int [@@deriving sexp, bin_io, equal, compare]
 end
 
-module Concrete = Collated.Make_concrete (Key) (Value)
+module Concrete = struct
+  type t = (Key.t, Value.t) Incr_map_collate.Collated.t
+end
 
 module Order = struct
   module T = struct
@@ -151,6 +153,7 @@ let set_collate ?filter ?rank_range ?key_range ?order t =
     ; key_range = Option.value key_range ~default:collate.key_range
     ; rank_range = Option.value rank_range ~default:collate.rank_range
     ; order = Option.value order ~default:collate.order
+    ; widen_range_by = collate.widen_range_by
     }
   in
   Incr.Var.set t.collate collate
@@ -168,7 +171,9 @@ let init_test
   let initial = Key.Map.of_alist_exn data in
   let map = Incr.Var.create initial in
   let collate =
-    Incr.Var.create ({ filter; order; key_range; rank_range } : _ Collate_params.t)
+    Incr.Var.create
+      ({ filter; order; key_range; rank_range; widen_range_by = 0, 0 }
+       : _ Collate_params.t)
   in
   let observer =
     let collated =

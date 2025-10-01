@@ -88,7 +88,7 @@ module Generic = struct
 
   let unordered_fold_with_comparator
     ~instrumentation
-    ?(data_equal = phys_equal)
+    ?(data_equal = [%eta2 phys_equal])
     ?update
     ?specialized_initial
     ?(finalize = Fn.id)
@@ -173,7 +173,7 @@ module Generic = struct
 
   let unordered_fold_nested_maps_with_comparators
     ~instrumentation
-    ?(data_equal = phys_equal)
+    ?(data_equal = [%eta2 phys_equal])
     ?revert_to_init_when_empty
     ?update
     incr_map
@@ -270,7 +270,7 @@ module Generic = struct
     (type input_data output_data f_output state_witness)
     (witness : (input_data, output_data, f_output) Map_type.t)
     ~instrumentation
-    ?(data_equal = phys_equal)
+    ?(data_equal = [%eta2 phys_equal])
     (map : (('key, input_data, 'cmp) Map.t, state_witness) Incremental.t)
     ~(f : key:'key -> data:input_data -> f_output)
     =
@@ -326,8 +326,8 @@ module Generic = struct
 
   let unordered_fold_with_extra
     ?(instrumentation = no_instrumentation)
-    ?(data_equal = phys_equal)
-    ?(extra_equal = phys_equal)
+    ?(data_equal = [%eta2 phys_equal])
+    ?(extra_equal = [%eta2 phys_equal])
     ?update
     ?specialized_initial
     ?(finalize = Fn.id)
@@ -380,7 +380,7 @@ module Generic = struct
   let mapi_count
     (type a cmp)
     ?(instrumentation = no_instrumentation)
-    ?(data_equal = phys_equal)
+    ?(data_equal = [%eta2 phys_equal])
     input
     ~(comparator : (module Comparator.S with type t = a and type comparator_witness = cmp))
     ~f
@@ -581,8 +581,8 @@ module Generic = struct
 
   let merge
     ?(instrumentation = no_instrumentation)
-    ?(data_equal_left = phys_equal)
-    ?(data_equal_right = phys_equal)
+    ?(data_equal_left = [%eta2 phys_equal])
+    ?(data_equal_right = [%eta2 phys_equal])
     left_map
     right_map
     ~f
@@ -625,9 +625,9 @@ module Generic = struct
 
   let merge_both_some
     ?(instrumentation = no_instrumentation)
-    ?(data_equal_left = phys_equal)
-    ?(data_equal_right = phys_equal)
-    ?(out_equal = phys_equal)
+    ?(data_equal_left = [%eta2 phys_equal])
+    ?(data_equal_right = [%eta2 phys_equal])
+    ?(out_equal = [%eta2 phys_equal])
     left_map
     right_map
     ~f
@@ -687,7 +687,7 @@ module Generic = struct
 
   let merge_disjoint
     ?(instrumentation = no_instrumentation)
-    ?(data_equal = phys_equal)
+    ?(data_equal = [%eta2 phys_equal])
     left_map
     right_map
     =
@@ -754,7 +754,7 @@ module Generic = struct
     (witness : (input_data, output_data, f_output) Map_type.t)
     ~instrumentation
     ?cutoff
-    ?(data_equal = phys_equal)
+    ?(data_equal = [%eta2 phys_equal])
     (lhs : (('key, input_data, 'cmp) Map.t, state_witness) Incremental.t)
     ~(f :
         key:'key
@@ -986,7 +986,7 @@ module Generic = struct
     (type v v1 v2 state_witness)
     ~instrumentation
     ?cutoff
-    ?(data_equal = phys_equal)
+    ?(data_equal = [%eta2 phys_equal])
     (input : (('key, v, 'cmp) Map.t, state_witness) Incremental.t)
     ~(f :
         key:'key
@@ -1105,7 +1105,7 @@ module Generic = struct
     (type v v1 v2 v3 state_witness)
     ?(instrumentation = no_instrumentation)
     ?cutoff
-    ?(data_equal = phys_equal)
+    ?(data_equal = [%eta2 phys_equal])
     (input : (('key, v, 'cmp) Map.t, state_witness) Incremental.t)
     ~(f :
         key:'key
@@ -1458,7 +1458,7 @@ module Generic = struct
   let subrange
     (type k v cmp state_witness)
     ?(instrumentation = no_instrumentation)
-    ?(data_equal = phys_equal)
+    ?(data_equal = [%eta2 phys_equal])
     (map_incr : ((k, v, cmp) Map.t, state_witness) Incremental.t)
     range
     =
@@ -1710,7 +1710,10 @@ module Generic = struct
       -> ((k1, (k2, v, k2_cmp) Map.t, k1_cmp) Map.t, state_witness) Incremental.t
       -> ((k2, (k1, v, k1_cmp) Map.t, k2_cmp) Map.t, state_witness) Incremental.t
     =
-    fun ?(instrumentation = no_instrumentation) ?(data_equal = phys_equal) k2_comparator m ->
+    fun ?(instrumentation = no_instrumentation)
+      ?(data_equal = [%eta2 phys_equal])
+      k2_comparator
+      m ->
     let update
       :  cmp:(k1, k1_cmp) Comparator.Module.t -> key:k1 -> old_data:(k2, v, k2_cmp) Map.t
       -> new_data:(k2, v, k2_cmp) Map.t -> (k2, (k1, v, k1_cmp) Map.t, k2_cmp) Map.t
@@ -1932,7 +1935,7 @@ module Generic = struct
       ~remove:(fun ~key:_ ~data:v acc -> Group.( - ) acc (f v))
   ;;
 
-  let observe_changes_exn ?(data_equal = phys_equal) map ~f =
+  let observe_changes_exn ?(data_equal = [%eta2 phys_equal]) map ~f =
     let state = Incremental.state map in
     let scope = Incremental.Scope.current state () in
     if not (Incremental.Scope.is_top scope)
@@ -2016,8 +2019,8 @@ module Generic = struct
 
   let cartesian_product
     ?(instrumentation = no_instrumentation)
-    ?(data_equal_left = phys_equal)
-    ?(data_equal_right = phys_equal)
+    ?(data_equal_left = [%eta2 phys_equal])
+    ?(data_equal_right = [%eta2 phys_equal])
     m1
     m2
     =
@@ -2103,7 +2106,7 @@ module Generic = struct
 
     let create
       ?(instrumentation = no_instrumentation)
-      ?(data_equal = phys_equal)
+      ?(data_equal = [%eta2 phys_equal])
       comparator
       input_map
       =

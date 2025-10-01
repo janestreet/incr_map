@@ -3,12 +3,19 @@ open Expect_test_helpers_core
 module Incr = Incremental.Make ()
 open Incr_map_collate
 module Key = String (* "symbol" *)
+module Collate_params = Collate_params
+module Compare = Compare
+module Collated = Collated
 
 module Value = struct
-  type t = int * float (* "size" and "price" *) [@@deriving sexp, bin_io, equal, compare]
+  type t = int * float
+  (* "size" and "price" *) [@@deriving sexp, bin_io, equal, compare, diff]
 end
 
-module Concrete = Collated.Make_concrete (Key) (Value)
+module Concrete = struct
+  type t = (Key.t, Value.t) Incr_map_collate.Collated.Unstable.t
+  [@@deriving sexp_of, diff, equal]
+end
 
 module Order = struct
   module T = struct
@@ -104,6 +111,7 @@ let set_collate ?filter ?rank_range ?key_range ?order t =
     ; key_range = Option.value key_range ~default:collate.key_range
     ; rank_range = Option.value rank_range ~default:collate.rank_range
     ; order = Option.value order ~default:collate.order
+    ; widen_range_by = collate.widen_range_by
     }
   in
   Incr.Var.set t.collate collate
@@ -133,7 +141,9 @@ let init_test
   let initial = Key.Map.of_alist_exn data in
   let map = Incr.Var.create initial in
   let collate =
-    Incr.Var.create ({ filter; order; key_range; rank_range } : _ Collate_params.t)
+    Incr.Var.create
+      ({ filter; order; key_range; rank_range; widen_range_by = 0, 0 }
+       : _ Collate_params.t)
   in
   let observer =
     let collated =
@@ -389,14 +399,18 @@ let%expect_test "changing range" =
   let res1 = get_res t in
   set_collate ~rank_range:(Between (From_start 2, From_start 6)) t;
   let res2 = get_res t in
-  let update = Concrete.diffs ~from:res1 ~to_:res2 in
-  print_s [%sexp (update : Concrete.Update.t)];
+  let diff =
+    Concrete.Diff.get ~from:res1 ~to_:res2 |> Diffable.Optional_diff.unsafe_value
+  in
+  print_s [%sexp (diff : Concrete.Diff.t)];
   [%expect
     {|
-    ((Elements_prior_to_range 2)
-     (Rank_range (Between 2 6))
-     (Data (Add 500 (buz (10 3))))
-     (Data (Remove 0)))
+    ((Data ((Add 500 (buz (10 3))) (Remove 0)))
+     (Rank_range (
+       Diff_between (
+         (T1 2)
+         (T2 6))))
+     (Num_before_range 2))
     |}]
 ;;
 
@@ -613,6 +627,17 @@ let%expect_test "update values so that they compare equal" =
      (num_filtered_rows   5)
      (num_unfiltered_rows 5))
     |}];
+  (* change the size which doesn't affect sorting *)
+  modify_map t ~f:(Map.set ~key:"ZZZ" ~data:(50, 2.0));
+  print_res t;
+  [%expect
+    {|
+    (((VOD  (11 2))
+      (ZZZ  (50 2))
+      (GOOG (10 3)))
+     (num_filtered_rows   5)
+     (num_unfiltered_rows 5))
+    |}];
   (* Modify to bigger value *)
   modify_map t ~f:(Map.set ~key:"VOD" ~data:(11, 2.5));
   print_res t;
@@ -624,11 +649,24 @@ let%expect_test "update values so that they compare equal" =
      (num_unfiltered_rows 5))
     |}];
   (* Move GOOG to ensure it gets compared to the new value of VOD *)
+  (* Also change the size of ZZZ which is filtered out *)
+  modify_map t ~f:(Map.set ~key:"ZZZ" ~data:(33, 2.0));
   modify_map t ~f:(Map.set ~key:"GOOG" ~data:(10, 2.3));
   print_res t;
   [%expect
     {|
     (((VOD (11 2.5)))
+     (num_filtered_rows   5)
+     (num_unfiltered_rows 5))
+    |}];
+  (* Reveal ZZZ with the size that was changed while it was off range *)
+  modify_map t ~f:(Map.set ~key:"VOD" ~data:(11, 2.0));
+  print_res t;
+  [%expect
+    {|
+    (((VOD  (11 2))
+      (ZZZ  (33 2))
+      (GOOG (10 2.3)))
      (num_filtered_rows   5)
      (num_unfiltered_rows 5))
     |}]
@@ -642,10 +680,11 @@ let%expect_test "don't trigger rebalance" =
     ((data (
        (0   (A (0 0)))
        (100 (B (0 100)))))
-     (num_filtered_rows   2)
-     (key_range           All_rows)
-     (rank_range          All_rows)
-     (num_before_range    0)
+     (num_filtered_rows 2)
+     (key_range         All_rows)
+     (rank_range        All_rows)
+     (num_before_range  0)
+     (range_widened_by (0 0))
      (num_unfiltered_rows 2))
     |}];
   modify_map t ~f:(Map.add_exn ~key:"AA" ~data:(0, 50.));
@@ -700,10 +739,11 @@ let%expect_test "don't trigger rebalance" =
        (99.9999999701976776123046875 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
        (99.99999998509883880615234375 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
        (100 (B (0 100)))))
-     (num_filtered_rows   35)
-     (key_range           All_rows)
-     (rank_range          All_rows)
-     (num_before_range    0)
+     (num_filtered_rows 35)
+     (key_range         All_rows)
+     (rank_range        All_rows)
+     (num_before_range  0)
+     (range_widened_by (0 0))
      (num_unfiltered_rows 35))
     |}];
   (* But now it does *)
@@ -748,10 +788,11 @@ let%expect_test "don't trigger rebalance" =
        (3300 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  (0 0)))
        (3400 (AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA (0 0)))
        (3500 (B                                   (0 100)))))
-     (num_filtered_rows   36)
-     (key_range           All_rows)
-     (rank_range          All_rows)
-     (num_before_range    0)
+     (num_filtered_rows 36)
+     (key_range         All_rows)
+     (rank_range        All_rows)
+     (num_before_range  0)
+     (range_widened_by (0 0))
      (num_unfiltered_rows 36))
     |}]
 ;;
@@ -763,17 +804,20 @@ let%expect_test "diffs" =
   modify_map t ~f:(Map.set ~key:"A" ~data:(0, 1.));
   modify_map t ~f:(Map.add_exn ~key:"BB" ~data:(0, 200.));
   let res2 = get_res t in
-  let update = Concrete.diffs ~from:res1 ~to_:res2 in
-  print_s [%sexp (update : Concrete.Update.t)];
+  let diff =
+    Concrete.Diff.get ~from:res1 ~to_:res2 |> Diffable.Optional_diff.unsafe_value
+  in
+  print_s [%sexp (diff : Concrete.Diff.t)];
   [%expect
     {|
-    ((Num_unfiltered_rows 4)
+    ((Data (
+       (Add 200 (BB (0 200)))
+       (Add 50  (AA (0 50)))
+       (Diff 0 ((T2 ((T2 1)))))))
      (Num_filtered_rows   4)
-     (Data (Add 200 (BB (0 200))))
-     (Data (Add 50 (AA (0 50))))
-     (Data (Add 0 (A (0 1)))))
+     (Num_unfiltered_rows 4))
     |}];
-  let patched = Concrete.update res1 update in
+  let patched = Concrete.Diff.apply_exn res1 diff in
   require_equal (module Concrete) res2 patched;
   print_s [%message "" ~orig:(res2 : Concrete.t) ~patched:(patched : Concrete.t)];
   [%expect
@@ -784,10 +828,11 @@ let%expect_test "diffs" =
          (50  (AA (0 50)))
          (100 (B  (0 100)))
          (200 (BB (0 200)))))
-       (num_filtered_rows   4)
-       (key_range           All_rows)
-       (rank_range          All_rows)
-       (num_before_range    0)
+       (num_filtered_rows 4)
+       (key_range         All_rows)
+       (rank_range        All_rows)
+       (num_before_range  0)
+       (range_widened_by (0 0))
        (num_unfiltered_rows 4)))
      (patched (
        (data (
@@ -795,10 +840,11 @@ let%expect_test "diffs" =
          (50  (AA (0 50)))
          (100 (B  (0 100)))
          (200 (BB (0 200)))))
-       (num_filtered_rows   4)
-       (key_range           All_rows)
-       (rank_range          All_rows)
-       (num_before_range    0)
+       (num_filtered_rows 4)
+       (key_range         All_rows)
+       (rank_range        All_rows)
+       (num_before_range  0)
+       (range_widened_by (0 0))
        (num_unfiltered_rows 4))))
     |}]
 ;;
@@ -811,6 +857,7 @@ let%expect_test "duplicates in diff" =
       ~key_range:All_rows
       ~rank_range:All_rows
       ~num_before_range:0
+      ~range_widened_by:(0, 0)
       [ "1", (1, 1.0) ]
   in
   let t2 =
@@ -820,77 +867,82 @@ let%expect_test "duplicates in diff" =
       ~key_range:All_rows
       ~rank_range:All_rows
       ~num_before_range:0
+      ~range_widened_by:(0, 0)
       [ "2", (2, 2.0) ]
   in
-  let d1 = Concrete.to_diffs t1 in
-  let d2 = Concrete.to_diffs t2 in
-  print_s [%message "diffs" (d1 : Concrete.Update.t) (d2 : Concrete.Update.t)];
-  let t1' = Concrete.of_diffs d1 in
-  let t1'' = Concrete.update t1 d1 in
-  let t1''' = Concrete.update t1 (d1 @ d1) in
-  let t1'''' = Concrete.update t1 (d2 @ d1) in
+  let d1 =
+    Concrete.Diff.get ~from:Collated.empty ~to_:t1 |> Diffable.Optional_diff.unsafe_value
+  in
+  let d2 =
+    Concrete.Diff.get ~from:Collated.empty ~to_:t2 |> Diffable.Optional_diff.unsafe_value
+  in
+  print_s [%message "diffs" (d1 : Concrete.Diff.t) (d2 : Concrete.Diff.t)];
+  let t1' = Concrete.Diff.apply_exn Collated.empty d1 in
+  let t1'' = Concrete.Diff.apply_exn t1 d1 in
+  let t1''' = Concrete.Diff.apply_exn (Concrete.Diff.apply_exn t1 d1) d1 in
+  let t1'''' = Concrete.Diff.apply_exn (Concrete.Diff.apply_exn t1 d2) d1 in
   print_s [%message "t1s" ([ t1'; t1''; t1'''; t1'''' ] : Concrete.t list)];
   [%expect
     {|
     (diffs
       (d1 (
-        (Num_unfiltered_rows     10)
-        (Elements_prior_to_range 0)
-        (Rank_range              All_rows)
-        (Key_range               All_rows)
-        (Num_filtered_rows       1)
-        (Data (Add 0 (1 (1 1))))))
+        (Data ((Add 0 (1 (1 1)))))
+        (Num_filtered_rows   1)
+        (Num_unfiltered_rows 10)))
       (d2 (
-        (Num_unfiltered_rows     10)
-        (Elements_prior_to_range 0)
-        (Rank_range              All_rows)
-        (Key_range               All_rows)
-        (Num_filtered_rows       2)
-        (Data (Add 0 (2 (2 2)))))))
+        (Data ((Add 0 (2 (2 2)))))
+        (Num_filtered_rows   2)
+        (Num_unfiltered_rows 10))))
     (t1s (
       "[t1'; t1''; t1'''; t1'''']" (
         ((data ((0 (1 (1 1)))))
-         (num_filtered_rows   1)
-         (key_range           All_rows)
-         (rank_range          All_rows)
-         (num_before_range    0)
+         (num_filtered_rows 1)
+         (key_range         All_rows)
+         (rank_range        All_rows)
+         (num_before_range  0)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10))
         ((data ((0 (1 (1 1)))))
-         (num_filtered_rows   1)
-         (key_range           All_rows)
-         (rank_range          All_rows)
-         (num_before_range    0)
+         (num_filtered_rows 1)
+         (key_range         All_rows)
+         (rank_range        All_rows)
+         (num_before_range  0)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10))
         ((data ((0 (1 (1 1)))))
-         (num_filtered_rows   1)
-         (key_range           All_rows)
-         (rank_range          All_rows)
-         (num_before_range    0)
+         (num_filtered_rows 1)
+         (key_range         All_rows)
+         (rank_range        All_rows)
+         (num_before_range  0)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10))
         ((data ((0 (1 (1 1)))))
-         (num_filtered_rows   1)
-         (key_range           All_rows)
-         (rank_range          All_rows)
-         (num_before_range    0)
+         (num_filtered_rows 1)
+         (key_range         All_rows)
+         (rank_range        All_rows)
+         (num_before_range  0)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10)))))
     |}];
-  let t2' = Concrete.update t1 (d1 @ d2) in
+  let t2' = Concrete.Diff.apply_exn (Concrete.Diff.apply_exn t1 d1) d2 in
   print_s [%message "t2s" ([ t2; t2' ] : Concrete.t list)];
   [%expect
     {|
     (t2s (
       "[t2; t2']" (
         ((data ((0 (2 (2 2)))))
-         (num_filtered_rows   2)
-         (key_range           All_rows)
-         (rank_range          All_rows)
-         (num_before_range    0)
+         (num_filtered_rows 2)
+         (key_range         All_rows)
+         (rank_range        All_rows)
+         (num_before_range  0)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10))
         ((data ((0 (2 (2 2)))))
-         (num_filtered_rows   2)
-         (key_range           All_rows)
-         (rank_range          All_rows)
-         (num_before_range    0)
+         (num_filtered_rows 2)
+         (key_range         All_rows)
+         (rank_range        All_rows)
+         (num_before_range  0)
+         (range_widened_by (0 0))
          (num_unfiltered_rows 10)))))
     |}]
 ;;
@@ -915,9 +967,8 @@ let%expect_test "instrumentation: every instrumented stage gets hit once" =
     { filter = instrument "filter"
     ; fold = instrument "fold"
     ; sort = instrument "sort"
-    ; key_subrange = instrument "key_subrange"
     ; key_to_rank = instrument "key_to_rank"
-    ; rank_range = instrument "rank_range"
+    ; subrange_by_rank = instrument "subrange_by_rank"
     }
   in
   let do_collate =
@@ -948,21 +999,20 @@ let%expect_test "instrumentation: every instrumented stage gets hit once" =
   print_hits ();
   [%expect
     {|
-    ┌──────────────┬──────┐
-    │ stage        │ hits │
-    ├──────────────┼──────┤
-    │ sort         │ 1    │
-    │ rank_range   │ 1    │
-    │ key_subrange │ 1    │
-    │ fold         │ 1    │
-    │ filter       │ 1    │
-    │ key_to_rank  │ 1    │
-    └──────────────┴──────┘
+    ┌──────────────────┬──────┐
+    │ stage            │ hits │
+    ├──────────────────┼──────┤
+    │ sort             │ 1    │
+    │ subrange_by_rank │ 1    │
+    │ fold             │ 1    │
+    │ filter           │ 1    │
+    │ key_to_rank      │ 1    │
+    └──────────────────┴──────┘
     |}];
   (* Verifying we witnessed 6 instrumentation stages *)
-  [%test_eq: int] (Hashtbl.length hits) 6;
+  [%test_eq: int] (Hashtbl.length hits) 5;
   (* Verifying we only ran each stage once *)
-  [%test_eq: int] (Hashtbl.fold ~init:0 ~f:(fun ~key:_ ~data acc -> data + acc) hits) 6
+  [%test_eq: int] (Hashtbl.fold ~init:0 ~f:(fun ~key:_ ~data acc -> data + acc) hits) 5
 ;;
 
 module%test [@name "new API"] _ = struct
@@ -1211,3 +1261,6 @@ module%test [@name "new API"] _ = struct
     set_collate t ~rank_range:All_rows
   ;;
 end
+
+module Quickcheck_generators = Quickcheck_generators
+module Incr_map_collate_non_incremental = Incr_map_collate_non_incremental
