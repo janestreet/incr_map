@@ -1,5 +1,5 @@
 (library
  (name incr_set_test)
- (libraries core incr_set incremental expect_test_helpers_core)
+ (libraries core expect_test_helpers_core incr_set incremental)
  (preprocess
   (pps ppx_jane ppx_pattern_bind)))
