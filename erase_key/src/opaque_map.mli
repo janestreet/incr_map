@@ -42,7 +42,26 @@ val erase_key_incrementally
 val empty : _ t
 val of_list : 'a list -> 'a t
 val of_array : 'a array -> 'a t
+
+(** [append map elem] adds [elem] to the end of the map. *)
 val append : 'a t -> 'a -> 'a t
+
+(** [prepend map elem] adds [elem] to the beginning of the map. *)
+val prepend : 'a t -> 'a -> 'a t
+
+(** [insert_before map ~key elem] inserts [elem] at a position immediately before [key] in
+    the ordering.
+
+    Note: this will never force rebalancing, so avoid using it as the primary method for
+    constructing a [t]. *)
+val insert_before : 'a t -> key:Key.t -> 'a -> 'a t
+
+(** [insert_after map ~key elem] inserts [elem] at a position immediately after [key] in
+    the ordering.
+
+    Note: this will never force rebalancing, so avoid using it as the primary method for
+    constructing a [t]. *)
+val insert_after : 'a t -> key:Key.t -> 'a -> 'a t
 
 module Stable : sig
   module V1 : sig

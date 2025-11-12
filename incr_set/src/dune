@@ -1,6 +1,6 @@
 (library
  (name incr_set)
  (public_name incr_map.incr_set)
- (libraries core counting_multi_set incremental incr_map)
+ (libraries core counting_multi_set incr_map incremental)
  (preprocess
   (pps ppx_jane ppx_pattern_bind -dont-apply=sexp_message)))
