@@ -12,8 +12,8 @@ let check_invariants input_map derived_map =
   Expect_test_helpers_base.require_compare_equal (module Out) input_list derived_list;
   assert ([%equal: Out.t] input_list derived_list);
   let (_ : _ String.Map.t) =
-    (* The keys of the derived map should serialized to unique values. If that
-       is not the case, then [of_alist_exn] will raise. *)
+    (* The keys of the derived map should serialized to unique values. If that is not the
+       case, then [of_alist_exn] will raise. *)
     Map.to_alist derived_map
     |> List.map ~f:(fun (key, data) -> Opaque_map.Key.to_string key, data)
     |> String.Map.of_alist_exn
@@ -68,9 +68,9 @@ let%expect_test _ =
   done
 ;;
 
-(* This is a regression-test for [Opaque_map] that demonstrates changes to an
-   input map where the map never gets larger than size 3, but the denomonator for the
-   bignum assigned to the key for the middle-most row grows explosively. *)
+(* This is a regression-test for [Opaque_map] that demonstrates changes to an input map
+   where the map never gets larger than size 3, but the denomonator for the bignum
+   assigned to the key for the middle-most row grows explosively. *)
 let%expect_test _ =
   let needle = ref (Bignum.of_float_decimal 0.5) in
   let input_map =
@@ -98,7 +98,7 @@ let%expect_test _ =
 ;;
 
 (* This test is a regression-test for pathological inputs to incr_map_erase_key which
-   cause the bignum key to grow explosively.  This one utilizes two pointers which jump
+   cause the bignum key to grow explosively. This one utilizes two pointers which jump
    over one another repeatedly, each time multiplying the denomonator by two. *)
 let%expect_test _ =
   let needle = ref (Bignum.of_float_decimal 0.5) in

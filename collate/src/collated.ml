@@ -205,8 +205,8 @@ module Stable = struct
 
         let this_type_does_not_support_ldiffable = ()
 
-        (* We have to implement this by hand, as ppx_diff (or Diffable really)
-       doesn't support parametrized types *)
+        (* We have to implement this by hand, as ppx_diff (or Diffable really) doesn't
+           support parametrized types *)
 
         module Update = struct
           module Map_data = struct

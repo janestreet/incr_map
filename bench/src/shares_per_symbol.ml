@@ -146,7 +146,7 @@ let%bench_fun "flat" = shares_per_symbol_bench 1_000_000 shares_per_symbol_flat
 (* Benchmark results:
 
    The flat version is better, but not massively better, than the original, showing that
-   having a bunch of extra incremental nodes is expensive, but not horribly so.  (The
+   having a bunch of extra incremental nodes is expensive, but not horribly so. (The
    memory numbers are obviously messed up, and I don't know why...)
 
    {v
@@ -156,6 +156,5 @@ let%bench_fun "flat" = shares_per_symbol_bench 1_000_000 shares_per_symbol_flat
 │ [shares_per_symbol.ml] nested │  16.96us │    363.42w │   39.34w │   39.34w │    100.00% │
 │ [shares_per_symbol.ml] flat   │   6.16us │ -5_755.70w │   -2.56w │   -2.56w │     36.31% │
 └───────────────────────────────┴──────────┴────────────┴──────────┴──────────┴────────────┘
-
-      v}
+   v}
 *)

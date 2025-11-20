@@ -6,10 +6,10 @@ module Key = struct
   include Bignum.Unstable
 
   let to_string s =
-    (* It's important that different numbers serialize to different strings,
-       since the partial render table uses the serialization as a virtual-dom
-       key in a context which requires that all the keys be unique. Thus, we
-       use [to_string_accurate] to ensure no loss of precision. *)
+    (* It's important that different numbers serialize to different strings, since the
+       partial render table uses the serialization as a virtual-dom key in a context which
+       requires that all the keys be unique. Thus, we use [to_string_accurate] to ensure
+       no loss of precision. *)
     to_string_accurate s
   ;;
 

@@ -87,14 +87,13 @@ module Incr_collated_map = struct
       (* Ideally, this type would be
 
          {[
-           type ('k, 'v) t
-             : value mod contended portable with 'k with 'v
-             = T : ('k, 'v, _) Map.Tree.t -> ('k, 'v) t
+           type ('k, 'v) t : value mod contended portable with 'k with 'v =
+             | T : ('k, 'v, _) Map.Tree.t -> ('k, 'v) t
          ]}
 
-         (which is totally safe btw), but the compiler currently doesn't support
-         mode crossing in GADTs.  A feature is in the works, but until then, we're
-         left with a little transmutation. *)
+         (which is totally safe btw), but the compiler currently doesn't support mode
+         crossing in GADTs. A feature is in the works, but until then, we're left with a
+         little transmutation. *)
 
       type ('k, 'v) t : value mod contended portable with 'k with 'v
 
@@ -534,9 +533,9 @@ let do_range_restrict
     Rank_from_start.Range.length
       ~data_length:data_length_for_key_range
       key_range_as_rank_range_from_start
-    |> (* Guard against reversed/empty key ranges producing negative lengths.
-       For the purpose of interpreting rank_range (which is relative to the key-range),
-       a reversed key-range should behave like an empty segment of length 0. *)
+    |> (* Guard against reversed/empty key ranges producing negative lengths. For the
+          purpose of interpreting rank_range (which is relative to the key-range), a
+          reversed key-range should behave like an empty segment of length 0. *)
     Int.max 0
   in
   let combined_range_before_widening =
@@ -805,7 +804,7 @@ module With_caching = struct
       in
       let incremental_state = Incremental.state key_range in
       let range_bucket =
-        (* Range operations are incremental with respect to the range, so we don't have
+        (*=Range operations are incremental with respect to the range, so we don't have
            to bind to ranges.
 
            However, incrementality does not necessarily mean they're fast - they run in
@@ -819,13 +818,11 @@ module With_caching = struct
            We also keep a cache of a few least recently used buckets.
         *)
         let%map key_range and rank_range in
-        (* At this point, we cannot get [num_filtered_row] so we set it to 0 to
-           get a forward rank range.
-           This means that [Backward] Ranks in the forward rank_range will be
-           negative.
-           This is fine because this [rank_range] isn't passed to
-           [Incr_map.subrange_by_rank] but only used to uniquely identify
-           a Bucket range. For that use case, a negative range should be fine... *)
+        (* At this point, we cannot get [num_filtered_row] so we set it to 0 to get a
+           forward rank range. This means that [Backward] Ranks in the forward rank_range
+           will be negative. This is fine because this [rank_range] isn't passed to
+           [Incr_map.subrange_by_rank] but only used to uniquely identify a Bucket range.
+           For that use case, a negative range should be fine... *)
         let data_length = 0 in
         let rank_range = Which_range.to_from_start_rank_range ~data_length rank_range in
         Range_memoize_bucket.create
@@ -837,9 +834,9 @@ module With_caching = struct
       let scope = Incremental.Scope.current incremental_state () in
       let in_scope f = Incremental.Scope.within incremental_state scope ~f in
       let%bind order and filter and range_bucket in
-      (* This line causes the computation below to always be executed. This is fine,
-         as it consists only of cache lookups, which are cheap. And we want to execute
-         them to get more accurate LRU caches & hooks behaviour. *)
+      (* This line causes the computation below to always be executed. This is fine, as it
+         consists only of cache lookups, which are cheap. And we want to execute them to
+         get more accurate LRU caches & hooks behaviour. *)
       let never_cutoff = Incremental.return incremental_state () in
       Incremental.set_cutoff never_cutoff Incremental.Cutoff.never;
       let%bind () = never_cutoff in
@@ -898,8 +895,8 @@ module With_caching = struct
       (* We implement "lazy eviction" here - we only allow ourselves to use a value from
          deeper cache if its partial computations are present in the earlier layers.
 
-         E.g. if we evict some ordering "s" from [cache_sorted], we might still have
-         "s, f, r" in [cache_sorted_filtered_ranked], but we won't use it, and instead
+         E.g. if we evict some ordering "s" from [cache_sorted], we might still have "s,
+         f, r" in [cache_sorted_filtered_ranked], but we won't use it, and instead
          recreate from scratch and overwrite the cache.
 
          This guarantees that, in presence of evicting from earlier layers, we won't

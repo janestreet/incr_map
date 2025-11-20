@@ -40,7 +40,7 @@ let%test_unit "quickcheck [Incr_map.cutoff] vs Map' with Incr.cutoff" =
 ;;
 
 let%expect_test "naive data_equal" =
-  (* You might expect this code to be equivalent to [Incr_map.cutoff]:
+  (*=You might expect this code to be equivalent to [Incr_map.cutoff]:
 
      {[
        Incr_map.map

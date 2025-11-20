@@ -4,17 +4,17 @@ open Import
 module%test [@name "random tests"] _ = struct
   (* [Incr.Map.flatten] is tested as follows:
 
-       First, create [map_of_incrs] of type [float Incr.t Int.Map.t] with initial values
-       equal to those in [map].
+     First, create [map_of_incrs] of type [float Incr.t Int.Map.t] with initial values
+     equal to those in [map].
 
-       Next, apply [Incr.Map.flatten] to [map_of_incrs] to get [result_incr].
+     Next, apply [Incr.Map.flatten] to [map_of_incrs] to get [result_incr].
 
-       At each of the [num_steps] steps, randomly change a single entry in [map_of_incrs]
-       by setting the [Incr.Var.t] corresponding to its data to a new value.
+     At each of the [num_steps] steps, randomly change a single entry in [map_of_incrs] by
+     setting the [Incr.Var.t] corresponding to its data to a new value.
 
-       Every [stabilize_every_n] steps, check the result as follows:
-       - call [Incr.stabilize ()]
-       - check the value of [result_incr]
+     Every [stabilize_every_n] steps, check the result as follows:
+     - call [Incr.stabilize ()]
+     - check the value of [result_incr]
   *)
   let test_flatten map ~num_steps ~stabilize_every_n =
     let map_of_vars = Map.map map ~f:Incr.Var.create in
@@ -23,7 +23,7 @@ module%test [@name "random tests"] _ = struct
     let result_obs = Incr.observe result_incr in
     let test_value () =
       (* Since [result_incr] was obtained as [Incr.Map.flatten map_of_incrs], check the
-           value of [result_incr] against the data values in [map_of_incrs] *)
+         value of [result_incr] against the data values in [map_of_incrs] *)
       [%test_result: float Int.Map.t]
         (Incr.Observer.value_exn result_obs)
         ~expect:(Map.map map_of_vars ~f:Incr.Var.value)
@@ -48,9 +48,9 @@ module%test [@name "random tests"] _ = struct
     test_flatten start_map ~num_steps:100 ~stabilize_every_n:10
   ;;
 
-  (* [test_flatten_with_cutoff] is similar to [test_flatten].
-       However, here the cutoffs of all the data in [map_of_incrs] are set to [always],
-       which means changes in [map_of_incrs] should not porpagate to [result_incr]
+  (* [test_flatten_with_cutoff] is similar to [test_flatten]. However, here the cutoffs of
+     all the data in [map_of_incrs] are set to [always], which means changes in
+     [map_of_incrs] should not porpagate to [result_incr]
   *)
   let test_flatten_with_cutoff map ~num_steps =
     let map_of_vars = Map.map map ~f:Incr.Var.create in
@@ -61,7 +61,7 @@ module%test [@name "random tests"] _ = struct
     Map.iter map_of_incrs ~f:(fun incr -> Incr.set_cutoff incr Incr.Cutoff.always);
     let test_value () =
       (* Check the value of [result_incr] against the initial data values of
-           [map_of_incrs], which are equal to the values in [map] *)
+         [map_of_incrs], which are equal to the values in [map] *)
       Incr.stabilize ();
       [%test_result: float Int.Map.t] (Incr.Observer.value_exn result_obs) ~expect:map
     in

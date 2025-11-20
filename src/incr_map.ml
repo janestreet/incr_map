@@ -14,7 +14,7 @@ module Map_type = struct
     | Map : ('input_data, 'output_data, 'output_data) t
     | Filter_map : ('input_data, 'output_data, 'output_data option) t
 
-  (* The extra type variable 'a is to allow in future:
+  (*=The extra type variable 'a is to allow in future:
      | Filter : ('output_data, 'output_data, bool) t *)
 end
 
@@ -640,8 +640,8 @@ module Generic = struct
         let comparator = Map.comparator new_left_map in
         let empty = Map.Using_comparator.empty ~comparator in
         match Map.length new_left_map, Map.length new_right_map with
-        (* Because we only care about keys that are in both maps, if either map is
-           empty, bail early. *)
+        (* Because we only care about keys that are in both maps, if either map is empty,
+           bail early. *)
         | 0, _ | _, 0 -> empty
         | _ ->
           merge_shared_impl
@@ -663,14 +663,14 @@ module Generic = struct
                   let%map right_data = Map.find new_right_map key in
                   left_data, right_data
                 | `Right right_diff ->
-                  (* This match arm binds [right_data] first because the map lookup
-                     is slower than calling [new_data_from_diff_element]. *)
+                  (* This match arm binds [right_data] first because the map lookup is
+                     slower than calling [new_data_from_diff_element]. *)
                   let%bind right_data = new_data_from_diff_element right_diff in
                   let%map left_data = Map.find new_left_map key in
                   left_data, right_data
               in
-              (* look for the previously computed value to see if we actually need to
-                 add or remove the key. *)
+              (* look for the previously computed value to see if we actually need to add
+                 or remove the key. *)
               let prev_out = Map.find old_output key in
               match left_and_right_data_opt with
               | Some (x, y) ->
@@ -744,7 +744,8 @@ module Generic = struct
                  match elt with
                  | `Right data -> Map.set acc ~key ~data
                  | `Left _ ->
-                   (* the key may have been moved into the the left map, so check before removing *)
+                   (* the key may have been moved into the the left map, so check before
+                      removing *)
                    if Map.mem new_left_map key then acc else Map.remove acc key
                  | `Unequal (_prev, cur) -> Map.set acc ~key ~data:cur)))
   ;;
@@ -912,10 +913,10 @@ module Generic = struct
             match Map.is_empty (Map_option_ref.value_exn prev_map), Map.is_empty map with
             | true, true | false, true -> Lazy.force empty_map, Lazy.force empty_map
             | true, false ->
-              (* Mapping on a map is way faster than symmetric diffing and then
-                 building the maps up piece by piece, so we do this whenever we
-                 transition from "empty" to "something", which will almost always
-                 happen on the first stabilization. *)
+              (* Mapping on a map is way faster than symmetric diffing and then building
+                 the maps up piece by piece, so we do this whenever we transition from
+                 "empty" to "something", which will almost always happen on the first
+                 stabilization. *)
               let left =
                 Map.mapi map ~f:(fun ~key ~data ->
                   let l, _ = f ~key ~data in
@@ -1398,11 +1399,11 @@ module Generic = struct
       in
       Incremental.Expert.Node.add_dependency node dependency
     in
-    (* We want to make nodes depend on [input_map_changed] so that [input_map_changed]
-         is allowed to make them stale, but we do not want them to be recomputed for any
-         other reason. So we make [input_map_changed] a unit incremental (that therefore
-         never changes) and this way [output_map_node] and the lookup nodes will only be
-         recomputed when they are explicitly made stale. *)
+    (* We want to make nodes depend on [input_map_changed] so that [input_map_changed] is
+       allowed to make them stale, but we do not want them to be recomputed for any other
+       reason. So we make [input_map_changed] a unit incremental (that therefore never
+       changes) and this way [output_map_node] and the lookup nodes will only be
+       recomputed when they are explicitly made stale. *)
     let rec input_map_changed =
       lazy
         (Incremental.map input_map ~f:(fun input_map ->
@@ -1506,7 +1507,7 @@ module Generic = struct
                 [outside] is the number of updates outside the range intersection that we
                 tolerate before giving up and reconstructing based on the new range. This
                 is an optimisation in the case that the map changes in a very big way, at
-                which point computing based on the new range is cheaper.  *)
+                which point computing based on the new range is cheaper. *)
              let apply_diff_in_intersection (outside, map) (key, data) =
                if in_range_intersection key
                then (
@@ -1521,7 +1522,7 @@ module Generic = struct
              in
              (* First update the keys in /both/ the old and the new range. *)
              let with_updated_values_in_intersection =
-               (* Cutoff the big diff computation if we reach O(|submap|) number of
+               (*=Cutoff the big diff computation if we reach O(|submap|) number of
                   changes that are outside the range *)
                let outside_cutoff = Map.length old_res / 4 in
                Map.fold_symmetric_diff
@@ -1817,7 +1818,8 @@ module Generic = struct
             then None
             else
               (* if the outer and inner keys aren't the same, then that's because the same
-              merged-key has been added in the meantime, so we don't need to remove anything *)
+                 merged-key has been added in the meantime, so we don't need to remove
+                 anything *)
               Some prev))
     |> map ~f:(fun (_, _, data) -> data)
   ;;
@@ -2089,8 +2091,8 @@ module Generic = struct
 
     type ('k, 'v, 'cmp, 'w) t =
       { mutable saved_map : ('k, 'v, 'cmp) Map.t
-          (* We may have multiple entries per key if nodes become necessary again after being
-         removed. *)
+          (* We may have multiple entries per key if nodes become necessary again after
+             being removed. *)
       ; mutable lookup_entries : ('k, ('v, 'w) entry list, 'cmp) Map.t
       ; updater_node : (unit, 'w) Incremental.t
       ; scope : 'w Incremental.Scope.t

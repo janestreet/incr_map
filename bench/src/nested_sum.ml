@@ -26,20 +26,20 @@ let initialize ~outer ~inner =
 module Sum_map_direct = struct
   (* From the OCaml manual, chapter 20:
 
-     "As an optimization, records whose fields all have static type float are
-     represented as arrays of floating-point numbers, with tag Double_array_tag."
+     "As an optimization, records whose fields all have static type float are represented
+     as arrays of floating-point numbers, with tag Double_array_tag."
 
-     This means that a mutable float member of such an record type is effectively
-     unboxed (other than the record itself), and in particular can be mutated in-place
-     without allocation. Interestingly, this optimization is not, as of 4.07, applied
-     to the type [float ref].
+     This means that a mutable float member of such an record type is effectively unboxed
+     (other than the record itself), and in particular can be mutated in-place without
+     allocation. Interestingly, this optimization is not, as of 4.07, applied to the type
+     [float ref].
 
-     On the other hand, a [float ref] which does not escape a single scope can be
-     lowered to a register, so this trick isn't necessary if we're (say) for-looping
-     over an array. But in any case where we have to use a ref inside a closure we're
-     far better off using this type. Similarly, we can't return a float in %xmm
-     registers. So the obvious [Map.fold] here actually allocates one box per map
-     entry, so we're better off using a ref.
+     On the other hand, a [float ref] which does not escape a single scope can be lowered
+     to a register, so this trick isn't necessary if we're (say) for-looping over an
+     array. But in any case where we have to use a ref inside a closure we're far better
+     off using this type. Similarly, we can't return a float in %xmm registers. So the
+     obvious [Map.fold] here actually allocates one box per map entry, so we're better off
+     using a ref.
   *)
   type float_ref = { mutable contents : float }
 
@@ -81,7 +81,7 @@ struct
     let%bench_fun "incr" = nested_sum_raw ()
 
     (* Compute the outer sum incrementally using [sum_map], but do the inner sum
-         all-at-once. *)
+       all-at-once. *)
     let%bench_fun "out" =
       let open Infix in
       let input = Var.create (initialize ~outer ~inner) in
@@ -132,7 +132,7 @@ module _ = M (struct
   end)
 
 (* Looks like it doesn't matter all that much how you choose to structure the nested maps,
-   though more outer elements clearly adds expense.  Note also that despite the decently
+   though more outer elements clearly adds expense. Note also that despite the decently
    large cost of the incremental update, the all-at-once computation is ~200-300x worse.
    {v
 ┌────────────────────────────────────┬──────────┬─────────┬──────────┬──────────┬───────┐
@@ -151,7 +151,6 @@ module _ = M (struct
 │ [nested_sum.ml:M:(1000, 100)] out  │   3.75us │ 294.54w │   28.27w │   28.27w │ 0.43% │
 │ [nested_sum.ml:M:(10000, 10)] out  │   3.17us │ 330.02w │   39.67w │   39.67w │ 0.36% │
 └────────────────────────────────────┴──────────┴─────────┴──────────┴──────────┴───────┘
-
    v}
 *)
 

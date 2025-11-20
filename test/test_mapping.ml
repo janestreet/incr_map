@@ -193,21 +193,21 @@ module%test [@name "random tests on filter and non-filter mapping functions"] _ 
     | Filter_mapping
 
   (* [f_count] is a counter used to keep track of how many times [f] is called by
-       [Incr.Map.filter_mapi] / [Incr.Map.filter_mapi'] *)
+     [Incr.Map.filter_mapi] / [Incr.Map.filter_mapi'] *)
   let f_count = ref 0
 
   (* [f] is the argument given to the [Just_mapping] functions *)
   let f key data = sprintf "%d: %f" key data
 
-  (* [f] is the argument given to the [Filter_mapping] functions:
-       [Map.filter_mapi] and [Incr.Map.filter_mapi], [Incr.Map.filter_mapi'] *)
+  (* [f] is the argument given to the [Filter_mapping] functions: [Map.filter_mapi] and
+     [Incr.Map.filter_mapi], [Incr.Map.filter_mapi'] *)
   let f_opt key data =
     if key % 2 = 0 && Float.O.(data > 0.5) then None else Some (f key data)
   ;;
 
   (* [incr_map_mapping_i], [incr_map_mapping_i'_with_map], and
-       [incr_map_mapping_i'_with_bind] are different versions of the [Incr.Map] function
-       being tested.  *)
+     [incr_map_mapping_i'_with_bind] are different versions of the [Incr.Map] function
+     being tested. *)
   let incr_map_mapping_i map = function
     | Just_mapping ->
       Incr.Map.mapi map ~f:(fun ~key ~data ->
@@ -252,17 +252,17 @@ module%test [@name "random tests on filter and non-filter mapping functions"] _ 
   ;;
 
   (* Stabilize and test the result as follows:
-       - reset the counters to 0
-       - call [Incr.stabilize ()]
-       - check the value of [result_incr]
-       - check the counter values
+     - reset the counters to 0
+     - call [Incr.stabilize ()]
+     - check the value of [result_incr]
+     - check the counter values
   *)
   let stabilize_and_test_result ~map_obs ~result_obs ~old_map ~new_map ~mapping =
     let reset_counter () = f_count := 0 in
     let test_value () =
-      (* Since [result_incr] was obtained as [incr_map_mapping_i_fn map_incr], check
-           that the value of [result_incr] is equal to the result of applying the
-           equivalent function [map_mapping_i] directly to the value of [map_incr]
+      (* Since [result_incr] was obtained as [incr_map_mapping_i_fn map_incr], check that
+         the value of [result_incr] is equal to the result of applying the equivalent
+         function [map_mapping_i] directly to the value of [map_incr]
       *)
       [%test_result: string Int.Map.t]
         (Incr.Observer.value_exn result_obs)
@@ -287,15 +287,15 @@ module%test [@name "random tests on filter and non-filter mapping functions"] _ 
 
   (* [Incr.Map.filter_mapi] and [Incr.Map.filter_mapi'] are tested as follows:
 
-       First, create [map_incr] of type [float Int.Map.t Incr.t] with initial value [map].
+     First, create [map_incr] of type [float Int.Map.t Incr.t] with initial value [map].
 
-       Next, apply the given [incr_map_mapping_i_fn] to [map_incr] to get [result_incr].
+     Next, apply the given [incr_map_mapping_i_fn] to [map_incr] to get [result_incr].
 
-       At each of the [num_steps] steps, randomly change the value of [map_incr] by
-       adding, removing, or replacing a single entry.
+     At each of the [num_steps] steps, randomly change the value of [map_incr] by adding,
+     removing, or replacing a single entry.
 
-       Every [stabilize_every_n] steps, stabilize and check the result (see
-       [stabilize_and_test_result] for details).
+     Every [stabilize_every_n] steps, stabilize and check the result (see
+     [stabilize_and_test_result] for details).
   *)
   let test_mapping_i map ~steps ~stabilize_every_n ~incr_map_mapping_i_fn =
     List.iter Filtering_or_not.all ~f:(fun mapping ->
@@ -404,9 +404,9 @@ module%test [@name "random tests on filter and non-filter mapping functions"] _ 
   ;;
 
   (* [incr_map_mapping_i'_with_map_and_cutoff] and
-       [incr_map_mapping_i'_with_bind_and_cutoff] are two more versions of the
-       [Incr.Map] function being tested, but they are passed an additional [cutoff]
-       argument equal to [Incr.Cutoff.always].
+     [incr_map_mapping_i'_with_bind_and_cutoff] are two more versions of the [Incr.Map]
+     function being tested, but they are passed an additional [cutoff] argument equal to
+     [Incr.Cutoff.always].
   *)
   let incr_map_mapping_i'_with_map_and_cutoff map =
     incr_map_mapping_i'_with_map ~cutoff:Incr.Cutoff.always map
@@ -417,14 +417,14 @@ module%test [@name "random tests on filter and non-filter mapping functions"] _ 
   ;;
 
   (* [stabilize_and_test_result_with_cutoff] is like [stabilize_and_test_result] but
-       expects different values for the counter and [result_incr] due to the cutoff.
+     expects different values for the counter and [result_incr] due to the cutoff.
   *)
   let stabilize_and_test_result_with_cutoff ~initial_result ~result_obs =
     let reset_counter () = f_count := 0 in
     let test_value () =
-      (* Check that the value of [result_incr] is equal to the initial result value,
-           since any changes in [map_incr] should have been cut off and not propagated to
-           [result_incr]
+      (* Check that the value of [result_incr] is equal to the initial result value, since
+         any changes in [map_incr] should have been cut off and not propagated to
+         [result_incr]
       *)
       [%test_result: string Int.Map.t]
         ~expect:initial_result
@@ -441,8 +441,8 @@ module%test [@name "random tests on filter and non-filter mapping functions"] _ 
   ;;
 
   (* [test_mapping_i_with_cutoff] is similar to [test_filter_mapi] but tests a
-       [Incr.Map.filter_mapi'] function with a [cutoff] argument equal to
-       [Incr.Cutoff.always]
+     [Incr.Map.filter_mapi'] function with a [cutoff] argument equal to
+     [Incr.Cutoff.always]
   *)
   let test_mapping_i_with_cutoff map ~steps ~incr_map_mapping_i_fn_with_cutoff =
     List.iter Filtering_or_not.all ~f:(fun mapping ->
@@ -457,8 +457,8 @@ module%test [@name "random tests on filter and non-filter mapping functions"] _ 
         ~old_map:Int.Map.empty
         ~new_map:map
         ~mapping;
-      (* When a new entry is added, the [cutoff] has no impact on the result so
-           we use the same [stabilize_and_test_result] as before. *)
+      (* When a new entry is added, the [cutoff] has no impact on the result so we use the
+         same [stabilize_and_test_result] as before. *)
       let old_map = ref map in
       List.fold
         (List.range 0 (steps / 2))
@@ -475,8 +475,8 @@ module%test [@name "random tests on filter and non-filter mapping functions"] _ 
           old_map := map;
           map)
       |> fun map ->
-      (* When an entry is removed, the [cutoff] has no impact on the result so
-           we use the same [stabilize_and_test_result] as before. *)
+      (* When an entry is removed, the [cutoff] has no impact on the result so we use the
+         same [stabilize_and_test_result] as before. *)
       let old_map = ref map in
       List.fold
         (List.range 0 (steps / 4))
@@ -495,9 +495,9 @@ module%test [@name "random tests on filter and non-filter mapping functions"] _ 
       |> fun map ->
       let initial_result = map_mapping_i map mapping in
       (* When the data for an existing key is changed in [map_var], the [cutoff] kicks in
-           to prevent the new data from propagating forward, so we expect [f] to not be
-           called and the [result_incr] to not be updated.
-           We check this using [stabilize_and_test_result_with_cutoff]. *)
+         to prevent the new data from propagating forward, so we expect [f] to not be
+         called and the [result_incr] to not be updated. We check this using
+         [stabilize_and_test_result_with_cutoff]. *)
       List.fold
         (List.range 0 (steps / 4))
         ~init:map

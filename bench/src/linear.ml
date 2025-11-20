@@ -65,10 +65,9 @@ let%bench_fun "Wide 5" = sequence_raw Wide 5
 let%bench_fun "Wide 10" = sequence_raw Wide 10
 let%bench_fun "50 (just stabilize)" = sequence_without_change Recombine 50
 
-(*
-   Each iteration of "trivial 50" updates 50 incremental nodes.
-   Each iteration of "recombine 50" updates ~150 nodes.
-   Each iteration of "wide K" updates about 3 * 2^K nodes.
+(* Each iteration of "trivial 50" updates 50 incremental nodes. Each iteration of
+   "recombine 50" updates ~150 nodes. Each iteration of "wide K" updates about 3 * 2^K
+   nodes.
 
    Dividing out times per run shows that each node update takes somewhere between 15 and
    50 nanoseconds.
@@ -83,7 +82,6 @@ let%bench_fun "50 (just stabilize)" = sequence_without_change Recombine 50
 │ [linear.ml] Wide 10             │ 174_702.44ns │  -0.81w │    100.00% │
 │ [linear.ml] 50 (just stabilize) │      36.94ns │         │      0.02% │
 └─────────────────────────────────┴──────────────┴─────────┴────────────┘
-
    v} *)
 
 let%expect_test "stats" =
