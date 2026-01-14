@@ -65,7 +65,8 @@ module Parametrized = struct
         , compare
         , equal]
 
-      (* NB: ppx_stable_record doesn't support portability so we need to implement these by hand *)
+      (* NB: ppx_stable_record doesn't support portability so we need to implement these
+         by hand *)
       (* Give these functions closure-level portability via a minimal inlined signature. *)
       include (
       struct

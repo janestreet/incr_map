@@ -717,7 +717,8 @@ module Generic = struct
           new_left_map
         | l, r when l < Int.floor_log2 r || r < Int.floor_log2 l ->
           (* If one of the maps is small enough in comparison to the other,
-             [Map.merge_skewed] is likely cheaper than computing the symmetric diff of both maps *)
+             [Map.merge_skewed] is likely cheaper than computing the symmetric diff of
+             both maps *)
           merge_from_scratch ()
         | _, _ ->
           (match old with
