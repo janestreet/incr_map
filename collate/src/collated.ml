@@ -65,7 +65,8 @@ module Parametrized = struct
         , compare
         , equal]
 
-      (* NB: ppx_stable_record doesn't support portability so we need to implement these by hand *)
+      (* NB: ppx_stable_record doesn't support portability so we need to implement these
+         by hand *)
       (* Give these functions closure-level portability via a minimal inlined signature. *)
       include (
       struct
@@ -204,8 +205,8 @@ module Stable = struct
 
         let this_type_does_not_support_ldiffable = ()
 
-        (* We have to implement this by hand, as ppx_diff (or Diffable really)
-       doesn't support parametrized types *)
+        (* We have to implement this by hand, as ppx_diff (or Diffable really) doesn't
+           support parametrized types *)
 
         module Update = struct
           module Map_data = struct

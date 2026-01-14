@@ -70,18 +70,18 @@ let%expect_test _ =
 ;;
 
 module%test [@name "random tests"] _ = struct
-  (* [add_count], [remove_count] and [update_count] are counters used to keep track of
-       how many times [add], [remove] and [update] respectively are called by
-       [Incr.Map.unordered_fold]. *)
+  (* [add_count], [remove_count] and [update_count] are counters used to keep track of how
+     many times [add], [remove] and [update] respectively are called by
+     [Incr.Map.unordered_fold]. *)
   let add_count = ref 0
   let remove_count = ref 0
   let update_count = ref 0
 
   (* Symbolic [add], [remove] satisfying the minimal required properties:
-       - [remove ~key ~data] is the inverse of [add ~key ~data]
-       - [add ~key ~data] and [add ~key:key' ~data:data'] can be commuted if [key <> key']
-       - [update ~key ~old_data ~new_data] is the (possibly simplified) composition of
-         [remove ~key ~data:old_data] and [add ~key ~data:new_data]
+     - [remove ~key ~data] is the inverse of [add ~key ~data]
+     - [add ~key ~data] and [add ~key:key' ~data:data'] can be commuted if [key <> key']
+     - [update ~key ~old_data ~new_data] is the (possibly simplified) composition of
+       [remove ~key ~data:old_data] and [add ~key ~data:new_data]
   *)
   let init = Int.Map.empty
 
@@ -133,18 +133,18 @@ module%test [@name "random tests"] _ = struct
 
   (* [Incr.Map.unordered_fold] is tested as follows:
 
-       First, create [map_incr] of type [float Int.Map.t Incr.t] with initial value [map].
+     First, create [map_incr] of type [float Int.Map.t Incr.t] with initial value [map].
 
-       Next, apply [incr_map_fold] to [map_incr] to get [result_incr].
+     Next, apply [incr_map_fold] to [map_incr] to get [result_incr].
 
-       At each of the [num_steps] steps, randomly change the value of [map_incr]
-       by adding, removing, or replacing a single entry.
+     At each of the [num_steps] steps, randomly change the value of [map_incr] by adding,
+     removing, or replacing a single entry.
 
-       Every [stabilize_every_n] steps, check the result as follows:
-       - reset the counters to 0
-       - call [Incr.stabilize ()]
-       - check the value of [result_incr]
-       - check the counter values
+     Every [stabilize_every_n] steps, check the result as follows:
+     - reset the counters to 0
+     - call [Incr.stabilize ()]
+     - check the value of [result_incr]
+     - check the counter values
   *)
   let test_unordered_fold map ~steps ~stabilize_every_n ~use_update =
     let map_var = Incr.Var.create map in
@@ -159,19 +159,19 @@ module%test [@name "random tests"] _ = struct
     in
     let test_value () =
       (* Since [result_incr] was obtained as [incr_map_fold map_incr], check that the
-           value of [result_incr] is equal to the result of applying the equivalent
-           function [map_fold] directly to the value of [map_incr] *)
+         value of [result_incr] is equal to the result of applying the equivalent function
+         [map_fold] directly to the value of [map_incr] *)
       let expected_result = map_fold (Incr.Observer.value_exn map_obs) in
       let actual_result = Incr.Observer.value_exn result_obs in
       [%test_result: float op list Int.Map.t] actual_result ~expect:expected_result
     in
     let test_counters ~old_map ~new_map =
       (* It is expected that:
-           - each time an entry is removed, [remove] is called once
-           - each time an entry is added, [add] is called once
-           - each time an entry is replaced:
-           - if [use_update = true], [update] is called once
-           - if [use_update = false], [add] and [remove] are each called once
+         - each time an entry is removed, [remove] is called once
+         - each time an entry is added, [add] is called once
+         - each time an entry is replaced:
+         - if [use_update = true], [update] is called once
+         - if [use_update = false], [add] and [remove] are each called once
       *)
       let expect =
         let symmetric_diff = Map.symmetric_diff old_map new_map ~data_equal:phys_equal in

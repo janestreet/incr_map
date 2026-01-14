@@ -47,6 +47,5 @@ val rand_modify_map_of_vars : float Incr.Var.t Int.Map.t -> float Incr.Var.t Int
 (* [get_rand_existing_key] returns a random key that is present in the map. *)
 val get_rand_existing_key : _ Int.Map.t -> int
 
-(* [get_rand_nonexisting_key] returns a random key that is not present in the
-   map. *)
+(* [get_rand_nonexisting_key] returns a random key that is not present in the map. *)
 val get_rand_nonexistent_key : _ Int.Map.t -> int

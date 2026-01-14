@@ -6,10 +6,10 @@ module Key = struct
   include Bignum.Unstable
 
   let to_string s =
-    (* It's important that different numbers serialize to different strings,
-       since the partial render table uses the serialization as a virtual-dom
-       key in a context which requires that all the keys be unique. Thus, we
-       use [to_string_accurate] to ensure no loss of precision. *)
+    (* It's important that different numbers serialize to different strings, since the
+       partial render table uses the serialization as a virtual-dom key in a context which
+       requires that all the keys be unique. Thus, we use [to_string_accurate] to ensure
+       no loss of precision. *)
     to_string_accurate s
   ;;
 
@@ -58,6 +58,26 @@ let two = Bignum.one + Bignum.one
 let denom_rebalance_cutoff = Bigint.of_int 100_000_000
 let separation = Bignum.of_int 100
 
+(** [key_between_bounds ~prev ~next] computes a key that falls between the optional [prev]
+    and [next] bounds. Handles all cases:
+    - No bounds: returns [zero]
+    - Only [prev]: returns [prev + separation]
+    - Only [next]: returns [next - separation]
+    - Both bounds: returns midpoint, preferring integers when possible
+
+    The function tries to use integer keys (via truncation) when possible to minimize
+    denominator growth. *)
+let key_between_bounds ~prev ~next =
+  match prev, next with
+  | None, None -> zero
+  | None, Some next_key -> Bignum.truncate (next_key - separation)
+  | Some prev_key, None -> Bignum.truncate (prev_key + separation)
+  | Some prev_key, Some next_key ->
+    let precise = (prev_key + next_key) / two in
+    let truncated = Bignum.truncate precise in
+    if truncated > prev_key && truncated < next_key then truncated else precise
+;;
+
 let erase_key_incrementally
   (type key data res cmp)
   ?data_equal
@@ -96,21 +116,8 @@ let erase_key_incrementally
     ;;
 
     let add ~key ~data ({ key_to_bignum; out; _ } as t) =
-      let bignum =
-        match nearest key_to_bignum key with
-        | None, None -> zero
-        | None, Some lowest ->
-          (* Round to a nearby integer so that we don't retain the
-             potentially large fractional part of the lowest key.
-             We assume that [separation > 1] so that we don't round to a
-             number greater than [lowest]. *)
-          Bignum.truncate (lowest - separation)
-        | Some highest, None -> Bignum.truncate (highest + separation)
-        | Some low, Some high ->
-          let precise = (low + high) / two in
-          let truncated = Bignum.truncate precise in
-          if truncated > low && truncated < high then truncated else precise
-      in
+      let prev, next = nearest key_to_bignum key in
+      let bignum = key_between_bounds ~prev ~next in
       let rebalance_necessary =
         t.rebalance_necessary
         || Bigint.(Bignum.den_as_bigint bignum > denom_rebalance_cutoff)
@@ -204,15 +211,36 @@ let erase_key_incrementally
 ;;
 
 let empty = Bignum.Map.empty
-let of_list xs = Bignum.Map.of_alist_exn (List.mapi xs ~f:(fun i x -> Bignum.of_int i, x))
+
+let of_list xs =
+  Bignum.Map.of_alist_exn (List.mapi xs ~f:(fun i x -> Bignum.(of_int i * separation), x))
+;;
 
 let of_array arr =
-  Bignum.Map.of_sorted_array_unchecked (Array.mapi arr ~f:(fun i x -> Bignum.of_int i, x))
+  Bignum.Map.of_sorted_array_unchecked
+    (Array.mapi arr ~f:(fun i x -> Bignum.(of_int i * separation), x))
+;;
+
+let insert_before map ~key elem =
+  let prev = Map.closest_key map `Less_than key |> Option.map ~f:fst in
+  let new_key = key_between_bounds ~prev ~next:(Some key) in
+  Map.add_exn map ~key:new_key ~data:elem
+;;
+
+let insert_after map ~key elem =
+  let next = Map.closest_key map `Greater_than key |> Option.map ~f:fst in
+  let new_key = key_between_bounds ~prev:(Some key) ~next in
+  Map.add_exn map ~key:new_key ~data:elem
 ;;
 
 let append map elem =
   match Map.max_elt map with
   | None -> Key.Map.singleton Key.zero elem
-  | Some (max_key, _) ->
-    Map.add_exn map ~key:(Bignum.( + ) (Bignum.of_int 1) max_key) ~data:elem
+  | Some (max_key, _) -> insert_after map ~key:max_key elem
+;;
+
+let prepend map elem =
+  match Map.min_elt map with
+  | None -> Key.Map.singleton Key.zero elem
+  | Some (min_key, _) -> insert_before map ~key:min_key elem
 ;;

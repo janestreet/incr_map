@@ -2,9 +2,9 @@ open Core
 open Import
 
 (* This benchmark emulates Incr.Map operation patterns that occur when exploring a big,
-   changing in realtime, html table built using incremental virtual DOM. It loops for
-   a given time performing a random action every time and recomputing the 'view'.
-   A random action is one of:
+   changing in realtime, html table built using incremental virtual DOM. It loops for a
+   given time performing a random action every time and recomputing the 'view'. A random
+   action is one of:
    + changing a single row
    + scrolling up/down a fixed, small number of lines
    + moving half a page up/down

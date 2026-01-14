@@ -28,13 +28,12 @@ let%test_unit "rekey random test" =
 ;;
 
 let%expect_test "rekey should order adds and removes properly" =
-  (* Rekey relies on the callback function not mapping two keys in the map to
-     the same value. However, it should have no problem shrinking the key
-     space, though this is less easily achieved. What could happen (and what
-     this test checks for) is that at the same time one key is added and a
-     different key removed, but both keys are mapped into the same final key.
-     This should be legal, but it is easy for a naive implementation to
-     accidentally add the element first, and then remove it immediately
+  (* Rekey relies on the callback function not mapping two keys in the map to the same
+     value. However, it should have no problem shrinking the key space, though this is
+     less easily achieved. What could happen (and what this test checks for) is that at
+     the same time one key is added and a different key removed, but both keys are mapped
+     into the same final key. This should be legal, but it is easy for a naive
+     implementation to accidentally add the element first, and then remove it immediately
      afterward (or, if it used [add_exn], it might raise before even removing). *)
   let m = Incr.Var.create Int.Map.empty in
   let watch_m = Incr.Var.watch m in
@@ -68,8 +67,8 @@ let%expect_test "rekey should order adds and removes properly" =
 ;;
 
 let%expect_test "rekey should order adds and removes properly (part 2)" =
-  (* This test checks the situation in which an entry's value is updated such
-     that the entry's key is mapped to a removed key. *)
+  (* This test checks the situation in which an entry's value is updated such that the
+     entry's key is mapped to a removed key. *)
   let m = Incr.Var.create Int.Map.empty in
   let watch_m = Incr.Var.watch m in
   let result =

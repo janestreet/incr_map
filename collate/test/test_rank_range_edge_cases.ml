@@ -36,8 +36,8 @@ let test_rank_range ~data ~rank_range =
         ~num_before_range:(Collated.num_before_range result : int)]
 ;;
 
-(* These tests demonstrate the behavior of rank ranges with From_end indices,
-   including cases where the indices result in negative positions. *)
+(* These tests demonstrate the behavior of rank ranges with From_end indices, including
+   cases where the indices result in negative positions. *)
 
 let%expect_test "Between with From_end indices" =
   (* 8 elements, Between (From_end 10) (From_end 4) = Between (-3) 3 *)

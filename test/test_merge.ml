@@ -2,15 +2,15 @@ open Core
 open Import
 
 module%test [@name "random tests"] _ = struct
-  (* [f_left_count], [f_right_count] and [f_both_count] are counters used to keep track
-       of how many times the [`Left], [`Right], and [`Both] branches of [f] respectively
-       are run as a result of [f] being called by [Incr.Map.merge]. *)
+  (* [f_left_count], [f_right_count] and [f_both_count] are counters used to keep track of
+     how many times the [`Left], [`Right], and [`Both] branches of [f] respectively are
+     run as a result of [f] being called by [Incr.Map.merge]. *)
   let f_left_count = ref 0
   let f_right_count = ref 0
   let f_both_count = ref 0
 
-  (* [f] is the argument given to [Incr.Map.merge] and [Map.merge].
-       The counters are only incremented when [f] is called by [Incr.Map.merge]. *)
+  (* [f] is the argument given to [Incr.Map.merge] and [Map.merge]. The counters are only
+     incremented when [f] is called by [Incr.Map.merge]. *)
   let f ~key:_ data ~incr_counters =
     match data with
     | `Left v ->
@@ -56,20 +56,20 @@ module%test [@name "random tests"] _ = struct
 
   (* [Incr.Map.merge] and [Incr.Map.merge'] are tested as follows:
 
-       First, create [map_incr1] and [map_incr2] of type [float Int.Map.t Incr.t] with
-       initial values [map1] and [map2] respectively.
+     First, create [map_incr1] and [map_incr2] of type [float Int.Map.t Incr.t] with
+     initial values [map1] and [map2] respectively.
 
-       Next, apply [incr_map_merge] or [incr_map_merge'] (chosen based on the value of
-       [use_merge']) to [map_incr1] and [map_incr2] to get [result_incr].
+     Next, apply [incr_map_merge] or [incr_map_merge'] (chosen based on the value of
+     [use_merge']) to [map_incr1] and [map_incr2] to get [result_incr].
 
-       At each of the [num_steps] steps, randomly change the value of exactly one of
-       [map_incr1] and [map_incr2] by adding, removing, or replacing a single entry.
+     At each of the [num_steps] steps, randomly change the value of exactly one of
+     [map_incr1] and [map_incr2] by adding, removing, or replacing a single entry.
 
-       Every [stabilize_every_n] steps, check the result as follows:
-       - reset the counters to 0
-       - call [Incr.stabilize ()]
-       - check the value of [result_incr]
-       - check the counter values
+     Every [stabilize_every_n] steps, check the result as follows:
+     - reset the counters to 0
+     - call [Incr.stabilize ()]
+     - check the value of [result_incr]
+     - check the counter values
   *)
   let test_merge map1 map2 ~steps ~stabilize_every_n ~use_merge' =
     let map1_var, map2_var = Incr.Var.create map1, Incr.Var.create map2 in
@@ -85,9 +85,9 @@ module%test [@name "random tests"] _ = struct
     in
     let test_value () =
       (* Since [result_incr] was obtained by applying [incr_map_merge] or
-           [incr_map_merge'] to [map_incr1] and [map_incr2], check that the value of
-           [result_incr] is equal to the result of applying the equivalent function
-           [map_merge] directly to the values of [map_incr1] and [map_incr2] *)
+         [incr_map_merge'] to [map_incr1] and [map_incr2], check that the value of
+         [result_incr] is equal to the result of applying the equivalent function
+         [map_merge] directly to the values of [map_incr1] and [map_incr2] *)
       Incr.stabilize ();
       let expect =
         map_merge (Incr.Observer.value_exn map1_obs) (Incr.Observer.value_exn map2_obs)
@@ -95,10 +95,10 @@ module%test [@name "random tests"] _ = struct
       [%test_result: float Int.Map.t] (Incr.Observer.value_exn result_obs) ~expect
     in
     let test_counters ~old_map1 ~new_map1 ~old_map2 ~new_map2 =
-      (* Check that the provided [~f] function is called exactly when we think it is
-           (and with the right arguments). We do this by tracking how every key changes
-           in both maps, inferring the number of [~f] calls of every type from that, and
-           comparing it to the actual numbers of calls made.*)
+      (* Check that the provided [~f] function is called exactly when we think it is (and
+         with the right arguments). We do this by tracking how every key changes in both
+         maps, inferring the number of [~f] calls of every type from that, and comparing
+         it to the actual numbers of calls made. *)
       let expect =
         let symdiff_element_to_key_change_state = function
           | `Left _ -> `Removed

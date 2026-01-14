@@ -359,7 +359,7 @@ let%expect_test "changing to from_end and mixed ranges" =
      (num_filtered_rows   5)
      (num_unfiltered_rows 5))
     |}];
-  (* This is the same range as above but we mix From_start/From_end indices*)
+  (* This is the same range as above but we mix From_start/From_end indices *)
   set_collate ~rank_range:(Between (From_start 3, From_end 0)) t;
   print_res t;
   [%expect
@@ -545,8 +545,8 @@ let%expect_test "sort by key & value" =
 ;;
 
 let%expect_test "sort by key, update values" =
-  (* This test is important, as the implementation stores a map keyed by 'k * 'v.
-     It's crucial that it gets updated correctly - we got this wrong once already. *)
+  (* This test is important, as the implementation stores a map keyed by 'k * 'v. It's
+     crucial that it gets updated correctly - we got this wrong once already. *)
   let t =
     init_test
       ~operation_order:`Sort_first
@@ -614,8 +614,7 @@ let%expect_test "update values so that they compare equal" =
      (num_filtered_rows   3)
      (num_unfiltered_rows 3))
     |}];
-  (* Add entries with values that compares equal (but not keys, we don't want
-     duplicates!) *)
+  (* Add entries with values that compares equal (but not keys, we don't want duplicates!) *)
   modify_map t ~f:(Map.set ~key:"AAA" ~data:(10, 2.0));
   modify_map t ~f:(Map.set ~key:"ZZZ" ~data:(10, 2.0));
   print_res t;
@@ -1235,13 +1234,13 @@ module%test [@name "new API"] _ = struct
       Updated: By_symbol, True
       Updated: By_symbol, True, (All_rows (Between (1 2)))
       |}];
-    (* The old value of (order, filter, range) is still present in the cache, but we
-         don't want to use it, as this would mean having two copies of the "sort by
-         symbol" intermediate computation (the one created just above, and the one kept
-         alive by the reference from the (order, filter, range) cache.
+    (* The old value of (order, filter, range) is still present in the cache, but we don't
+       want to use it, as this would mean having two copies of the "sort by symbol"
+       intermediate computation (the one created just above, and the one kept alive by the
+       reference from the (order, filter, range) cache.
 
-         So, here we don't use it, but instead recreate the computation on top of the new
-         sorting computation. *)
+       So, here we don't use it, but instead recreate the computation on top of the new
+       sorting computation. *)
     set_collate
       t
       ~order:By_symbol

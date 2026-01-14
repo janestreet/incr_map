@@ -117,19 +117,19 @@ let%expect_test "check join against slow implementation" =
 module%test [@name "random tests"] _ = struct
   (* [Incr.Map.join] is tested as follows:
 
-       First, create [map_of_incrs_incr] of type [float Incr.t Int.Map.t Incr.t] with
-       initial values equal to those in [map].
+     First, create [map_of_incrs_incr] of type [float Incr.t Int.Map.t Incr.t] with
+     initial values equal to those in [map].
 
-       Next, apply [Incr.Map.join] to [map_of_incrs_incr] to get [result_incr].
+     Next, apply [Incr.Map.join] to [map_of_incrs_incr] to get [result_incr].
 
-       At each of the [num_steps] steps, randomly change the value of [map_of_incrs] in
-       one of two ways:
-       - add, remove, or replace a single entry in the map
-       - set the [Incr.Var.t] corresponding to the data of a single entry to a new value
+     At each of the [num_steps] steps, randomly change the value of [map_of_incrs] in one
+     of two ways:
+     - add, remove, or replace a single entry in the map
+     - set the [Incr.Var.t] corresponding to the data of a single entry to a new value
 
-       Every [stabilize_every_n] steps, check the result as follows:
-       - call [Incr.stabilize ()]
-       - check the value of [result_incr]
+     Every [stabilize_every_n] steps, check the result as follows:
+     - call [Incr.stabilize ()]
+     - check the value of [result_incr]
   *)
   let test_join map ~steps ~stabilize_every_n =
     let map_of_vars_var = Incr.Var.create (Map.map map ~f:Incr.Var.create) in
@@ -138,7 +138,7 @@ module%test [@name "random tests"] _ = struct
     let result_incr = Incr.Map.join map_of_incrs_incr in
     let result_obs = Incr.observe result_incr in
     (* Since [result_incr] was obtained as [Incr.Map.join map_of_incrs_incr], check the
-         value of [result_incr] against the data values in [map_of_incrs_incr] *)
+       value of [result_incr] against the data values in [map_of_incrs_incr] *)
     let test_value () =
       Incr.stabilize ();
       [%test_result: float Int.Map.t]

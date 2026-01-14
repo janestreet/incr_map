@@ -11,7 +11,7 @@ let incr_list_sum l =
 let len = 100_000
 
 (* Each of the tests below creates a collection of inputs and some form of incremental sum
-   of those inputs.  The test then modifies a single cell, and stabilizes the computation
+   of those inputs. The test then modifies a single cell, and stabilizes the computation
    and gets the result *)
 let%bench_fun "tree" =
   let open Infix in
@@ -26,7 +26,7 @@ let%bench_fun "tree" =
     ignore (Obs.value_exn sum : float)
 ;;
 
-(* This test uses incrementals built-in array fold.  *)
+(* This test uses incrementals built-in array fold. *)
 let%bench_fun "array_fold" =
   let open Infix in
   let inputs = Array.init len ~f:(fun _ -> Incr.Var.create 0.) in
@@ -88,8 +88,8 @@ let%bench_fun "ord" =
     ignore (sum () : float)
 ;;
 
-(* A run of the above benchmark included below.  You can see that the incr_map version is
-   faster than the tree sum, but it does allocate more.  The ordinary all-at-once
+(* A run of the above benchmark included below. You can see that the incr_map version is
+   faster than the tree sum, but it does allocate more. The ordinary all-at-once
    computation is 50-100x slower than the incremental ones, unsurprisingly.
 
    {v
@@ -101,5 +101,4 @@ let%bench_fun "ord" =
 │ [sum.ml] incr_map   │   1_577.01ns │ 182.66w │   21.89w │   21.89w │      1.44% │
 │ [sum.ml] ord        │ 109_582.98ns │   4.00w │          │          │    100.00% │
 └─────────────────────┴──────────────┴─────────┴──────────┴──────────┴────────────┘
-
-    v} *)
+   v} *)

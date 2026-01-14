@@ -94,8 +94,8 @@ let%test_unit "collate bisimulation (with bugs 1 and 2 fixed)" =
       (* Compare results *)
       match non_incr_result, incr_result with
       | Ok non_incr, Ok incr ->
-        (* Don't compare the Collated.t directly because of the indexes from
-           [opaque_map]. [%test_result: (string, int) Collated.t] ~expect:non_incr incr; *)
+        (* Don't compare the Collated.t directly because of the indexes from [opaque_map].
+           [%test_result: (string, int) Collated.t] ~expect:non_incr incr; *)
         (* Compare the actual data *)
         [%test_result: (String.t * Int.t) list]
           ~expect:(Collated.to_alist non_incr)

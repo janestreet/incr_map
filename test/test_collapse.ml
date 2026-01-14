@@ -116,7 +116,7 @@ let%test_unit "collapse expand compose" =
         ~after_stabilize:(fun () ->
           [%test_result: string Int.Map.t Int.Map.t]
           (* NB: outer keys that map to an empty inner map will be dropped by this
-                   operation. *)
+             operation. *)
             ~expect:(Map.filter (Incr.Var.latest_value var) ~f:(Fn.non Map.is_empty))
             (Incremental.Observer.value_exn observer)))
 ;;
@@ -127,7 +127,7 @@ struct
     let module I = Incremental.Make () in
     let var = I.Var.create Int.Map.empty in
     (* Given a nested map, this Incremental node should return a flattened map using the
-         nested keys. This should be valid as long as the nested keys are unique. *)
+       nested keys. This should be valid as long as the nested keys are unique. *)
     let operation =
       match version with
       | `Require_bijectivity -> Incr_map.collapse_by
@@ -230,10 +230,9 @@ struct
 
     include T
 
-    (* This is a weird but legal way to build values of this type.
-         The onus would be on the caller to make sure that there are no 
-         unordered tuples that overlap as keys, but if they can do that,
-         then [Incr_map.collapse_by] should be fine. *)
+    (* This is a weird but legal way to build values of this type. The onus would be on
+       the caller to make sure that there are no unordered tuples that overlap as keys,
+       but if they can do that, then [Incr_map.collapse_by] should be fine. *)
     let create a b = Int.min a b, Int.max a b
 
     include Comparator.Make (T)
@@ -259,8 +258,8 @@ struct
     Quickcheck.Generator.filter
       potentially_invalid_nested_map_generator
       ~f:(fun outer_map ->
-        (* this filter on the quickcheck-generated maps is for making sure that 
-           no two combined keys are the same. *)
+        (* this filter on the quickcheck-generated maps is for making sure that no two
+           combined keys are the same. *)
         let all_merged_keys = all_merged_keys outer_map in
         not (List.contains_dup all_merged_keys ~compare:[%compare: Two_ints.t]))
   ;;

@@ -12,8 +12,8 @@ let check_invariants input_map derived_map =
   Expect_test_helpers_base.require_compare_equal (module Out) input_list derived_list;
   assert ([%equal: Out.t] input_list derived_list);
   let (_ : _ String.Map.t) =
-    (* The keys of the derived map should serialized to unique values. If that
-       is not the case, then [of_alist_exn] will raise. *)
+    (* The keys of the derived map should serialized to unique values. If that is not the
+       case, then [of_alist_exn] will raise. *)
     Map.to_alist derived_map
     |> List.map ~f:(fun (key, data) -> Opaque_map.Key.to_string key, data)
     |> String.Map.of_alist_exn
@@ -68,9 +68,9 @@ let%expect_test _ =
   done
 ;;
 
-(* This is a regression-test for [Opaque_map] that demonstrates changes to an
-   input map where the map never gets larger than size 3, but the denomonator for the
-   bignum assigned to the key for the middle-most row grows explosively. *)
+(* This is a regression-test for [Opaque_map] that demonstrates changes to an input map
+   where the map never gets larger than size 3, but the denomonator for the bignum
+   assigned to the key for the middle-most row grows explosively. *)
 let%expect_test _ =
   let needle = ref (Bignum.of_float_decimal 0.5) in
   let input_map =
@@ -98,7 +98,7 @@ let%expect_test _ =
 ;;
 
 (* This test is a regression-test for pathological inputs to incr_map_erase_key which
-   cause the bignum key to grow explosively.  This one utilizes two pointers which jump
+   cause the bignum key to grow explosively. This one utilizes two pointers which jump
    over one another repeatedly, each time multiplying the denomonator by two. *)
 let%expect_test _ =
   let needle = ref (Bignum.of_float_decimal 0.5) in
@@ -200,4 +200,71 @@ let%expect_test "adding elements before and after existing elements" =
     (800 8)
     (900 9)
     |}]
+;;
+
+let%expect_test "append" =
+  let map = Opaque_map.of_list [ "first"; "second"; "third" ] in
+  let map = Opaque_map.append map "fourth" in
+  let map = Opaque_map.append map "fifth" in
+  print_s [%sexp (map : string Opaque_map.t)];
+  [%expect {| ((0 first) (100 second) (200 third) (300 fourth) (400 fifth)) |}]
+;;
+
+let%expect_test "prepend" =
+  let map = Opaque_map.of_list [ "first"; "second"; "third" ] in
+  let map = Opaque_map.prepend map "minus-one" in
+  let map = Opaque_map.prepend map "minus-two" in
+  print_s [%sexp (map : string Opaque_map.t)];
+  [%expect {| ((-200 minus-two) (-100 minus-one) (0 first) (100 second) (200 third)) |}]
+;;
+
+let%expect_test "insert_before_exn" =
+  let map = Opaque_map.of_list [ "a"; "b"; "c" ] in
+  print_s [%sexp (map : string Opaque_map.t)];
+  [%expect {| ((0 a) (100 b) (200 c)) |}];
+  (* Get the key for "b" by finding it in the map *)
+  let b_key =
+    Map.to_alist map
+    |> List.find_map_exn ~f:(fun (key, data) ->
+      if String.equal data "b" then Some key else None)
+  in
+  let map = Opaque_map.insert_before map ~key:b_key "before_b" in
+  print_s [%sexp (map : string Opaque_map.t)];
+  [%expect {| ((0 a) (50 before_b) (100 b) (200 c)) |}]
+;;
+
+let%expect_test "insert_after" =
+  let map = Opaque_map.of_list [ "a"; "b"; "c" ] in
+  print_s [%sexp (map : string Opaque_map.t)];
+  [%expect {| ((0 a) (100 b) (200 c)) |}];
+  (* Get the key for "b" by finding it in the map *)
+  let b_key =
+    Map.to_alist map
+    |> List.find_map_exn ~f:(fun (key, data) ->
+      if String.equal data "b" then Some key else None)
+  in
+  let map = Opaque_map.insert_after map ~key:b_key "after_b" in
+  print_s [%sexp (map : string Opaque_map.t)];
+  [%expect {| ((0 a) (100 b) (150 after_b) (200 c)) |}]
+;;
+
+let%expect_test "insert_before at beginning and insert_after at end" =
+  let map = Opaque_map.of_list [ "middle" ] in
+  let middle_key = Map.min_elt_exn map |> fst in
+  let map = Opaque_map.insert_before map ~key:middle_key "first" in
+  let map = Opaque_map.insert_after map ~key:middle_key "last" in
+  print_s [%sexp (map : string Opaque_map.t)];
+  [%expect {| ((-100 first) (0 middle) (100 last)) |}]
+;;
+
+let%expect_test "insert_before and insert_after with non-existent key" =
+  let nonexistent_key, map =
+    let map = Opaque_map.of_list [ "b"; "c" ] in
+    let first_key, _ = Map.min_elt_exn map in
+    first_key, Map.remove map first_key
+  in
+  let map = Opaque_map.insert_before map ~key:nonexistent_key "a" in
+  let map = Opaque_map.insert_after map ~key:nonexistent_key "d" in
+  print_s [%sexp (map : string Opaque_map.t)];
+  [%expect {| ((-100 a) (50 d) (100 c)) |}]
 ;;

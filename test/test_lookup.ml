@@ -211,8 +211,8 @@ let%test_unit "test vs slow lookup" =
   test_alist [ 1, "hello"; 15, "what"; 5, "five"; 7, "seven"; 2, "two" ]
 ;;
 
-(* This bug was related to nodes which become necessary after being unnecessary while
-   the related value in the map was changed. *)
+(* This bug was related to nodes which become necessary after being unnecessary while the
+   related value in the map was changed. *)
 let%expect_test "double lookup bug has been fixed" =
   let map_var = Incr.Var.create String.Map.empty in
   let key = "A" in

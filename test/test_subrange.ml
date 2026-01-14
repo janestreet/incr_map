@@ -75,8 +75,8 @@ let%expect_test "check subrange" =
   Incr.Var.set input_range (Some (Incl 5, Incl 4));
   print_stable ();
   [%expect {| () |}];
-  (* This test case (lots of changes outside range) should trigger
-     the "shortcutting" code path. *)
+  (* This test case (lots of changes outside range) should trigger the "shortcutting" code
+     path. *)
   Incr.Var.set input_range (Some (Incl 4, Incl 5));
   Incr.stabilize ();
   Incr.Var.set
@@ -132,7 +132,8 @@ module Test_operation = struct
 end
 
 module Initial_state : sig
-  (* Not included directly as [Int.Map] so that [@@deriving quickcheck] will work correctly. *)
+  (* Not included directly as [Int.Map] so that [@@deriving quickcheck] will work
+     correctly. *)
   type t = int Int.Map.t [@@deriving sexp_of]
 
   include Quickcheckable.S with type t := t
@@ -597,8 +598,8 @@ let%expect_test "subrange_by_rank is consistent between lower bounds" =
 
 (* Naively collect elements between [from] and [to_], inclusive.
 
-   This is purposedly not using Map.nth + Incr_map.subrange to be more different from
-   the Incr_map.subrange_by_rank implementation to avoid same bugs in both.
+   This is purposedly not using Map.nth + Incr_map.subrange to be more different from the
+   Incr_map.subrange_by_rank implementation to avoid same bugs in both.
 *)
 let subrange_by_rank_reference m (from, to_) =
   let comparator = Map.comparator_s m in
