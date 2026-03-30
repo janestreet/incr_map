@@ -1,7 +1,19 @@
 open! Core
-open Incr_map_collate
+module Collate_params = Collate_protocol.Collate_params
 module Generator = Base_quickcheck.Generator
 open Generator.Let_syntax
+
+(** Generate unique keys to avoid duplicate key issues *)
+module Unique_key_generator = struct
+  type t = { mutable counter : int }
+
+  let create () = { counter = 0 }
+
+  let next t ~base =
+    t.counter <- t.counter + 1;
+    [%string "%{base}_%{t.counter#Int}"]
+  ;;
+end
 
 module Filter = struct
   type t =
@@ -123,6 +135,68 @@ let params_gen =
   and order = order_gen
   and widen_before = Int.gen_incl (-2) 5
   and widen_after = Int.gen_incl (-2) 5 in
+  { Collate_params.filter
+  ; order
+  ; key_range
+  ; rank_range
+  ; widen_range_by = widen_before, widen_after
+  }
+;;
+
+let rank_gen_for_size ~max_size =
+  Generator.union
+    [ (let%map n = Int.gen_incl 0 (max_size + 5) in
+       Collate_params.Rank.From_start n)
+    ; (let%map n = Int.gen_incl 0 (max_size + 5) in
+       Collate_params.Rank.From_end n)
+    ]
+;;
+
+let rank_range_gen_for_size ~max_size =
+  let rank = rank_gen_for_size ~max_size in
+  Generator.weighted_union
+    [ 2.0, Generator.return Collate_params.Which_range.All_rows
+    ; ( 1.0
+      , let%map x = rank in
+        Collate_params.Which_range.From x )
+    ; ( 1.0
+      , let%map x = rank in
+        Collate_params.Which_range.To x )
+    ; ( 1.0
+      , let%map x = rank
+        and y = rank in
+        Collate_params.Which_range.Between (x, y) )
+    ]
+;;
+
+let key_range_gen_from_keys ~keys =
+  let key_gen =
+    if List.is_empty keys
+    then String.quickcheck_generator
+    else Generator.union [ Generator.of_list keys; String.quickcheck_generator ]
+  in
+  Generator.weighted_union
+    [ 2.0, Generator.return Collate_params.Which_range.All_rows
+    ; ( 1.0
+      , let%map k = key_gen in
+        Collate_params.Which_range.From k )
+    ; ( 1.0
+      , let%map k = key_gen in
+        Collate_params.Which_range.To k )
+    ; ( 1.0
+      , let%map k1 = key_gen
+        and k2 = key_gen in
+        Collate_params.Which_range.Between (k1, k2) )
+    ]
+;;
+
+let params_gen_for_keys ~filter_gen ~order_gen ~keys =
+  let%map key_range = key_range_gen_from_keys ~keys
+  and rank_range = rank_range_gen_for_size ~max_size:(List.length keys)
+  and filter = filter_gen
+  and order = order_gen
+  and widen_before = Int.gen_incl 0 10
+  and widen_after = Int.gen_incl 0 10 in
   { Collate_params.filter
   ; order
   ; key_range

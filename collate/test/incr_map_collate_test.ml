@@ -104,6 +104,11 @@ let print_res ?(full_sexp = false) t =
 
 let modify_map t ~f = Incr.Var.set t.map (f (Incr.Var.value t.map))
 
+let modify_map_and_stabilize t ~f =
+  modify_map t ~f;
+  Incr.stabilize ()
+;;
+
 let set_collate ?filter ?rank_range ?key_range ?order t =
   let collate = Incr.Var.value t.collate in
   let collate =
@@ -686,16 +691,16 @@ let%expect_test "don't trigger rebalance" =
      (range_widened_by (0 0))
      (num_unfiltered_rows 2))
     |}];
-  modify_map t ~f:(Map.add_exn ~key:"AA" ~data:(0, 50.));
-  modify_map t ~f:(Map.add_exn ~key:"AAA" ~data:(0, 75.));
-  modify_map t ~f:(Map.add_exn ~key:"AAAA" ~data:(0, 87.));
-  modify_map t ~f:(Map.add_exn ~key:"AAAAA" ~data:(0, 93.));
-  modify_map t ~f:(Map.add_exn ~key:"AAAAAA" ~data:(0, 96.));
-  modify_map t ~f:(Map.add_exn ~key:"AAAAAAA" ~data:(0, 98.));
-  modify_map t ~f:(Map.add_exn ~key:"AAAAAAAA" ~data:(0, 99.));
+  modify_map_and_stabilize t ~f:(Map.add_exn ~key:"AA" ~data:(0, 50.));
+  modify_map_and_stabilize t ~f:(Map.add_exn ~key:"AAA" ~data:(0, 75.));
+  modify_map_and_stabilize t ~f:(Map.add_exn ~key:"AAAA" ~data:(0, 87.));
+  modify_map_and_stabilize t ~f:(Map.add_exn ~key:"AAAAA" ~data:(0, 93.));
+  modify_map_and_stabilize t ~f:(Map.add_exn ~key:"AAAAAA" ~data:(0, 96.));
+  modify_map_and_stabilize t ~f:(Map.add_exn ~key:"AAAAAAA" ~data:(0, 98.));
+  modify_map_and_stabilize t ~f:(Map.add_exn ~key:"AAAAAAAA" ~data:(0, 99.));
   let next_key = ref "AAAAAAAAA" in
   for _ = 1 to 26 do
-    modify_map t ~f:(Map.add_exn ~key:!next_key ~data:(0, 0.));
+    modify_map_and_stabilize t ~f:(Map.add_exn ~key:!next_key ~data:(0, 0.));
     next_key := !next_key ^ "A"
   done;
   (* Still didn't need rebalace *)
@@ -746,7 +751,7 @@ let%expect_test "don't trigger rebalance" =
      (num_unfiltered_rows 35))
     |}];
   (* But now it does *)
-  modify_map t ~f:(Map.add_exn ~key:!next_key ~data:(0, 0.));
+  modify_map_and_stabilize t ~f:(Map.add_exn ~key:!next_key ~data:(0, 0.));
   print_res ~full_sexp:true t;
   [%expect
     {|
@@ -1261,5 +1266,5 @@ module%test [@name "new API"] _ = struct
   ;;
 end
 
-module Quickcheck_generators = Quickcheck_generators
-module Incr_map_collate_non_incremental = Incr_map_collate_non_incremental
+module Quickcheck_generators = Collate_protocol_test.Quickcheck_generators
+module Incr_map_collate_non_incremental = Collate_reference

@@ -32,6 +32,37 @@ module Stable = struct
         | To a -> To (f a)
         | Between (a, b) -> Between (f a, f b)
       ;;
+
+      module Diff = struct
+        include Diff
+
+        let map t ~f_key ~f_key_diff =
+          match t with
+          | Set_to_all_rows -> Set_to_all_rows
+          | Set_to_from k -> Set_to_from (f_key k)
+          | Set_to_to k -> Set_to_from (f_key k)
+          | Set_to_between (from, to_) -> Set_to_between (f_key from, f_key to_)
+          | Diff_from k -> Diff_from (f_key_diff k)
+          | Diff_to k -> Diff_from (f_key_diff k)
+          | Diff_between tuple_diff ->
+            let l =
+              (tuple_diff
+                : _ Diffable.Tuples.Tuple2.Diff.t
+                :> _ Diffable.Tuples.Tuple2.Diff.Entry_diff.t list)
+            in
+            let t1 =
+              List.find_map l ~f:(function
+                | T1 k_diff -> Some (f_key_diff k_diff)
+                | _ -> None)
+            in
+            let t2 =
+              List.find_map l ~f:(function
+                | T2 k_diff -> Some (f_key_diff k_diff)
+                | _ -> None)
+            in
+            Diff_between (Diffable.Tuples.Tuple2.Diff.create ?t1 ?t2 ())
+        ;;
+      end
     end
   end
 

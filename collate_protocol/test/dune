@@ -1,0 +1,5 @@
+(library
+ (name collate_protocol_test)
+ (libraries collate_protocol core ppx_diff.diffable expect_test_helpers_core)
+ (preprocess
+  (pps ppx_jane)))

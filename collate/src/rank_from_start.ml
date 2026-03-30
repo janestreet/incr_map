@@ -1,4 +1,5 @@
 open! Core
+open Collate_protocol
 open Incremental.Let_syntax
 
 type t = int

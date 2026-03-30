@@ -1,5 +1,5 @@
 open! Core
-open Incr_map_collate
+open Collate_protocol
 
 let apply_filter filter_to_predicate filter (lst : (string * int) list) =
   match filter_to_predicate filter with

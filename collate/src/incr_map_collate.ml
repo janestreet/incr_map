@@ -1,17 +1,10 @@
 open! Core
+open Collate_protocol
 module Collate_params = Collate_params
 module Collated = Collated
 module Store = Incr_memoize.Store
 module Store_params = Incr_memoize.Store_params
-
-module Compare = struct
-  type ('k, 'v, 'cmp) t =
-    | Unchanged
-    | Reversed
-    | Custom_by_value of { compare : 'v -> 'v -> int }
-    | Custom_by_key_and_value of { compare : 'k * 'v -> 'k * 'v -> int }
-  [@@deriving sexp_of]
-end
+module Compare = Compare
 
 module Custom_tuple_comparator = struct
   include%template Comparator.Derived2 [@mode portable] (struct

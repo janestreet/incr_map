@@ -62,7 +62,16 @@ val insert_after : 'a t -> key:Key.t -> 'a -> 'a t
 
 module Stable : sig
   module V1 : sig
-    type nonrec 'a t = 'a t
-    [@@deriving sexp, bin_io, compare, diff, stable_witness, equal]
+    type nonrec 'a t = 'a t [@@deriving sexp, bin_io, compare, stable_witness, equal]
+
+    module Diff : sig
+      include Diffable.Diff.S1 with type 'a derived_on := 'a t
+
+      val map
+        :  ('a, 'a_diff) t
+        -> f_value:('a -> 'b)
+        -> f_value_diff:('a_diff -> 'b_diff)
+        -> ('b, 'b_diff) t
+    end
   end
 end

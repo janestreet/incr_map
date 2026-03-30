@@ -1,6 +1,14 @@
 open! Core
-open Incr_map_collate
+module Collate_params = Collate_protocol.Collate_params
 module Generator = Base_quickcheck.Generator
+
+(** Generate unique keys to avoid duplicate key issues *)
+module Unique_key_generator : sig
+  type t
+
+  val create : unit -> t
+  val next : t -> base:string -> string
+end
 
 module Filter : sig
   type t =
@@ -31,4 +39,20 @@ val key_range_gen : string Collate_params.Which_range.t Generator.t
 val filter_gen : Filter.t Generator.t
 val order_gen : Order.t Generator.t
 val params_gen : (String.t, Filter.t, Order.t) Collate_params.t Generator.t
+val rank_gen_for_size : max_size:int -> Collate_params.Rank.t Generator.t
+
+val rank_range_gen_for_size
+  :  max_size:int
+  -> Collate_params.Rank.t Collate_params.Which_range.t Generator.t
+
+val key_range_gen_from_keys
+  :  keys:string list
+  -> string Collate_params.Which_range.t Generator.t
+
+val params_gen_for_keys
+  :  filter_gen:'filter Generator.t
+  -> order_gen:'order Generator.t
+  -> keys:string list
+  -> (string, 'filter, 'order) Collate_params.t Generator.t
+
 val operation_order_gen : [ `Filter_first | `Sort_first ] Generator.t
