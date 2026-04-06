@@ -1,0 +1,7 @@
+(library
+ (name collate_protocol)
+ (public_name incr_map.collate_protocol)
+ (libraries core legacy_diffable opaque_map ppx_stable_witness.stable_witness
+   streamable)
+ (preprocess
+  (pps ppx_jane ppx_diff.ppx_diff)))

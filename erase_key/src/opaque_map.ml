@@ -34,6 +34,18 @@ module Stable = struct
     [@@deriving sexp, bin_io, compare, diff ~stable_version:1, stable_witness]
 
     let equal equal_v = Core.Map.equal equal_v
+
+    module Diff = struct
+      include Diff
+
+      let map t ~f_value ~f_value_diff =
+        List.map t ~f:(function
+          | Diffable.Map_diff.Stable.V1.Change.Remove k_opaque ->
+            Diffable.Map_diff.Stable.V1.Change.Remove k_opaque
+          | Add (k_opaque, a) -> Add (k_opaque, f_value a)
+          | Diff (k_opaque, a_diff) -> Diff (k_opaque, f_value_diff a_diff))
+      ;;
+    end
   end
 end
 
@@ -46,6 +58,54 @@ let with_comparator x f =
 let nearest map k =
   ( Map.closest_key map `Less_than k |> Option.map ~f:snd
   , Map.closest_key map `Greater_than k |> Option.map ~f:snd )
+;;
+
+(* To avoid a degenerate case when inserting where the insertions are sorted (and so the
+   denominator doubles with every insertion) we can perform insertions in a more evenly
+   distributed order where each subsequent insertions each bisect a previous pair of
+   insertions. *)
+let distribute_elements_evenly (ls : 'a list) : 'a list =
+  let rec split_across ~(ls : 'a list) (acc1 : 'a list) (acc2 : 'a list) =
+    match ls with
+    | [] -> acc1, acc2
+    | a :: [] -> a :: acc1, acc2
+    | a :: b :: ls -> split_across ~ls (a :: acc1) (b :: acc2)
+  in
+  let rec traverse_layers ~(ls : 'a list) (acc : 'a list) : 'a list =
+    if List.is_empty ls
+    then acc
+    else (
+      let acc, ls = split_across ~ls acc [] in
+      traverse_layers ~ls acc)
+  in
+  traverse_layers ~ls []
+;;
+
+let%expect_test "distribute_elements_evenly" =
+  let ls = [] in
+  let bf = distribute_elements_evenly ls in
+  print_s [%message (bf : int list)];
+  [%expect {| (bf ()) |}];
+  let ls = [ 0 ] in
+  let bf = distribute_elements_evenly ls in
+  print_s [%message (bf : int list)];
+  [%expect {| (bf (0)) |}];
+  let ls = [ 1; 2; 3 ] in
+  let bf = distribute_elements_evenly ls in
+  print_s [%message (bf : int list)];
+  [%expect {| (bf (2 3 1)) |}];
+  let ls = [ 1; 2; 3; 4 ] in
+  let bf = distribute_elements_evenly ls in
+  print_s [%message (bf : int list)];
+  [%expect {| (bf (2 4 3 1)) |}];
+  let ls = [ 1; 2; 3; 4; 5; 6; 7 ] in
+  let bf = distribute_elements_evenly ls in
+  print_s [%message (bf : int list)];
+  [%expect {| (bf (4 2 6 7 5 3 1)) |}];
+  let ls = [ 1; 2; 3; 4; 5; 6; 7; 8; 9; 10 ] in
+  let bf = distribute_elements_evenly ls in
+  print_s [%message (bf : int list)];
+  [%expect {| (bf (8 4 2 6 10 9 7 5 3 1)) |}]
 ;;
 
 let ( + ) = Bignum.( + )
@@ -144,20 +204,27 @@ let erase_key_incrementally
       List.fold l ~init:acc ~f:(fun acc (key, data) -> add ~key ~data acc)
     ;;
 
-    let process_removals_and_additions
-      (module M : Comparator.S with type comparator_witness = cmp and type t = key)
-      acc
-      =
+    let process_removals_and_additions acc =
       let acc = List.fold acc.removals ~init:acc ~f:(fun acc key -> remove ~key acc) in
       let acc =
-        let lower_than_lowest, rest =
+        let lower_than_lowest, middle, higher_than_highest =
           match Map.min_elt acc.key_to_bignum with
-          | None -> [], acc.additions
+          | None -> [], [], acc.additions
           | Some (lowest, _) ->
-            List.partition_tf acc.additions ~f:(fun (a, _) ->
-              Int.((Comparator.compare M.comparator) a lowest < 0))
+            let highest, _ = Map.max_elt_exn acc.key_to_bignum in
+            List.partition3_map acc.additions ~f:(fun addition ->
+              let cmp = Comparator.compare (Comparator.of_module acc.comparator) in
+              let key, _ = addition in
+              if Int.(cmp key lowest < 0)
+              then `Fst addition
+              else if Int.(cmp key highest < 0)
+              then `Snd addition
+              else `Trd addition)
         in
-        acc |> add_all lower_than_lowest |> add_all (List.rev rest)
+        acc
+        |> add_all lower_than_lowest
+        |> add_all (distribute_elements_evenly middle)
+        |> add_all (List.rev higher_than_highest)
       in
       { acc with removals = []; additions = [] }
     ;;
@@ -179,8 +246,8 @@ let erase_key_incrementally
       of_maps acc.comparator ~key_to_bignum ~out
     ;;
 
-    let finalize cmp acc =
-      let acc = process_removals_and_additions cmp acc in
+    let finalize acc =
+      let acc = process_removals_and_additions acc in
       if acc.rebalance_necessary then rebalance acc else acc
     ;;
   end
@@ -204,7 +271,7 @@ let erase_key_incrementally
         ~add:(fun ~key ~data acc -> { acc with additions = (key, data) :: acc.additions })
         ~remove:(fun ~key ~data:_ acc -> { acc with removals = key :: acc.removals })
         ~update:(fun ~key ~old_data:_ ~new_data:data acc -> Acc.update ~key ~data acc)
-        ~finalize:(Acc.finalize cmp)
+        ~finalize:Acc.finalize
         map)
   in
   out

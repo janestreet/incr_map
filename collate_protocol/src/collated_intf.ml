@@ -9,7 +9,7 @@ module type Parametrized = sig @@ portable
       To get an implementation of [Diffable] interface, you'll need to instantiate
       [Make_concrete]. *)
 
-  type ('k, 'v) t : value mod contended portable with 'k with 'v
+  type (!'k, !'v) t : value mod contended portable with 'k with 'v
   [@@deriving sexp_of, compare, equal]
 
   module (Unstable @@ nonportable) : sig @@ portable
@@ -26,6 +26,7 @@ module type Parametrized = sig @@ portable
   val first : ('k, 'v) t -> ('k * 'v) option
   val last : ('k, 'v) t -> ('k * 'v) option
   val mapi : ('k, 'v1) t -> f:('k -> 'v1 -> 'v2) -> ('k, 'v2) t
+  val map_keys : ('k1, 'v1) t -> f:('k1 -> 'k2) -> ('k2, 'v1) t
   val length : _ t -> int
 
   (** Total number of rows before filtering *)
@@ -34,10 +35,12 @@ module type Parametrized = sig @@ portable
   (** Total number of rows after filtering, but before limiting to range. *)
   val num_filtered_rows : _ t -> int
 
-  (** Total number of rows that preceed the rank-range and key-range ranges. *)
+  (** Total number of rows that preceed the rank-range and key-range ranges. This value
+      does not take range widening into account. *)
   val num_before_range : _ t -> int
 
-  (** Total number of rows that follow the rank-range and key-range ranges. *)
+  (** Total number of rows that follow the rank-range and key-range ranges. This value
+      does not take range widening into account. *)
   val num_after_range : _ t -> int
 
   (** The key range this result was computed for *)
@@ -134,7 +137,20 @@ module type Collated = sig
 
       val empty : _ t @@ nonportable
 
-      include Diffable.S2 with type ('k, 'v) t := ('k, 'v) t @@ nonportable
+      module Diff : sig
+        include Diffable.Diff.S2 with type ('k, 'v) derived_on := ('k, 'v) t
+
+        val of_v1 : ('k, 'v, 'k_diff, 'v_diff) V1.Diff.t -> ('k, 'v, 'k_diff, 'v_diff) t
+        val to_v1 : ('k, 'v, 'k_diff, 'v_diff) t -> ('k, 'v, 'k_diff, 'v_diff) V1.Diff.t
+
+        val map
+          :  ('k_a, 'v_a, 'k_a_diff, 'v_a_diff) t
+          -> f_key:('k_a -> 'k_b)
+          -> f_key_diff:('k_a_diff -> 'k_b_diff)
+          -> f_value:('v_a -> 'v_b)
+          -> f_value_diff:('v_a_diff -> 'v_b_diff)
+          -> ('k_b, 'v_b, 'k_b_diff, 'v_b_diff) t
+      end
 
       val of_v1 : ('k, 'v) V1.t -> ('k, 'v) t
       val to_v1 : ('k, 'v) t -> ('k, 'v) V1.t

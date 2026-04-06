@@ -3,4 +3,5 @@
  (public_name incr_map.erase_key)
  (preprocess
   (pps ppx_pattern_bind ppx_jane ppx_diff.ppx_diff))
- (libraries bignum.bigint bignum core incr_map incremental))
+ (libraries bignum.bigint bignum core incr_map incremental
+   ppx_stable_witness.stable_witness))

@@ -49,10 +49,9 @@ module Parametrized = struct
         { data : ('k * 'v) Opaque_map.Stable.V1.t
         ; num_filtered_rows : int
         ; key_range : 'k Collate_params.Stable.Which_range.V1.t
-        (** Ranges that this value was computed for *)
         ; rank_range : int Collate_params.Stable.Which_range.V1.t
         ; num_before_range : int
-        ; range_widened_by : int * int
+        ; range_widened_by : int * int (* Added *)
         ; num_unfiltered_rows : int
         }
       [@@deriving
@@ -64,6 +63,168 @@ module Parametrized = struct
         , stable_witness
         , compare
         , equal]
+
+      module Diff = struct
+        include Diff
+
+        let of_v1 v1 =
+          let l = (v1 : _ V1.Diff.t :> _ V1.Diff.Field_diff.t list) in
+          let data =
+            List.find_map l ~f:(function
+              | Data data -> Some data
+              | _ -> None)
+          in
+          let num_filtered_rows =
+            List.find_map l ~f:(function
+              | Num_filtered_rows num_filtered_rows -> Some num_filtered_rows
+              | _ -> None)
+          in
+          let key_range =
+            List.find_map l ~f:(function
+              | Key_range key_range -> Some key_range
+              | _ -> None)
+          in
+          let rank_range =
+            List.find_map l ~f:(function
+              | Rank_range rank_range -> Some rank_range
+              | _ -> None)
+          in
+          let num_before_range =
+            List.find_map l ~f:(function
+              | Num_before_range num_before_range -> Some num_before_range
+              | _ -> None)
+          in
+          let num_unfiltered_rows =
+            List.find_map l ~f:(function
+              | Num_unfiltered_rows num_unfiltered_rows -> Some num_unfiltered_rows
+              | _ -> None)
+          in
+          create
+            ?data
+            ?num_filtered_rows
+            ?key_range
+            ?rank_range
+            ?num_before_range
+            ?num_unfiltered_rows
+            ()
+        ;;
+
+        let to_v1 t =
+          let l = (t : _ t :> _ Field_diff.t list) in
+          let data =
+            List.find_map l ~f:(function
+              | Data data -> Some data
+              | _ -> None)
+          in
+          let num_filtered_rows =
+            List.find_map l ~f:(function
+              | Num_filtered_rows num_filtered_rows -> Some num_filtered_rows
+              | _ -> None)
+          in
+          let key_range =
+            List.find_map l ~f:(function
+              | Key_range key_range -> Some key_range
+              | _ -> None)
+          in
+          let rank_range =
+            List.find_map l ~f:(function
+              | Rank_range rank_range -> Some rank_range
+              | _ -> None)
+          in
+          let num_before_range =
+            List.find_map l ~f:(function
+              | Num_before_range num_before_range -> Some num_before_range
+              | _ -> None)
+          in
+          let num_unfiltered_rows =
+            List.find_map l ~f:(function
+              | Num_unfiltered_rows num_unfiltered_rows -> Some num_unfiltered_rows
+              | _ -> None)
+          in
+          V1.Diff.create
+            ?data
+            ?num_filtered_rows
+            ?key_range
+            ?rank_range
+            ?num_before_range
+            ?num_unfiltered_rows
+            ()
+        ;;
+
+        let map t ~f_key ~f_key_diff ~f_value ~f_value_diff =
+          let l = (t : _ t :> _ Field_diff.t list) in
+          let data =
+            List.find_map l ~f:(function
+              | Data data ->
+                Some
+                  (Opaque_map.Stable.V1.Diff.map
+                     data
+                     ~f_value:(fun (k, a) -> f_key k, f_value a)
+                     ~f_value_diff:(fun tuple_diff ->
+                       let l =
+                         (tuple_diff
+                           : _ Diffable.Tuples.Tuple2.Diff.t
+                           :> _ Diffable.Tuples.Tuple2.Diff.Entry_diff.t list)
+                       in
+                       let t1 =
+                         List.find_map l ~f:(function
+                           | T1 k_diff -> Some (f_key_diff k_diff)
+                           | _ -> None)
+                       in
+                       let t2 =
+                         List.find_map l ~f:(function
+                           | T2 a_diff -> Some (f_value_diff a_diff)
+                           | _ -> None)
+                       in
+                       Diffable.Tuples.Tuple2.Diff.create ?t1 ?t2 ()))
+              | _ -> None)
+          in
+          let num_filtered_rows =
+            List.find_map l ~f:(function
+              | Num_filtered_rows num_filtered_rows -> Some num_filtered_rows
+              | _ -> None)
+          in
+          let key_range =
+            List.find_map l ~f:(function
+              | Key_range key_range ->
+                Some
+                  (Collate_params.Stable.Which_range.V1.Diff.map
+                     key_range
+                     ~f_key
+                     ~f_key_diff)
+              | _ -> None)
+          in
+          let rank_range =
+            List.find_map l ~f:(function
+              | Rank_range rank_range -> Some rank_range
+              | _ -> None)
+          in
+          let num_before_range =
+            List.find_map l ~f:(function
+              | Num_before_range num_before_range -> Some num_before_range
+              | _ -> None)
+          in
+          let num_unfiltered_rows =
+            List.find_map l ~f:(function
+              | Num_unfiltered_rows num_unfiltered_rows -> Some num_unfiltered_rows
+              | _ -> None)
+          in
+          let range_widened_by =
+            List.find_map l ~f:(function
+              | Range_widened_by range_widened_by -> Some range_widened_by
+              | _ -> None)
+          in
+          create
+            ?data
+            ?num_filtered_rows
+            ?key_range
+            ?rank_range
+            ?num_before_range
+            ?num_unfiltered_rows
+            ?range_widened_by
+            ()
+        ;;
+      end
 
       (* NB: ppx_stable_record doesn't support portability so we need to implement these
          by hand *)
@@ -106,6 +267,13 @@ module Parametrized = struct
       let last t = Map.max_elt t.data |> Option.map ~f:snd
       let length t = Map.length t.data
       let mapi t ~f = { t with data = Map.map t.data ~f:(fun (k, v) -> k, f k v) }
+
+      let map_keys t ~f =
+        { t with
+          data = Map.map t.data ~f:(fun (k, v) -> f k, v)
+        ; key_range = Which_range.map ~f t.key_range
+        }
+      ;;
     end
   end
 
@@ -135,8 +303,12 @@ module Parametrized = struct
   let to_stable_v1 (t : ('k, 'v) t) : ('k, 'v) Stable.V1.t = Stable.V2.to_v1 t
   let empty = Stable.V2.empty
 
-  let num_after_range { num_before_range; num_filtered_rows; data; _ } =
-    num_filtered_rows - num_before_range - Map.length data
+  let num_after_range { num_before_range; num_filtered_rows; data; range_widened_by; _ } =
+    let widened_by_before, widened_by_after = range_widened_by in
+    let pre_widened_data_length =
+      Map.length data - widened_by_before - widened_by_after
+    in
+    num_filtered_rows - num_before_range - pre_widened_data_length
   ;;
 
   let fold = Stable.V2.fold
@@ -147,6 +319,7 @@ module Parametrized = struct
   let last = Stable.V2.last
   let mapi = Stable.V2.mapi
   let length = Stable.V2.length
+  let map_keys = Stable.V2.map_keys
 
   module Private = struct
     let create = Stable.V2.Fields.create

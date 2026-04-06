@@ -9,7 +9,7 @@ open! Core
 
 type t = int
 
-val of_rank : data_length:int -> Collate_params.Rank.t -> t
+val of_rank : data_length:int -> Collate_protocol.Collate_params.Rank.t -> t
 
 module Range : sig
   type t = int Maybe_bound.t * int Maybe_bound.t [@@deriving sexp_of, equal]
@@ -36,6 +36,7 @@ module Range : sig
 
   val of_which_rank_range
     :  data_length:int
-    -> Collate_params.Rank.t Collate_params.Which_range.t
+    -> Collate_protocol.Collate_params.Rank.t
+         Collate_protocol.Collate_params.Which_range.t
     -> t
 end

@@ -1,6 +1,7 @@
 open! Core
 module Incr = Incremental.Make ()
 open Incr_map_collate
+module Quickcheck_generators = Collate_protocol_test.Quickcheck_generators
 module Filter = Quickcheck_generators.Filter
 
 module Order = struct
@@ -74,7 +75,7 @@ let%test_unit "collate bisimulation (with bugs 1 and 2 fixed)" =
       let non_incr_result =
         try
           Ok
-            (Incr_map_collate_non_incremental.collate
+            (Collate_reference.collate
                ~operation_order
                ~filter_to_predicate:Filter.to_predicate
                ~order_to_compare:Order.to_compare

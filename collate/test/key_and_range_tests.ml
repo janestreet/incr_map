@@ -15,14 +15,14 @@ type t =
   ; observer : Concrete.t Incr.Observer.t
   }
 
-let set_collate ?rank_range ?key_range t =
+let set_collate ?rank_range ?key_range ?widen_range_by t =
   let collate = Incr.Var.value t.collate in
   let collate =
     { Collate_params.filter = ()
     ; key_range = Option.value key_range ~default:collate.key_range
     ; rank_range = Option.value rank_range ~default:collate.rank_range
     ; order = ()
-    ; widen_range_by = collate.widen_range_by
+    ; widen_range_by = Option.value widen_range_by ~default:collate.widen_range_by
     }
   in
   Incr.Var.set t.collate collate
@@ -148,5 +148,109 @@ let%expect_test "key range followed by rank range (backwards)" =
     │ b │ 2 │
     │ c │ 3 │
     └───┴───┘
+    |}]
+;;
+
+let get_result t =
+  Incr.stabilize ();
+  Incr.Observer.value_exn t.observer
+;;
+
+(* Test that [num_before_range] and [num_after_range] are computed correctly with
+   [widen_range_by].
+
+   The intent is that these values represent the pre-widened range, so a user can then
+   derive other offset values using [range_widened_by]. *)
+let%expect_test "num_before_range and num_after_range with widen_range_by" =
+  (* Create a map with 10 elements *)
+  let map =
+    String.Map.of_alist_exn
+      [ "a", 0; "b", 1; "c", 2; "d", 3; "e", 4; "f", 5; "g", 6; "h", 7; "i", 8; "j", 9 ]
+  in
+  (* Start with rank_range = [3, 6], which should select d, e, f, g (4 elements) *)
+  let t =
+    init ~key_range:All_rows ~rank_range:(Between (From_start 3, From_start 6)) map
+  in
+  Incr.stabilize ();
+  [%expect
+    {|
+    ┌┬┬┬┬┬┬┬┐
+    ├┴┴┴┼┴┴┴┤
+    │ d │ 3 │
+    │ e │ 4 │
+    │ f │ 5 │
+    │ g │ 6 │
+    └───┴───┘
+    |}];
+  let result = get_result t in
+  print_s
+    [%message
+      "Without widening"
+        ~num_filtered_rows:(Collated.num_filtered_rows result : int)
+        ~num_before_range:(Collated.num_before_range result : int)
+        ~num_after_range:(Collated.num_after_range result : int)
+        ~range_widened_by:(Collated.range_widened_by result : int * int)
+        ~data_length:(Collated.length result : int)];
+  [%expect
+    {|
+    ("Without widening" (num_filtered_rows 10) (num_before_range 3)
+     (num_after_range 3) (range_widened_by (0 0)) (data_length 4))
+    |}];
+  (* Now widen by (1, 2). This should select c, d, e, f, g, h, i (7 elements) *)
+  set_collate ~widen_range_by:(1, 2) t;
+  Incr.stabilize ();
+  [%expect
+    {|
+    ┌┬┬┬┬┬┬┬┐
+    ├┴┴┴┼┴┴┴┤
+    │ c │ 2 │
+    │ d │ 3 │
+    │ e │ 4 │
+    │ f │ 5 │
+    │ g │ 6 │
+    │ h │ 7 │
+    │ i │ 8 │
+    └───┴───┘
+    |}];
+  let result = get_result t in
+  print_s
+    [%message
+      "With widening (1, 2)"
+        ~num_filtered_rows:(Collated.num_filtered_rows result : int)
+        ~num_before_range:(Collated.num_before_range result : int)
+        ~num_after_range:(Collated.num_after_range result : int)
+        ~range_widened_by:(Collated.range_widened_by result : int * int)
+        ~data_length:(Collated.length result : int)];
+  [%expect
+    {|
+    ("With widening (1, 2)" (num_filtered_rows 10) (num_before_range 3)
+     (num_after_range 3) (range_widened_by (1 2)) (data_length 7))
+    |}];
+  (* Test edge case: widening at the start *)
+  set_collate ~rank_range:(Between (From_start 0, From_start 2)) ~widen_range_by:(2, 1) t;
+  Incr.stabilize ();
+  [%expect
+    {|
+    ┌┬┬┬┬┬┬┬┐
+    ├┴┴┴┼┴┴┴┤
+    │ a │ 0 │
+    │ b │ 1 │
+    │ c │ 2 │
+    │ d │ 3 │
+    └───┴───┘
+    |}];
+  let result = get_result t in
+  print_s
+    [%message
+      "Widening at start (clamped)"
+        ~num_filtered_rows:(Collated.num_filtered_rows result : int)
+        ~num_before_range:(Collated.num_before_range result : int)
+        ~num_after_range:(Collated.num_after_range result : int)
+        ~range_widened_by:(Collated.range_widened_by result : int * int)
+        ~data_length:(Collated.length result : int)];
+  [%expect
+    {|
+    ("Widening at start (clamped)" (num_filtered_rows 10) (num_before_range 0)
+     (num_after_range 7) (range_widened_by (0 1)) (data_length 4))
     |}]
 ;;

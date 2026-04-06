@@ -1,6 +1,7 @@
 (library
  (name incr_map_collate_test)
- (libraries core expect_test_helpers_core expectable incr_map
-   incr_map_collate incremental.memoize incremental)
+ (libraries collate_protocol_test collate_reference core
+   expect_test_helpers_core expectable incr_map incr_map_collate
+   incremental.memoize incremental)
  (preprocess
   (pps ppx_jane ppx_diff.ppx_diff)))

@@ -64,7 +64,17 @@ module Stable : sig
   module Which_range : sig
     module V1 : sig
       type 'a t = 'a Which_range.t
-      [@@deriving sexp, bin_io, compare, equal, diff, stable_witness]
+      [@@deriving sexp, bin_io, compare, equal, stable_witness]
+
+      module Diff : sig
+        include Diffable.Diff.S1 with type 'a derived_on = 'a t
+
+        val map
+          :  ('a, 'a_diff) t
+          -> f_key:('a -> 'b)
+          -> f_key_diff:('a_diff -> 'b_diff)
+          -> ('b, 'b_diff) t
+      end
     end
   end
 
