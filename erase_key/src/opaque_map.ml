@@ -279,6 +279,11 @@ let erase_key_incrementally
 
 let empty = Bignum.Map.empty
 
+let init len ~f =
+  Map.of_increasing_iterator_unchecked (module Bignum) ~len ~f:(fun i ->
+    Bignum.(of_int i * separation), f i)
+;;
+
 let of_list xs =
   Bignum.Map.of_alist_exn (List.mapi xs ~f:(fun i x -> Bignum.(of_int i * separation), x))
 ;;
@@ -286,6 +291,12 @@ let of_list xs =
 let of_array arr =
   Bignum.Map.of_sorted_array_unchecked
     (Array.mapi arr ~f:(fun i x -> Bignum.(of_int i * separation), x))
+;;
+
+let of_sequence seq =
+  Bignum.Map.of_increasing_sequence
+    (Sequence.mapi seq ~f:(fun i x -> Bignum.(of_int i * separation), x))
+  |> Or_error.ok_exn
 ;;
 
 let insert_before map ~key elem =

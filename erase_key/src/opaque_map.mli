@@ -37,8 +37,10 @@ val erase_key_incrementally
     But if possible, consider [erase_key_incrementally]. *)
 
 val empty : _ t
+val init : int -> f:(int -> 'a) -> 'a t
 val of_list : 'a list -> 'a t
 val of_array : 'a array -> 'a t
+val of_sequence : 'a Sequence.t -> 'a t
 
 (** [append map elem] adds [elem] to the end of the map. *)
 val append : 'a t -> 'a -> 'a t

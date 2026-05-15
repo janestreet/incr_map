@@ -268,3 +268,32 @@ let%expect_test "insert_before and insert_after with non-existent key" =
   print_s [%sexp (map : string Opaque_map.t)];
   [%expect {| ((-100 a) (50 d) (100 c)) |}]
 ;;
+
+let%expect_test "of_sequence with empty sequence" =
+  let map = Opaque_map.of_sequence Sequence.empty in
+  print_s [%sexp (map : string Opaque_map.t)];
+  [%expect {| () |}]
+;;
+
+let%expect_test "of_sequence with single element sequence" =
+  let map = Opaque_map.of_sequence (Sequence.singleton "a") in
+  print_s [%sexp (map : string Opaque_map.t)];
+  [%expect {| ((0 a)) |}]
+;;
+
+let%expect_test "of_sequence with multiple element sequence" =
+  let map = Opaque_map.of_sequence (Sequence.of_list [ "a"; "b"; "c" ]) in
+  print_s [%sexp (map : string Opaque_map.t)];
+  [%expect {| ((0 a) (100 b) (200 c)) |}]
+;;
+
+let%expect_test "of_sequence is equivalent to of_list" =
+  let items = [ "a"; "b"; "c" ] in
+  let from_list = Opaque_map.of_list items in
+  let from_seq = Opaque_map.of_sequence (Sequence.of_list items) in
+  print_s [%sexp (from_list : string Opaque_map.t)];
+  [%expect {| ((0 a) (100 b) (200 c)) |}];
+  print_s [%sexp (from_seq : string Opaque_map.t)];
+  [%expect {| ((0 a) (100 b) (200 c)) |}];
+  assert ([%equal: string Opaque_map.t] from_list from_seq)
+;;

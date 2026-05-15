@@ -1,0 +1,6 @@
+(library
+ (name collate_shared)
+ (public_name incr_map.collate_shared)
+ (libraries collate_protocol core)
+ (preprocess
+  (pps ppx_jane)))

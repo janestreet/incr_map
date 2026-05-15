@@ -80,8 +80,7 @@ module Incr_collated_map = struct
       (* Ideally, this type would be
 
          {[
-           type ('k, 'v) t : value mod contended portable with 'k with 'v =
-             | T : ('k, 'v, _) Map.Tree.t -> ('k, 'v) t
+           type ('k, 'v) t = T : ('k, 'v, _) Map.Tree.t -> ('k, 'v) t
          ]}
 
          (which is totally safe btw), but the compiler currently doesn't support mode
