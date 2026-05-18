@@ -140,6 +140,13 @@ module type Collated = sig
       module Diff : sig
         include Diffable.Diff.S2 with type ('k, 'v) derived_on := ('k, 'v) t
 
+        val stable_witness
+          :  'k Stable_witness.t
+          -> 'v Stable_witness.t
+          -> 'k_diff Stable_witness.t
+          -> 'v_diff Stable_witness.t
+          -> ('k, 'v, 'k_diff, 'v_diff) t Stable_witness.t
+
         val of_v1 : ('k, 'v, 'k_diff, 'v_diff) V1.Diff.t -> ('k, 'v, 'k_diff, 'v_diff) t
         val to_v1 : ('k, 'v, 'k_diff, 'v_diff) t -> ('k, 'v, 'k_diff, 'v_diff) V1.Diff.t
 

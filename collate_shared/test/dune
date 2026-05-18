@@ -1,0 +1,5 @@
+(library
+ (name collate_shared_test)
+ (libraries collate_protocol collate_shared core)
+ (preprocess
+  (pps ppx_jane)))

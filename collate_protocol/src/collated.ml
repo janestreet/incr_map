@@ -67,6 +67,10 @@ module Parametrized = struct
       module Diff = struct
         include Diff
 
+        let stable_witness _ _ _ _ =
+          (* [diff ~stable_version:1] makes it stable *) Stable_witness.assert_stable
+        ;;
+
         let of_v1 v1 =
           let l = (v1 : _ V1.Diff.t :> _ V1.Diff.Field_diff.t list) in
           let data =

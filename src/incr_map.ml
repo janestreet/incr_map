@@ -41,18 +41,17 @@ module Map_option_ref : sig @@ portable
   (** Sets the ref to [Some] with the map passed in as an argument *)
   val set : ('k, 'v, 'cmp) t -> ('k, 'v, 'cmp) Map.t -> unit
 end = struct
-  (* use of uopt is ok because with this type you can't have nested uopts. *)
-  type ('k, 'v, 'cmp) t = ('k, 'v, 'cmp) Map.t Uopt.t ref
+  type ('k, 'v, 'cmp) t = ('k, 'v, 'cmp) Map.t or_null ref
 
-  let create_none () = ref (Uopt.get_none ())
-  let value_exn t = Uopt.value_exn !t
+  let create_none () = ref Null
+  let value_exn t = Or_null.value_exn !t
 
   let if_none_then_fill_with_empty_map t ~using_the_comparator_from =
-    if Uopt.is_none !t
-    then t := Uopt.some (Map.empty (Map.comparator_s using_the_comparator_from))
+    if Or_null.is_null !t
+    then t := This (Map.empty (Map.comparator_s using_the_comparator_from))
   ;;
 
-  let set t v = t := Uopt.some v
+  let set t v = t := This v
 end
 
 let within_scope ~incremental_state:state =
@@ -104,15 +103,15 @@ module Generic = struct
       in
       Option.value update ~default
     in
-    let cmp_and_init = ref (Uopt.get_none ()) in
+    let cmp_and_init = ref Null in
     with_old ~instrumentation map ~f:(fun ~old new_in ->
       let cmp, init =
-        match%optional.Uopt !cmp_and_init with
-        | Some cmp_and_init -> cmp_and_init
-        | None ->
+        match !cmp_and_init with
+        | This cmp_and_init -> cmp_and_init
+        | Null ->
           let cmp = Map.comparator_s new_in in
           let init = compute_init cmp in
-          cmp_and_init := Uopt.some (cmp, init);
+          cmp_and_init := This (cmp, init);
           cmp, init
       in
       let acc =
